@@ -170,4 +170,14 @@ class FileController extends Controller
         // Send to preview view
         return view('Admin.preview', compact('file', 'signedUrl'));
     }
+
+    public function toggleAccess($id)
+{
+    $file = File::findOrFail($id);
+
+    $file->is_public = $file->is_public == 1 ? 0 : 1;
+    $file->save();
+
+    return back()->with('success', 'File access updated successfully.');
+}
 }

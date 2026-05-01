@@ -136,12 +136,13 @@
         background: var(--card);
         border: 1px solid var(--border);
         border-radius: var(--radius);
-        overflow: hidden;
+        overflow: visible;
         box-shadow: var(--shadow-sm);
     }
     .file-table {
         width: 100%;
         border-collapse: collapse;
+        overflow: visible;
     }
     .file-table thead {
         background: #f9fafb;
@@ -174,6 +175,7 @@
         display: flex;
         align-items: center;
         gap: 10px;
+        overflow:visible;
     }
     .file-icon {
         width: 36px;
@@ -315,6 +317,37 @@
 .upload-zone:hover { border-color: #378ADD; background: #f0f7ff; }
 .upload-zone i { font-size: 2rem; color: #378ADD; margin-bottom: 8px; display: block; }
 
+/* 3-dot menu */
+.folder-menu-btn {
+    position: relative;
+    display: inline-block;
+    opacity: 1;
+}
+
+.folder-menu-btn .btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.9);
+    border: 1px solid #e5e5e5;
+    color: #666;
+    font-size: 13px;
+}
+
+.folder-menu-btn .btn:hover { 
+    background: #f0f0f0; 
+}
+
+/* Make the dropdown menu appear on the LEFT side of the three dots */
+.dropdown-menu-start {
+    right: 100% !important;
+    left: auto !important;
+    margin-right: 8px;
+}
 
 </style>
 
@@ -399,6 +432,7 @@
                 };
             @endphp
             <tr>
+                
                 <td  onclick="window.location='{{ route('files.preview', $file->id) }}'">
                     <div class="file-name-cell">
                         <div class="file-icon {{ $iconClass }}">
@@ -409,42 +443,60 @@
                     </div>
                 </td>
                 <td  onclick="window.location='{{ route('files.preview', $file->id) }}'" class="file-date">{{ $file->created_at->format('M d, Y · h:i A') }}</td>
-                <td  onclick="window.location='{{ route('files.preview', $file->id) }}'"class="file-size">{{ number_format($file->size / 1024, 2) }} KB</td>
+                <td  onclick="window.location='{{ route('files.preview', $file->id) }}'" class="file-size">{{ number_format($file->size / 1024, 2) }} KB</td>
 
                  {{-- ✅ ACTION MENU --}}
-    <td style="text-align:right; position:relative;">
-        <div class="dropdown">
-            <button class="btn btn-sm btn-light" data-bs-toggle="dropdown" style="border-radius:8px;">
-                <i class="fas fa-ellipsis-v"></i>
-            </button>
+    <td style="text-align: right; position: relative; width: 50px; vertical-align: middle;">
+    <div class="dropdown folder-menu-btn" style="display: inline-block;">
+                <button class="btn btn-sm" data-bs-toggle="dropdown" aria-expanded="false"
+                        onclick="event.stopPropagation()">
+                    <i class="bi bi-three-dots-vertical"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm"
+                    style="border-radius:10px; font-size:13px; min-width:130px;">
+                    <li>
+                        <a class="dropdown-item py-2" href="">
+                            <i class="bi bi-folder2-open me-2 text-primary"></i> Download
+                        </a>
+                    </li>
+                    <li>
+                        <button class="dropdown-item py-2"
+                                data-bs-toggle="modal"
+                                data-bs-target="">
+                            <i class="bi bi-pencil me-2 text-secondary"></i> Rename
+                        </button>
+                    </li>
+                    <li>
+    <form action="" method="POST">
+        @csrf
+        <button type="button"
+        class="dropdown-item py-2 text-warning"
+        data-bs-toggle="modal"
+        data-bs-target="#accessModal{{ $file->id }}">
 
-            <ul class="dropdown-menu dropdown-menu-end">
+    @if($file->is_public)
+        <i class="bi bi-lock-open me-2"></i> Make Private
+    @else
+        <i class="bi bi-globe me-2"></i> Make Public
+    @endif
+</button>
+    </form>
+</li>
+                    <li><hr class="dropdown-divider my-1"></li>
+                    <li>
+                        <form action="" method="POST">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="dropdown-item py-2 text-danger">
+                                <i class="bi bi-trash me-2"></i> Delete
+                            </button>
+                        </form>
+                    </li>
+                </ul>
+            </div>
+        </td>
 
-                {{-- Rename --}}
-                <li>
-                    <a class="dropdown-item" href="#">
-                        <i class="fas fa-edit me-2 text-primary"></i> Rename
-                    </a>
-                </li>
-
-                {{-- Download --}}
-                <li>
-                    <a class="dropdown-item"
-                       href=">
-                        <i class="fas fa-download me-2 text-success"></i> Download
-                    </a>
-                </li>
-
-                {{-- Manage Access --}}
-                <li>
-                    <a class="dropdown-item" href="#">
-                        <i class="fas fa-user-shield me-2 text-warning"></i> Manage Access
-                    </a>
-                </li>
-
-            </ul>
-        </div>
-    </td>
+        
             </tr>
             @empty
             <tr>
@@ -458,6 +510,43 @@
             @endforelse
         </tbody>
     </table>
+</div>
+
+<div class="modal fade" id="accessModal{{ $file->id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <h5 class="modal-title">
+          File Access Control
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        @if($file->is_public)
+            <p>Do you want to make this file <strong>Private</strong>? Only you will have access.</p>
+        @else
+            <p>Do you want to make this file <strong>Public</strong>? Anyone with the link can access it.</p>
+        @endif
+      </div>
+
+      <div class="modal-footer">
+        <form action="{{ route('file.toggleAccess', $file->id) }}" method="POST">
+            @csrf
+
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                Cancel
+            </button>
+
+            <button type="submit" class="btn btn-warning">
+                Confirm
+            </button>
+        </form>
+      </div>
+
+    </div>
+  </div>
 </div>
 
 

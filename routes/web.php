@@ -114,3 +114,6 @@ Route::post('/folders/{id}/archive', [ArchiveController::class, 'archiveFolder']
 Route::post('/archives/{id}/restore', [ArchiveController::class, 'restore'])->name('archives.restore');
 Route::get('/archives/{id}/download', [ArchiveController::class, 'download'])->name('archives.download');
 Route::delete('/archives/{id}', [ArchiveController::class, 'destroy'])->name('archives.destroy');
+
+Route::post('/file/{id}/toggle-access', [FileController::class, 'toggleAccess'])
+    ->name('file.toggleAccess');
