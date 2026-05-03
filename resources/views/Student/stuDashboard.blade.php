@@ -21,7 +21,7 @@
                     <img src="{{ asset('images/SG-logo.png') }}" alt="QSU Student Government Logo" class="sg-logo" onerror="this.onerror=null; this.src='https://via.placeholder.com/120x120?text=SG';">
                 </div>
             </div>
-            <h1 class="hero-title">Transparency Portal</h1>
+            <h1 class="hero-title">QSU Student Government</h1>
             <p class="hero-subtitle">Official documents open to all QSU students</p>
         </div>
 
@@ -99,42 +99,62 @@
 
         {{-- Contact Section --}}
         <div class="contact-modern mt-5">
-            <div class="contact-header">
-                <h2 class="section-title">
-                    <span class="material-icons-outlined" style="font-size: 32px; line-height: 1;">mail_outline</span>
-                    Need help?
-                </h2>
-                <p>Send us a message — we'll respond within 3-5 business days</p>
+    <div class="contact-header">
+        <h2 class="section-title">
+            <span class="material-icons-outlined" style="font-size: 32px; line-height: 1;">mail_outline</span>
+            Need help?
+        </h2>
+        <p>Send us a message — we'll respond within 3-5 business days</p>
+    </div>
+
+    <form id="feedbackForm" class="modern-form" method="POST" action="{{ route('send.message') }}">
+        @csrf
+
+        <div class="form-row">
+            <div class="form-group">
+                <input type="text" name="name" id="senderName"
+                    placeholder="Full name" class="modern-input" required>
             </div>
 
-            <form id="feedbackForm" class="modern-form">
-                <div class="form-row">
-                    <div class="form-group">
-                        <input type="text" id="senderName" placeholder="Full name" class="modern-input" required>
-                    </div>
-                    <div class="form-group">
-                        <input type="email" id="senderEmail" placeholder="Email address" class="modern-input" required>
-                    </div>
-                    <div class="form-group">
-                        <input type="text" id="studentId" placeholder="Student ID" class="modern-input" required>
-                    </div>
-                </div>
-                <div class="form-group full-width">
-                    <textarea id="message" rows="3" placeholder="Your message..." class="modern-input modern-textarea"></textarea>
-                </div>
-                <button type="submit" class="modern-btn">
-                    ✉️ Send message
-                </button>
-            </form>
-
-            <div id="successMsg" class="modern-success" style="display: none;">
-                ✓ Message sent to QSU Student Government
+            <div class="form-group">
+                <input type="email" name="email" id="senderEmail"
+                    placeholder="Email address" class="modern-input" required>
             </div>
 
-            <div class="contact-footer">
-                <p>Or email us directly: <strong>sg@qsu.edu.ph</strong></p>
+            <div class="form-group">
+                <input type="text" name="student_id" id="studentId"
+                    placeholder="Student ID" class="modern-input" required>
             </div>
         </div>
+
+        <div class="form-group full-width">
+            <input type="text" name="subject"
+                placeholder="Subject"
+                class="modern-input" required>
+        </div>
+
+        <div class="form-group full-width">
+            <textarea name="message" id="message" rows="4"
+                placeholder="Your message..."
+                class="modern-input modern-textarea"
+                required></textarea>
+        </div>
+
+        <button type="submit" class="modern-btn">
+            ✉️ Send message
+        </button>
+    </form>
+
+    @if(session('success'))
+        <div id="successMsg" class="modern-success mt-3">
+            ✓ {{ session('success') }}
+        </div>
+    @endif
+
+    <div class="contact-footer">
+        <p>Or email us directly: <strong>sg@qsu.edu.ph</strong></p>
+    </div>
+</div>
 
     </div>
 </div>
@@ -957,33 +977,7 @@
         });
     });
 
-    // Email Form Handler
-    const form = document.getElementById('feedbackForm');
-    const successMsg = document.getElementById('successMsg');
-
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
-
-        const name = document.getElementById('senderName').value;
-        const email = document.getElementById('senderEmail').value;
-        const studentId = document.getElementById('studentId').value;
-        const message = document.getElementById('message').value;
-
-        const sgEmail = 'sg@qsu.edu.ph';
-        const subject = encodeURIComponent(`[Transparency Portal] ${name} (${studentId})`);
-        const body = encodeURIComponent(
-            `Name: ${name}\nEmail: ${email}\nStudent ID: ${studentId}\n\nMessage:\n${message}`
-        );
-
-        window.location.href = `mailto:${sgEmail}?subject=${subject}&body=${body}`;
-
-        successMsg.style.display = 'block';
-        form.reset();
-
-        setTimeout(() => {
-            successMsg.style.display = 'none';
-        }, 5000);
-    });
+    
 
      let currentFileUrl = '';
     let currentFileName = '';

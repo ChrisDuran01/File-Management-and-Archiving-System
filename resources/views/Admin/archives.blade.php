@@ -390,9 +390,12 @@
     </div>
 
     {{-- Archive Card Grid --}}
-    <div class="archive-grid" id="archiveGrid">
+<div class="archive-grid" id="archiveGrid">
 
-        @forelse($archives as $archive)
+    @forelse($archives as $archive)
+
+        @if(is_null($archive->restored_at))
+
         <div class="archive-card"
              data-folder="{{ strtolower($archive->folder_name) }}"
              data-zip="{{ strtolower($archive->zip_name) }}"
@@ -403,67 +406,81 @@
                 <div class="folder-icon-wrap">
                     <i class="fas fa-folder"></i>
                 </div>
+
                 <div class="card-menu-wrap">
                     <button class="card-menu-btn" onclick="toggleDropdown(this)" type="button">
                         <i class="fas fa-ellipsis-v"></i>
                     </button>
+
                     <div class="card-dropdown">
+
                         {{-- Download --}}
                         <a href="{{ route('archives.download', $archive->id) }}"
                            class="card-dropdown-item">
-                            <i class="fas fa-download" style="font-size:12px;color:#378ADD;"></i> Download
+                            <i class="fas fa-download" style="font-size:12px;color:#378ADD;"></i>
+                            Download
                         </a>
+
                         {{-- Restore --}}
                         <button type="button"
                                 class="card-dropdown-item warn restore-trigger"
                                 data-id="{{ $archive->id }}"
                                 data-name="{{ $archive->folder_name }}">
-                            <i class="fas fa-undo-alt" style="font-size:12px;"></i> Restore
+                            <i class="fas fa-undo-alt" style="font-size:12px;"></i>
+                            Restore
                         </button>
+
                         <div class="card-dropdown-divider"></div>
+
                         {{-- Delete --}}
                         <button type="button"
                                 class="card-dropdown-item danger delete-trigger"
                                 data-id="{{ $archive->id }}"
                                 data-name="{{ $archive->zip_name }}">
-                            <i class="fas fa-trash" style="font-size:12px;"></i> Delete
+                            <i class="fas fa-trash" style="font-size:12px;"></i>
+                            Delete
                         </button>
+
                     </div>
                 </div>
             </div>
 
             {{-- Card Body --}}
             <div class="card-folder-name">{{ $archive->folder_name }}</div>
+
             <div class="card-zip-name">
-                <i class="fas fa-file-archive"></i>{{ $archive->zip_name }}
+                <i class="fas fa-file-archive"></i>
+                {{ $archive->zip_name }}
             </div>
 
             {{-- Card Footer --}}
             <div class="card-footer-row">
-                @if($archive->status == 'archived')
-                    <span class="status-badge badge-archived">
-                        <span class="dot"></span> Archived
-                    </span>
-                @else
-                    <span class="status-badge badge-pending">
-                        <span class="dot"></span> {{ ucfirst($archive->status) }}
-                    </span>
-                @endif
+
+                <span class="status-badge badge-archived">
+                    <span class="dot"></span> Archived
+                </span>
+
                 <span class="card-date">
                     <i class="far fa-clock" style="font-size:10px;"></i>
                     {{ $archive->archived_at ? $archive->archived_at->format('Y-m-d H:i') : 'N/A' }}
                 </span>
+
             </div>
 
         </div>
-        @empty
+
+        @endif
+
+    @empty
+
         <div class="empty-state">
             <i class="fas fa-archive"></i>
             <p>No archives found.</p>
         </div>
-        @endforelse
 
-    </div>
+    @endforelse
+
+</div>
 </div>
 
 {{-- ── Restore Modal ── --}}

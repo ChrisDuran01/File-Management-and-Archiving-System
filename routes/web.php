@@ -12,7 +12,10 @@ use App\Http\Controllers\BackupController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\ArchiveController;
+use App\Http\Controllers\MailController;
+use App\Http\Controllers\OfficerController;
 
+use Illuminate\Support\Facades\Schema;
 
 Route::get('/', [PageController::class, 'login'] );
 
@@ -65,8 +68,6 @@ Route::get('/addAdmin', [DashboardController::class, 'createOfficer'])->name('of
 // Store officer in DB
 Route::post('/manageAdmins', [DashboardController::class, 'storeOfficer'])->name('officers.store');
 
-// Show list of officers
-Route::get('/manageAdmins', [DashboardController::class, 'officer'])->name('officers.index');
 
 
 Route::get('/officers/{id}/edit', [DashboardController::class, 'edit'])->name('officers.edit');
@@ -117,3 +118,18 @@ Route::delete('/archives/{id}', [ArchiveController::class, 'destroy'])->name('ar
 
 Route::post('/file/{id}/toggle-access', [FileController::class, 'toggleAccess'])
     ->name('file.toggleAccess');
+
+Route::post('/send-message', [MailController::class, 'sendMessage'])->name('send.message');
+
+// Make sure you have this route with the correct name
+Route::get('/manageAdmins', [OfficerController::class, 'index'])->name('officers.index');
+Route::get('/officers/create', [OfficerController::class, 'create'])->name('officers.create');
+Route::post('/manageAdmins', [OfficerController::class, 'store'])->name('officers.store');
+Route::get('/officers/edit/{id}', [OfficerController::class, 'edit'])->name('officers.edit');
+Route::put('/officers/update/{id}', [OfficerController::class, 'update'])->name('officers.update');
+Route::delete('/officers/destroy/{id}', [OfficerController::class, 'destroy'])->name('officers.destroy');
+
+// Archive and restore routes
+Route::delete('/officers/archiveAll', [OfficerController::class, 'archiveAll'])->name('officers.archiveAll');
+Route::patch('/officers/reactivate/{id}', [OfficerController::class, 'reactivate'])->name('officers.reactivate');
+Route::delete('/officers/force-delete/{id}', [OfficerController::class, 'forceDelete'])->name('officers.forceDelete');
