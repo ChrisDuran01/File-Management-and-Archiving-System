@@ -133,3 +133,8 @@ Route::delete('/officers/destroy/{id}', [OfficerController::class, 'destroy'])->
 Route::delete('/officers/archiveAll', [OfficerController::class, 'archiveAll'])->name('officers.archiveAll');
 Route::patch('/officers/reactivate/{id}', [OfficerController::class, 'reactivate'])->name('officers.reactivate');
 Route::delete('/officers/force-delete/{id}', [OfficerController::class, 'forceDelete'])->name('officers.forceDelete');
+
+Route::post('/folders/archive-selected', [FolderController::class, 'archiveSelected'])
+    ->name('folders.archive.selected');
+
+Route::get('/files/{id}/download', [FileController::class, 'download'])->name('files.download');

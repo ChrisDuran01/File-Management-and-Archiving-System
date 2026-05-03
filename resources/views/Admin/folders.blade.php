@@ -301,20 +301,46 @@ body { font-family: 'Segoe UI', sans-serif; }
     <span class="folder-count">{{ $folders->count() }} folders</span>
 </div>
 
-{{-- Search Bar --}}
-<div class="mb-4">
-    <div class="search-bar">
+
+{{-- Add beside Search Bar --}}
+<div class="d-flex gap-2 flex-wrap align-items-center mb-4">
+
+    {{-- Search --}}
+    <div class="search-bar flex-grow-1">
         <form action="{{ route('search') }}" method="GET">
             <div class="input-group">
                 <input type="text" name="query" class="form-control"
-                       placeholder="Search files or folders..." required>
+                       placeholder="Search files or folders...">
                 <button class="btn" type="submit">
                     <i class="fas fa-search"></i>
                 </button>
             </div>
         </form>
     </div>
-</div>
+
+    {{-- School Year Filter --}}
+    <!--<form action="{{ route('folders.index') }}" method="GET">
+        <select name="term" class="form-select" onchange="this.form.submit()">
+            <option value="">All Terms</option>
+            <option value="2026-2027"
+                {{ request('term') == '2026-2027' ? 'selected' : '' }}>
+                SY 2026-2027
+            </option>
+            <option value="2025-2026"
+                {{ request('term') == '2025-2026' ? 'selected' : '' }}>
+                SY 2025-2026
+            </option>
+        </select>
+    </form>
+
+    {{-- Archive Button --}}
+    <button class="btn btn-warning"
+            data-bs-toggle="modal"
+            data-bs-target="#archiveFolderModal">
+        <i class="bi bi-archive me-1"></i> Archive Folders
+    </button>
+
+</div>-->
 
 {{-- Folders Grid --}}
 <div class="row g-3">
@@ -375,6 +401,96 @@ body { font-family: 'Segoe UI', sans-serif; }
 
         </div>
     </div>
+
+    {{-- ARCHIVE MULTIPLE FOLDERS MODAL --}}
+<div class="modal fade" id="archiveFolderModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+
+            <form action="{{ route('folders.archive.selected') }}" method="POST">
+                @csrf
+
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-archive me-2 text-warning"></i>
+                        Archive Selected Folders
+                    </h5>
+                    <button type="button" class="btn-close"
+                            data-bs-dismiss="modal"></button>
+                </div>
+
+                <div class="modal-body">
+
+                    <label class="fw-semibold mb-2">
+                        Select folders to archive
+                    </label>
+
+                    <div style="max-height:260px; overflow-y:auto;"
+                         class="border rounded p-2">
+
+                        @foreach($folders as $folder)
+                        <div class="form-check mb-2">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   name="folders[]"
+                                   value="{{ $folder->id }}"
+                                   id="folder{{ $folder->id }}">
+
+                            <label class="form-check-label"
+                                   for="folder{{ $folder->id }}">
+                                <i class="bi bi-folder-fill text-warning me-1"></i>
+                                {{ $folder->name }}
+                            </label>
+                        </div>
+                        @endforeach
+
+                    </div>
+
+                    <div class="mt-3">
+                        <label class="form-label">
+                            Archive Name / ZIP File
+                        </label>
+
+                        <input type="text"
+                               name="zip_name"
+                               class="form-control"
+                               placeholder="Example: SY-2026-2027-Archive.zip"
+                               required>
+                    </div>
+
+                    <div class="mt-3">
+                        <label class="form-label">
+                            School Year Tag
+                        </label>
+
+                        <select name="school_year"
+                                class="form-select">
+                            <option value="2026-2027">2026-2027</option>
+                            <option value="2025-2026">2025-2026</option>
+                        </select>
+                    </div>
+
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button"
+                            class="btn btn-light"
+                            data-bs-dismiss="modal">
+                        Cancel
+                    </button>
+
+                    <button type="submit"
+                            class="btn btn-warning">
+                        <i class="bi bi-archive me-1"></i>
+                        Archive Now
+                    </button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+</div>
 
 
     {{-- Rename Modal --}}

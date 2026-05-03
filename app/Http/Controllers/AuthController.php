@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\ActivityLog;
+use Illuminate\Support\Facades\DB;
+
 
 class AuthController extends Controller
 {
@@ -21,24 +23,48 @@ class AuthController extends Controller
     ]);
 
     if (Auth::attempt($credentials)) {
+
         $request->session()->regenerate();
 
-        // Log login activity
-        ActivityLog::create([
-            'user_name' => Auth::user()->name,
-            'activity' => 'Logged in'
-        ]);
+        $user = Auth::user();
 
-        // Check the user's position instead of role
-        if (Auth::user()->position_id == '1') {
-            return redirect('/superAdminDashboard');
-        } else {
+        // Check if user is an officer
+        $officer = DB::table('officer_terms')
+            ->where('user_id', $user->id)
+            ->first();
+
+        // If officer exists, check status
+        if ($officer) {
+
+            if ($officer->status != 'active') {
+                Auth::logout();
+
+                return back()->withErrors([
+                    'email' => 'Account disabled.'
+                ]);
+            }
+
+            ActivityLog::create([
+                'user_name' => $user->name,
+                'activity' => 'Logged in',
+                'ip_address' => $request->ip()
+            ]);
+
             return redirect('/adminDashboard');
         }
+
+        // Super Admin / Normal User
+        ActivityLog::create([
+            'user_name' => $user->name,
+            'activity' => 'Logged in',
+            'ip_address' => $request->ip()
+        ]);
+
+        return redirect('/superAdminDashboard');
     }
 
     return back()->withErrors([
-        'email' => 'Invalid email or password.',
+        'email' => 'Invalid email or password.'
     ]);
 }
 

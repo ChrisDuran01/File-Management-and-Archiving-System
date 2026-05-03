@@ -75,7 +75,7 @@ class OfficerController extends Controller
                 'status'   => 'former',
                 'term_end' => now(),
             ]);
-
+        
         return back()->with('success', 'All current officers moved to former.');
     }
 

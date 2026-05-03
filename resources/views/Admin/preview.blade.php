@@ -307,9 +307,9 @@
         </div>
 
         {{-- Download button --}}
-        <a href="{{ $signedUrl }}" class="btn-download" download>
-            <i class="fas fa-download"></i> Download
-        </a>
+        <a href="{{ route('files.download', $file->id) }}" class="btn-download">
+    <i class="fas fa-download"></i> Download
+</a>
     </div>
 
     {{-- =============================

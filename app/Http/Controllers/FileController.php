@@ -171,6 +171,30 @@ class FileController extends Controller
         return view('Admin.preview', compact('file', 'signedUrl'));
     }
 
+    public function download($id)
+{
+    $file = File::findOrFail($id);
+
+    $bucket = env('SUPABASE_BUCKET');
+    $url    = env('SUPABASE_URL');
+    $key    = env('SUPABASE_SERVICE_KEY');
+
+    $response = Http::withHeaders([
+        'Authorization' => 'Bearer ' . $key,
+        'apikey'        => $key,
+    ])->post("$url/storage/v1/object/sign/$bucket/" . $file->filepath, [
+        'expiresIn' => 3600,
+    ]);
+
+    if (!$response->successful()) {
+        return back()->with('error', 'Download failed');
+    }
+
+    $signedUrl = $url . '/storage/v1' . $response['signedURL'];
+
+    return redirect()->away($signedUrl);
+}
+
     public function toggleAccess($id)
 {
     $file = File::findOrFail($id);

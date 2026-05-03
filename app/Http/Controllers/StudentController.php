@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\File;
+use Illuminate\Support\Facades\Http;
 
 class StudentController extends Controller
 {
@@ -28,4 +29,5 @@ class StudentController extends Controller
             'fileTypes' => $files->groupBy('type')->map->count(),
         ]);
     }
+
 }

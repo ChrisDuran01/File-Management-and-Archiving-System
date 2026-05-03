@@ -120,4 +120,6 @@ class FolderController extends Controller
         // Redirect back with success message
         return redirect()->back()->with('success', 'Folder renamed successfully.');
     }
+
 }
+

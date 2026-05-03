@@ -73,7 +73,7 @@
                     <tbody>
                         @foreach($formerOfficers as $term)
                         <tr>
-                            <td>{{ $term->user->name }}</td>
+                            <td>{{ $term->user->name}}</td>
                             <td>{{ $term->user->email }}</td>
                             <td>{{ $term->position->position_name }}</td>
                             <td>{{ $term->school_year }}</td>
