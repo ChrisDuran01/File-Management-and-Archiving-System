@@ -108,12 +108,13 @@ Route::get('stuDashboard', [StudentController::class, 'dashboard'])
 Route::get('/files/{id}/preview', [FileController::class, 'preview'])->name('files.preview');
 
 Route::put('/folders/{id}', [FolderController::class, 'update'])->name('folders.update');
+Route::delete('/folders/{id}', [FolderController::class, 'destroy'])->name('folders.destroy');
 
 // Archive routes
 Route::get('/archives', [ArchiveController::class, 'index'])->name('archives.index');
-Route::post('/folders/{id}/archive', [ArchiveController::class, 'archiveFolder'])->name('folders.archive');
+Route::post('/{id}/archives', [ArchiveController::class, 'archiveFolder'])->name('folders.archive');
 Route::post('/archives/{id}/restore', [ArchiveController::class, 'restore'])->name('archives.restore');
-Route::get('/archives/{id}/download', [ArchiveController::class, 'download'])->name('archives.download');
+Route::get('/archives/{id}', [ArchiveController::class, 'download'])->name('archives.download');
 Route::delete('/archives/{id}', [ArchiveController::class, 'destroy'])->name('archives.destroy');
 
 Route::post('/file/{id}/toggle-access', [FileController::class, 'toggleAccess'])
@@ -138,3 +139,8 @@ Route::post('/folders/archive-selected', [FolderController::class, 'archiveSelec
     ->name('folders.archive.selected');
 
 Route::get('/files/{id}/download', [FileController::class, 'download'])->name('files.download');
+
+Route::delete('/files/{id}', [FileController::class, 'destroy'])->name('files.destroy');
+
+Route::post('/files/{id}/rename', [FileController::class, 'rename'])
+    ->name('files.rename');

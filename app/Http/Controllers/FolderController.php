@@ -13,33 +13,34 @@ class FolderController extends Controller
      * Create a new folder
      * Supports optional parent folder (for nested folders)
      */
-    public function store(Request $request)
-    {
-        // Validate folder name
-        $request->validate([
-            'folder_name' => 'required',
-        ]);
+   public function store(Request $request)
+{
+    $request->validate([
+        'folder_name' => 'required',
+    ]);
 
-        // =============================
-        // STEP 1: CREATE FOLDER
-        // =============================
-        $folder = Folder::create([
-            'name'      => $request->folder_name,
-            'parent_id' => $request->parent_id ?? null, // null = root folder
-        ]);
+    $baseName = $request->folder_name;
+    $name = $baseName;
+    $counter = 1;
 
-        // =============================
-        // STEP 2: LOG ACTIVITY
-        // =============================
-        ActivityLog::create([
-            'user_name' => Auth::user()->name,
-            'activity'  => 'Added folder: ' . $folder->name,
-        ]);
-
-        // Redirect back to previous page
-        return redirect()->back();
+    // Keep checking until we find a unique name
+    while (Folder::where('name', $name)->exists()) {
+        $name = $baseName . ' (' . $counter . ')';
+        $counter++;
     }
 
+    $folder = Folder::create([
+        'name' => $name,
+    ]);
+
+    ActivityLog::create([
+        'user_name' => Auth::user()->name,
+        'activity'  => 'Added folder: ' . $folder->name,
+        'ip_address' => $request->ip()
+    ]);
+
+    return redirect()->back()->with('success', 'Folder created successfully.');
+}
     /**
      * Display all folders and root-level files
      */
@@ -121,5 +122,17 @@ class FolderController extends Controller
         return redirect()->back()->with('success', 'Folder renamed successfully.');
     }
 
+    /**
+     * Delete a folder and all its contents (files and subfolders)
+     */
+    public function destroy($id)
+    {
+        $folder = Folder::findOrFail($id);
+        $folder->delete();
+        return redirect()->back()->with('success', 'Folder and all its contents deleted successfully.');
+
+
+
 }
 
+}

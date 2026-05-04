@@ -130,6 +130,7 @@ class FileController extends Controller
             ActivityLog::create([
                 'user_name' => Auth::user()->name,
                 'activity'  => 'Uploaded file "' . $file->filename . '"',
+                'ip_address' => $request->ip()
             ]);
         }
 
@@ -171,7 +172,8 @@ class FileController extends Controller
         return view('Admin.preview', compact('file', 'signedUrl'));
     }
 
-    public function download($id)
+
+public function download($id)
 {
     $file = File::findOrFail($id);
 
@@ -179,10 +181,11 @@ class FileController extends Controller
     $url    = env('SUPABASE_URL');
     $key    = env('SUPABASE_SERVICE_KEY');
 
+    // Generate signed URL
     $response = Http::withHeaders([
         'Authorization' => 'Bearer ' . $key,
         'apikey'        => $key,
-    ])->post("$url/storage/v1/object/sign/$bucket/" . $file->filepath, [
+    ])->post("$url/storage/v1/object/sign/$bucket/{$file->filepath}", [
         'expiresIn' => 3600,
     ]);
 
@@ -192,16 +195,145 @@ class FileController extends Controller
 
     $signedUrl = $url . '/storage/v1' . $response['signedURL'];
 
-    return redirect()->away($signedUrl);
+    // Fetch file contents from Supabase
+    $fileResponse = Http::get($signedUrl);
+
+    if (!$fileResponse->successful()) {
+        return back()->with('error', 'Unable to fetch file');
+    }
+
+    // Force download
+    return response()->streamDownload(function () use ($fileResponse) {
+        echo $fileResponse->body();
+    }, basename($file->filepath));
 }
 
-    public function toggleAccess($id)
+    public function toggleAccess($id, Request $request)
 {
     $file = File::findOrFail($id);
 
     $file->is_public = $file->is_public == 1 ? 0 : 1;
     $file->save();
 
+    // Super Admin / Normal User
+        ActivityLog::create([
+            'user_name' => Auth::user()->name,
+            'activity' => 'Changed access for file: ' . $file->filename . ' to ' . ($file->is_public ? 'public' : 'private'),
+            'ip_address' => $request->ip()
+        ]);
+
     return back()->with('success', 'File access updated successfully.');
+}
+
+public function destroy($id)
+{
+    $file = File::findOrFail($id);
+
+    $bucket = env('SUPABASE_BUCKET');
+    $url    = env('SUPABASE_URL');
+    $key    = env('SUPABASE_SERVICE_KEY');
+
+    // 1. Delete file from Supabase Storage
+    Http::withHeaders([
+        'Authorization' => 'Bearer ' . $key,
+        'apikey'        => $key,
+    ])->delete("$url/storage/v1/object/$bucket/{$file->filepath}");
+
+    // 2. Delete from database
+    $file->delete();
+
+    // Log activity  
+     ActivityLog::create([
+        'user_name' => Auth::user()->name,
+        'activity' => 'Deleted file: ' . $file->filename,
+        'ip_address' => request()->ip()
+    ]);
+
+    return back()->with('success', 'File deleted successfully.');
+}
+
+
+public function rename(Request $request, $id)
+{
+    $file = File::findOrFail($id);
+
+    $request->validate([
+        'new_name' => 'required|string|max:255',
+    ]);
+
+    $bucket = env('SUPABASE_BUCKET');
+    $url    = env('SUPABASE_URL');
+    $key    = env('SUPABASE_SERVICE_KEY');
+
+    $oldPath = ltrim($file->filepath, './'); // prevent "." folder issue
+
+    $pathParts = pathinfo($oldPath);
+
+    // =========================
+    // SAFE DIRECTORY HANDLING
+    // =========================
+    $dirname = ($pathParts['dirname'] === '.' || $pathParts['dirname'] === '')
+        ? null
+        : $pathParts['dirname'];
+
+    // =========================
+    // KEEP FILE EXTENSION
+    // =========================
+    $extension = $pathParts['extension'] ?? '';
+
+    // =========================
+    // SANITIZE FILE NAME
+    // =========================
+    $cleanName = preg_replace('/[^A-Za-z0-9 _-]/', '', $request->new_name);
+    $cleanName = trim($cleanName);
+    $cleanName = str_replace(' ', '_', $cleanName);
+
+    // =========================
+    // BUILD NEW FILE NAME
+    // =========================
+    $newFileName = $extension
+        ? $cleanName . '.' . $extension
+        : $cleanName;
+
+    // =========================
+    // BUILD SAFE NEW PATH
+    // =========================
+    $newPath = $dirname
+        ? $dirname . '/' . $newFileName
+        : $newFileName;
+
+    // =========================
+    // MOVE FILE IN SUPABASE
+    // =========================
+    $response = Http::withHeaders([
+        'Authorization' => 'Bearer ' . $key,
+        'apikey'        => $key,
+    ])->post("$url/storage/v1/object/move", [
+        'bucketId'       => $bucket,
+        'sourceKey'      => $oldPath,
+        'destinationKey' => $newPath,
+    ]);
+
+    if (!$response->successful()) {
+        return back()->with('error', 'Failed to rename file in storage.');
+    }
+
+    // =========================
+    // UPDATE DATABASE
+    // =========================
+    $file->filename = $newFileName;
+    $file->filepath = $newPath;
+    $file->save();
+
+    // =========================
+    // LOG ACTIVITY
+    // =========================
+    ActivityLog::create([
+        'user_name'  => Auth::user()->name,
+        'activity'   => 'Renamed file to: ' . $file->filename,
+        'ip_address' => $request->ip()
+    ]);
+
+    return back()->with('success', 'File renamed successfully.');
 }
 }

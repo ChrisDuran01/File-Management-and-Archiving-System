@@ -1,4 +1,4 @@
-@extends('home')
+@extends('Admin.home')
 @section('content')
 <!DOCTYPE html>
 <html lang="en">

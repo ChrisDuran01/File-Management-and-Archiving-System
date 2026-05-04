@@ -1,4 +1,4 @@
-@extends('home')
+@extends('Admin.home')
 @section('content')
 
 <style>
@@ -338,8 +338,8 @@
     font-size: 13px;
 }
 
-.folder-menu-btn .btn:hover { 
-    background: #f0f0f0; 
+.folder-menu-btn .btn:hover {
+    background: #f0f0f0;
 }
 
 /* Make the dropdown menu appear on the LEFT side of the three dots */
@@ -432,7 +432,7 @@
                 };
             @endphp
             <tr>
-                
+
                 <td  onclick="window.location='{{ route('files.preview', $file->id) }}'">
                     <div class="file-name-cell">
                         <div class="file-icon {{ $iconClass }}">
@@ -442,7 +442,7 @@
                         <span class="file-ext-badge">{{ $ext }}</span>
                     </div>
                 </td>
-                <td  onclick="window.location='{{ route('files.preview', $file->id) }}'" class="file-date">{{ $file->created_at->format('M d, Y · h:i A') }}</td>
+                <td  onclick="window.location='{{ route('files.preview', $file->id) }}'" class="file-date">{{ $file->updated_at->format('M d, Y · h:i A') }}</td>
                 <td  onclick="window.location='{{ route('files.preview', $file->id) }}'" class="file-size">{{ number_format($file->size / 1024, 2) }} KB</td>
 
                  {{-- ✅ ACTION MENU --}}
@@ -455,17 +455,17 @@
                 <ul class="dropdown-menu dropdown-menu-end shadow-sm"
                     style="border-radius:10px; font-size:13px; min-width:130px;">
                     <li>
-                        <a class="dropdown-item py-2" href="">
-                            <i class="bi bi-folder2-open me-2 text-primary"></i> Download
-                        </a>
-                    </li>
+    <a class="dropdown-item py-2" href="{{ route('files.download', $file->id) }}">
+        <i class="bi bi-folder2-open me-2 text-primary"></i> Download
+    </a>
+</li>
                     <li>
-                        <button class="dropdown-item py-2"
-                                data-bs-toggle="modal"
-                                data-bs-target="">
-                            <i class="bi bi-pencil me-2 text-secondary"></i> Rename
-                        </button>
-                    </li>
+    <button class="dropdown-item py-2"
+            data-bs-toggle="modal"
+            data-bs-target="#renameModal{{ $file->id }}">
+        <i class="bi bi-pencil me-2 text-secondary"></i> Rename
+    </button>
+</li>
                     <li>
     <form action="" method="POST">
         @csrf
@@ -484,19 +484,21 @@
 </li>
                     <li><hr class="dropdown-divider my-1"></li>
                     <li>
-                        <form action="" method="POST">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" class="dropdown-item py-2 text-danger">
-                                <i class="bi bi-trash me-2"></i> Delete
-                            </button>
-                        </form>
-                    </li>
+    <form action="{{ route('files.destroy', $file->id) }}" method="POST"
+          onsubmit="return confirm('Are you sure you want to delete this file?')">
+        @csrf
+        @method('DELETE')
+
+        <button type="submit" class="dropdown-item py-2 text-danger">
+            <i class="bi bi-trash me-2"></i> Delete
+        </button>
+    </form>
+</li>
                 </ul>
             </div>
         </td>
 
-        
+
             </tr>
             @empty
             <tr>
@@ -512,14 +514,13 @@
     </table>
 </div>
 
+@forelse($files as $file)
 <div class="modal fade" id="accessModal{{ $file->id }}" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
 
       <div class="modal-header">
-        <h5 class="modal-title">
-          File Access Control
-        </h5>
+        <h5 class="modal-title">File Access Control</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
 
@@ -532,7 +533,8 @@
       </div>
 
       <div class="modal-footer">
-        <form action="{{ route('file.toggleAccess', $file->id) }}" method="POST">
+        <form action="{{ route('file.toggleAccess', $file->id) }}" method="POST"
+              onsubmit="this.querySelector('button[type=submit]').disabled = true;">
             @csrf
 
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
@@ -540,7 +542,7 @@
             </button>
 
             <button type="submit" class="btn btn-warning">
-                Confirm
+                {{ $file->is_public ? 'Make Private' : 'Make Public' }}
             </button>
         </form>
       </div>
@@ -548,7 +550,9 @@
     </div>
   </div>
 </div>
-
+@empty
+    {{-- Optional: no files message --}}
+@endforelse
 
 {{-- FLOATING ACTION BUTTON --}}
 <div class="fab-container" id="fabContainer">
@@ -597,7 +601,7 @@
 
                 <div class="modal-body">
 
-                    <div class="upload-zone" 
+                    <div class="upload-zone"
                          id="uploadZone"
                          onclick="document.getElementById('fileInput').click()">
 
@@ -636,6 +640,62 @@
         </div>
     </div>
 </div>
+
+
+@forelse($files as $file)
+<div class="modal fade" id="renameModal{{ $file->id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+
+      {{-- Header --}}
+      <div class="modal-header">
+        <h5 class="modal-title">Rename File</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      @php
+        $nameWithoutExt = pathinfo($file->filename, PATHINFO_FILENAME);
+      @endphp
+
+      {{-- Body --}}
+      <div class="modal-body">
+        <p class="text-muted mb-2">
+            Current name:
+            <strong>{{ $nameWithoutExt }}</strong>
+        </p>
+
+        <form action="{{ route('files.rename', $file->id) }}" method="POST"
+              onsubmit="this.querySelector('button[type=submit]').disabled = true;">
+            @csrf
+
+            <div class="mb-3">
+                <label class="form-label">New Name</label>
+                <input type="text"
+                       name="new_name"
+                       class="form-control"
+                       value="{{ $nameWithoutExt }}"
+                       required>
+            </div>
+
+            <div class="modal-footer px-0 pb-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+
+                <button type="submit" class="btn btn-primary">
+                    Rename
+                </button>
+            </div>
+        </form>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+@empty
+    {{-- Optional: no files message --}}
+@endforelse
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>

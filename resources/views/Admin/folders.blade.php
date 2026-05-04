@@ -1,4 +1,4 @@
-@extends('home')
+@extends('Admin.home')
 @section('content')
 
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
@@ -371,11 +371,10 @@ body { font-family: 'Segoe UI', sans-serif; }
                     <li>
     <form action="{{ route('folders.archive', $folder->id) }}" method="POST">
         @csrf
-        <button type="submit" class="dropdown-item py-2 text-warning">
+        <button type="submit" class="dropdown-item py-2 text-warning" onclick="return confirm('Archive this folder?')">
             <i class="bi bi-archive me-2"></i> Archive
         </button>
-        <button type="submit" class="dropdown-item py-2 text-warning"
-        onclick="return confirm('Archive this folder?')">
+        
     </form>
 </li>
                     <li><hr class="dropdown-divider my-1"></li>
@@ -492,7 +491,7 @@ body { font-family: 'Segoe UI', sans-serif; }
     </div>
 </div>
 
-
+@foreach($folders as $folder)
     {{-- Rename Modal --}}
     <div class="modal fade" id="renameModal{{ $folder->id }}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered" style="max-width:380px;">
@@ -516,6 +515,8 @@ body { font-family: 'Segoe UI', sans-serif; }
             </div>
         </div>
     </div>
+@endforeach
+
 
     @empty
     <div class="col-12 text-center py-5 text-muted">
