@@ -144,3 +144,7 @@ Route::delete('/files/{id}', [FileController::class, 'destroy'])->name('files.de
 
 Route::post('/files/{id}/rename', [FileController::class, 'rename'])
     ->name('files.rename');
+
+Route::get('/files/{id}/previewStudentDashboard', [StudentController::class, 'previewStudentDashboard'])->name('files.previewStudentDashboard');
+
+Route::patch('/officers/archive/{id}', [OfficerController::class, 'archiveOfficer'])->name('officers.archiveOfficer');

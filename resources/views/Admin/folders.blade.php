@@ -115,7 +115,7 @@ body { font-family: 'Segoe UI', sans-serif; }
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    background: #534AB7;
+    background: #0F6E56;
     border: none;
     color: #fff;
     font-size: 22px;
@@ -126,8 +126,8 @@ body { font-family: 'Segoe UI', sans-serif; }
     cursor: pointer;
     transition: transform 0.25s ease, background 0.2s;
 }
-.fab-main:hover { background: #3C3489; }
-.fab-main.open { transform: rotate(45deg); background: #3C3489; }
+.fab-main:hover { background: darkgreen; }
+.fab-main.open { transform: rotate(45deg); background: darkgreen; }
 
 .fab-options { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
 
@@ -318,6 +318,9 @@ body { font-family: 'Segoe UI', sans-serif; }
         </form>
     </div>
 
+    <br>
+    <br>
+
     {{-- School Year Filter --}}
     <!--<form action="{{ route('folders.index') }}" method="GET">
         <select name="term" class="form-select" onchange="this.form.submit()">
@@ -341,6 +344,8 @@ body { font-family: 'Segoe UI', sans-serif; }
     </button>
 
 </div>-->
+
+<br>
 
 {{-- Folders Grid --}}
 <div class="row g-3">

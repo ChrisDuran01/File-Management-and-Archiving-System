@@ -103,14 +103,14 @@
     <div class="card-panel">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <p class="section-title mb-0">Recent files</p>
-            <a href="" class="btn btn-sm btn-outline-secondary" style="font-size:12px;">View all</a>
+            <a href="/folders" class="btn btn-sm btn-outline-secondary" style="font-size:12px;">View all</a>
         </div>
         <table class="rtable">
             <thead>
                 <tr>
                     <th>File name</th>
                     <th>Type</th>
-                    <th>Uploaded by</th>
+                   
                     <th>Size</th>
                     <th>Uploaded at</th>
                 </tr>
@@ -139,10 +139,7 @@
                         <span style="font-weight:500;">{{ $file->filename }}</span>
                     </td>
                     <td><span class="badge-type {{ $badgeClass }}">{{ $badgeLabel }}</span></td>
-                    <td>
-                        <span class="avatar" style="background:#e9ecef;color:#495057;">{{ $initials }}</span>
-                        <span style="margin-left:6px;font-size:13px;">{{ $file->user->name ?? '—' }}</span>
-                    </td>
+                
                     <td>{{ $file->size ? number_format($file->size / 1024, 1) . ' KB' : '—' }}</td>
                     <td style="color:#6c757d;">{{ $file->created_at->format('M j, Y H:i') }}</td>
                 </tr>

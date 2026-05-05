@@ -60,7 +60,7 @@
                 <div>
                     <h2 class="section-title">
                         <span class="material-icons-outlined">description</span>
-                        All Documents
+                        Documents accessible for students
                     </h2>
                     <p class="section-subtitle">{{ $totalFiles }} document(s) available</p>
                 </div>
@@ -172,7 +172,7 @@
                 <div class="loading-spinner"></div>
                 <p style="margin-top: 16px; color: #6b8a5e;">Loading preview...</p>
             </div>
-            
+
             <!-- PDF Preview -->
             <div id="pdfPreview" style="display: none;">
                 <iframe id="pdfFrame" src="" style="width: 100%; height: 500px; border: none; border-radius: 12px;"></iframe>
@@ -180,7 +180,7 @@
                     <a id="downloadPdfBtn" href="#" download class="modal-btn download-btn">📥 Download PDF</a>
                 </div>
             </div>
-            
+
             <!-- Image Preview -->
             <div id="imagePreview" style="display: none;">
                 <img id="imageViewer" src="" alt="File Preview" style="max-width: 100%; max-height: 500px; border-radius: 12px; object-fit: contain;">
@@ -188,7 +188,7 @@
                     <a id="downloadImageBtn" href="#" download class="modal-btn download-btn">📥 Download Image</a>
                 </div>
             </div>
-            
+
             <!-- Document Preview (Word, Excel, PPT) -->
             <div id="officePreview" style="display: none;">
                 <div class="office-viewer">
@@ -198,7 +198,7 @@
                     <a id="downloadOfficeBtn" href="#" download class="modal-btn download-btn">📥 Download File</a>
                 </div>
             </div>
-            
+
             <!-- Text Preview -->
             <div id="textPreview" style="display: none;">
                 <div class="text-content">
@@ -208,7 +208,7 @@
                     <a id="downloadTextBtn" href="#" download class="modal-btn download-btn">📥 Download File</a>
                 </div>
             </div>
-            
+
             <!-- Generic Preview -->
             <div id="genericPreview" style="display: none; text-align: center;">
                 <div class="generic-file-icon">
@@ -219,7 +219,7 @@
                     <a id="downloadGenericBtn" href="#" download class="modal-btn download-btn">📥 Download File</a>
                 </div>
             </div>
-            
+
             <!-- Error State -->
             <div id="previewError" style="display: none; text-align: center; padding: 40px;">
                 <div class="error-icon">⚠️</div>
@@ -977,138 +977,154 @@
         });
     });
 
-    
 
-     let currentFileUrl = '';
-    let currentFileName = '';
-    let currentFileId = '';
-    
-    function openFilePreview(fileId, fileName, fileType) {
-        currentFileId = fileId;
-        currentFileName = fileName;
-        
-        const modal = document.getElementById('filePreviewModal');
-        const modalFileName = document.getElementById('modalFileName');
-        
-        modalFileName.textContent = fileName;
-        
-        // Hide all preview containers and show loading
-        document.getElementById('previewLoading').style.display = 'block';
-        document.getElementById('pdfPreview').style.display = 'none';
-        document.getElementById('imagePreview').style.display = 'none';
-        document.getElementById('officePreview').style.display = 'none';
-        document.getElementById('textPreview').style.display = 'none';
-        document.getElementById('genericPreview').style.display = 'none';
-        document.getElementById('previewError').style.display = 'none';
-        
-        // Show modal
-        modal.classList.add('active');
-        modal.style.display = 'flex';
-        
-        // Prevent body scroll
-        document.body.style.overflow = 'hidden';
-        
-        // Call backend to get signed URL
-        fetch(`/files/${fileId}/preview`, {
-            method: 'GET',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json'
-            }
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Failed to get preview URL');
-            }
-            return response.json();
-        })
+
+function openFilePreview(id, name, type) {
+    document.getElementById('filePreviewModal').style.display = 'flex';
+
+    hideAllPreviews();
+
+    document.getElementById('previewLoading').style.display = 'block';
+    document.getElementById('modalFileName').innerText = name;
+
+    fetch(`/files/${id}/previewStudentDashboard`)
+        .then(res => res.json())
         .then(data => {
-            // Hide loading
-            document.getElementById('previewLoading').style.display = 'none';
-            
-            if (data.signedUrl) {
-                currentFileUrl = data.signedUrl;
-                showPreviewByFileType(fileType, data.signedUrl);
-            } else {
-                throw new Error('No signed URL received');
+
+            if (data.error) {
+                showError();
+                return;
             }
+
+            hideAllPreviews();
+
+            let url = data.url;
+
+            // 🔥 FIX: detect extension from filename (reliable)
+            let fileType = data.name.split('.').pop().toLowerCase();
+
+            // 🔍 fallback to MIME if needed
+            let mimeType = (data.type || '').toLowerCase();
+
+            console.log("EXT:", fileType, "MIME:", mimeType);
+
+            // ✅ PDF
+            if (fileType === 'pdf' || mimeType.includes('pdf')) {
+                document.getElementById('pdfPreview').style.display = 'block';
+                document.getElementById('pdfFrame').src = url;
+                document.getElementById('downloadPdfBtn').onclick = function(e) {
+    e.preventDefault();
+    forceDownload(url, data.name);
+};
+            }
+
+            // ✅ IMAGES (FIXED)
+            else if (
+                ['jpg','jpeg','png','gif','webp'].includes(fileType) ||
+                mimeType.includes('image')
+            ) {
+                document.getElementById('imagePreview').style.display = 'block';
+
+                const img = document.getElementById('imageViewer');
+                img.src = url;
+
+                // debug (optional)
+                img.onload = () => console.log("✅ Image loaded");
+                img.onerror = () => console.log("❌ Image failed");
+
+                document.getElementById('downloadImageBtn').onclick = function(e) {
+    e.preventDefault();
+    forceDownload(url, data.name);
+};
+            }
+
+            // ✅ OFFICE
+            else if (['doc','docx','xls','xlsx','ppt','pptx'].includes(fileType)) {
+                document.getElementById('officePreview').style.display = 'block';
+
+                let officeUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`;
+                document.getElementById('officeFrame').src = officeUrl;
+                document.getElementById('downloadOfficeBtn').onclick = function(e) {
+    e.preventDefault();
+    forceDownload(url, data.name);
+};
+            }
+
+            // ✅ TEXT
+            else if (['txt','csv','json','log'].includes(fileType)) {
+                document.getElementById('textPreview').style.display = 'block';
+                document.getElementById('downloadTextBtn').onclick = function(e) {
+    e.preventDefault();
+    forceDownload(url, data.name);
+};
+
+                fetch(url)
+                    .then(res => res.text())
+                    .then(text => {
+                        document.getElementById('textViewer').innerText = text;
+                    });
+            }
+
+            // ✅ FALLBACK
+            else {
+                document.getElementById('genericPreview').style.display = 'block';
+                document.getElementById('downloadGenericBtn').onclick = function(e) {
+    e.preventDefault();
+    forceDownload(url, data.name);
+};
+            }
+
         })
-        .catch(error => {
-            console.error('Preview error:', error);
-            document.getElementById('previewLoading').style.display = 'none';
-            document.getElementById('previewError').style.display = 'block';
+        .catch(() => {
+            showError();
         });
-    }
-    
-    function showPreviewByFileType(fileType, fileUrl) {
-        const extension = fileType.toLowerCase();
-        
-        if (extension === 'pdf') {
-            // PDF Preview
-            document.getElementById('pdfPreview').style.display = 'block';
-            const pdfFrame = document.getElementById('pdfFrame');
-            pdfFrame.src = fileUrl;
-            document.getElementById('downloadPdfBtn').href = fileUrl;
-        } 
-        else if (extension === 'jpg' || extension === 'jpeg' || extension === 'png' || extension === 'gif' || extension === 'webp' || extension === 'bmp') {
-            // Image Preview
-            document.getElementById('imagePreview').style.display = 'block';
-            const imageViewer = document.getElementById('imageViewer');
-            imageViewer.src = fileUrl;
-            document.getElementById('downloadImageBtn').href = fileUrl;
-        }
-        else if (extension === 'doc' || extension === 'docx' || extension === 'xls' || extension === 'xlsx' || extension === 'ppt' || extension === 'pptx') {
-            // Office Preview using Google Docs Viewer
-            document.getElementById('officePreview').style.display = 'block';
-            const viewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(fileUrl)}&embedded=true`;
-            document.getElementById('officeFrame').src = viewerUrl;
-            document.getElementById('downloadOfficeBtn').href = fileUrl;
-        }
-        else if (extension === 'txt' || extension === 'csv' || extension === 'json' || extension === 'xml') {
-            // Text Preview
-            document.getElementById('textPreview').style.display = 'block';
-            fetch(fileUrl)
-                .then(response => response.text())
-                .then(text => {
-                    document.getElementById('textViewer').textContent = text;
-                })
-                .catch(error => {
-                    document.getElementById('textViewer').textContent = 'Unable to load file content';
-                });
-            document.getElementById('downloadTextBtn').href = fileUrl;
-        }
-        else {
-            // Generic Preview
-            document.getElementById('genericPreview').style.display = 'block';
-            document.getElementById('downloadGenericBtn').href = fileUrl;
-        }
-    }
-    
-    function closeFilePreview() {
-        const modal = document.getElementById('filePreviewModal');
-        modal.classList.remove('active');
-        modal.style.display = 'none';
-        
-        // Clear iframe sources to stop loading
-        document.getElementById('pdfFrame').src = '';
-        document.getElementById('officeFrame').src = '';
-        document.getElementById('imageViewer').src = '';
-        document.getElementById('textViewer').textContent = '';
-        
-        // Restore body scroll
-        document.body.style.overflow = '';
-    }
-    
-    // Close modal when clicking outside
-    window.onclick = function(event) {
-        const modal = document.getElementById('filePreviewModal');
-        if (event.target === modal) {
-            closeFilePreview();
-        }
-    }
-    
-    
+}
+
+
+// 🔹 Helpers (unchanged but safe)
+function hideAllPreviews() {
+    document.getElementById('previewLoading').style.display = 'none';
+    document.getElementById('pdfPreview').style.display = 'none';
+    document.getElementById('imagePreview').style.display = 'none';
+    document.getElementById('officePreview').style.display = 'none';
+    document.getElementById('textPreview').style.display = 'none';
+    document.getElementById('genericPreview').style.display = 'none';
+    document.getElementById('previewError').style.display = 'none';
+}
+
+function showError() {
+    hideAllPreviews();
+    document.getElementById('previewError').style.display = 'block';
+}
+
+function closeFilePreview() {
+    document.getElementById('filePreviewModal').style.display = 'none';
+    hideAllPreviews();
+
+    document.getElementById('pdfFrame').src = '';
+    document.getElementById('officeFrame').src = '';
+}
+
+function forceDownload(url, filename) {
+    fetch(url)
+        .then(response => response.blob())
+        .then(blob => {
+            const blobUrl = window.URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = filename; // 👈 forces download
+            document.body.appendChild(a);
+            a.click();
+
+            a.remove();
+            window.URL.revokeObjectURL(blobUrl);
+        })
+        .catch(() => alert('Download failed'));
+}
 </script>
+
+
 
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
 @endsection

@@ -175,6 +175,22 @@
     max-height: 560px;
     border-radius: 8px;
 }
+/* TEXT PREVIEW */
+.preview-text-wrap {
+    padding: 16px;
+    background: #f8f8f8;
+    max-height: 600px;
+    overflow: auto;
+}
+
+.text-viewer {
+    font-family: monospace;
+    font-size: 13px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #333;
+}
+
 
 /* Audio */
 .preview-audio-wrap {
@@ -317,45 +333,58 @@
     ============================== --}}
     <div class="preview-container">
 
-        {{-- IMAGE PREVIEW --}}
-        @if($isImage)
-            <div class="preview-image-wrap">
-                <img src="{{ $signedUrl }}" alt="{{ $file->filename }}">
-            </div>
+    {{-- IMAGE --}}
+    @if($isImage)
+        <div class="preview-image-wrap">
+            <img src="{{ $signedUrl }}" alt="{{ $file->filename }}">
+        </div>
 
-        {{-- PDF PREVIEW --}}
-        @elseif($isPdf)
-            <iframe src="{{ $signedUrl }}"></iframe>
+    {{-- PDF --}}
+    @elseif($isPdf)
+        <iframe src="{{ $signedUrl }}"></iframe>
 
-        {{-- VIDEO PREVIEW --}}
-        @elseif($isVideo)
-            <div class="preview-video-wrap">
-                <video controls>
-                    <source src="{{ $signedUrl }}">
-                </video>
-            </div>
+    {{-- VIDEO --}}
+    @elseif($isVideo)
+        <div class="preview-video-wrap">
+            <video controls>
+                <source src="{{ $signedUrl }}">
+            </video>
+        </div>
 
-        {{-- AUDIO PREVIEW --}}
-        @elseif($isAudio)
-            <div class="preview-audio-wrap">
-                <audio controls>
-                    <source src="{{ $signedUrl }}">
-                </audio>
-            </div>
+    {{-- AUDIO --}}
+    @elseif($isAudio)
+        <div class="preview-audio-wrap">
+            <audio controls>
+                <source src="{{ $signedUrl }}">
+            </audio>
+        </div>
 
-        {{-- FALLBACK (NO PREVIEW) --}}
-        @else
-            <div class="preview-none">
-                <h5>No preview available</h5>
-                <p>This file type ({{ strtoupper($ext) }}) cannot be previewed.</p>
+    {{-- TEXT --}}
+    @elseif($isText)
+        <div class="preview-text-wrap">
 
-                <a href="{{ $signedUrl }}" class="btn-download" download>
-                    <i class="fas fa-download"></i> Download file
-                </a>
-            </div>
-        @endif
+            <pre class="text-viewer">{{ $textContent }}</pre>
+        </div>
 
-    </div>
+    {{-- OFFICE (DOC, XLS, PPT) --}}
+    @elseif(in_array($ext, ['doc','docx','xls','xlsx','ppt','pptx']))
+        <iframe 
+            src="https://view.officeapps.live.com/op/embed.aspx?src={{ urlencode($signedUrl) }}">
+        </iframe>
+
+    {{-- FALLBACK --}}
+    @else
+        <div class="preview-none">
+            <h5>No preview available</h5>
+            <p>This file type ({{ strtoupper($ext) }}) cannot be previewed.</p>
+
+            <a href="{{ route('files.download', $file->id) }}" class="btn-download">
+                <i class="fas fa-download"></i> Download file
+            </a>
+        </div>
+    @endif
+
+</div>
 
 </div>
 

@@ -239,19 +239,19 @@
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    background: #534AB7;
+    background: #0F6E56;;
     border: none;
     color: #fff;
     font-size: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 16px rgba(83,74,183,0.35);
+    box-shadow: 0 4px 16px rgba(87, 212, 124, 0.35);
     cursor: pointer;
     transition: transform 0.25s ease, background 0.2s;
 }
-.fab-main:hover { background: #3C3489; }
-.fab-main.open { transform: rotate(45deg); background: #3C3489; }
+.fab-main:hover { background: darkgreen; }
+.fab-main.open { transform: rotate(45deg); background:darkgreen; }
 
 .fab-options { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
 
@@ -414,23 +414,27 @@
         <tbody>
             @forelse($files as $file)
             @php
-                $ext  = strtolower(pathinfo($file->filename, PATHINFO_EXTENSION));
-                $name = pathinfo($file->filename, PATHINFO_FILENAME);
-                $iconClass = match(true) {
-                    $ext === 'pdf'                      => 'pdf',
-                    in_array($ext, ['doc','docx'])      => 'docx',
-                    in_array($ext, ['xls','xlsx','csv'])=> 'xlsx',
-                    in_array($ext, ['jpg','jpeg','png','gif','webp','svg']) => 'img',
-                    default => 'default'
-                };
-                $iconName = match($iconClass) {
-                    'pdf'   => 'fa-file-pdf',
-                    'docx'  => 'fa-file-word',
-                    'xlsx'  => 'fa-file-excel',
-                    'img'   => 'fa-file-image',
-                    default => 'fa-file-alt',
-                };
-            @endphp
+    $ext  = strtolower(pathinfo($file->filename, PATHINFO_EXTENSION));
+    $name = pathinfo($file->filename, PATHINFO_FILENAME);
+
+    $iconClass = match(true) {
+        $ext === 'pdf'                       => 'pdf',
+        in_array($ext, ['doc','docx'])       => 'docx',
+        in_array($ext, ['xls','xlsx','csv']) => 'xlsx',
+        in_array($ext, ['ppt','pptx'])       => 'ppt',   // ✅ ADDED PPT
+        in_array($ext, ['jpg','jpeg','png','gif','webp','svg']) => 'img',
+        default => 'default'
+    };
+
+    $iconName = match($iconClass) {
+        'pdf'   => 'fa-file-pdf',
+        'docx'  => 'fa-file-word',
+        'xlsx'  => 'fa-file-excel',
+        'ppt'   => 'fa-file-powerpoint', // ✅ ADDED PPT ICON
+        'img'   => 'fa-file-image',
+        default => 'fa-file-alt',
+    };
+@endphp
             <tr>
 
                 <td  onclick="window.location='{{ route('files.preview', $file->id) }}'">

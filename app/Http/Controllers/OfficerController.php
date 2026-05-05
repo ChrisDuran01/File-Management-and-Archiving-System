@@ -79,6 +79,18 @@ class OfficerController extends Controller
         return back()->with('success', 'All current officers moved to former.');
     }
 
+    public function archiveOfficer($id)
+    {
+        $term = OfficerTerm::findOrFail($id);
+
+        $term->update([
+            'status'     => 'former',
+            'term_end'   => now(),
+        ]);
+
+        return back()->with('success', 'Officer term archived.');
+    }
+
     // REACTIVATE OFFICER
     public function reactivate($id)
     {

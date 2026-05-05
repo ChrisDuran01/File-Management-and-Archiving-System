@@ -30,4 +30,35 @@ class StudentController extends Controller
         ]);
     }
 
+   public function previewStudentDashboard($id)
+{
+    $file = File::findOrFail($id);
+
+    $bucket = env('SUPABASE_BUCKET');
+    $url    = env('SUPABASE_URL');
+    $key    = env('SUPABASE_SERVICE_KEY');
+
+    $response = Http::withHeaders([
+    'Authorization' => 'Bearer ' . $key,
+    'apikey'        => $key,
+])->post("$url/storage/v1/object/sign/$bucket/" . $file->filepath, [
+    'expiresIn' => 3600,
+    'transform' => [
+        'contentType' => 'image/png' // optional but helps
+    ]
+]);
+
+    if (! $response->successful()) {
+        return response()->json(['error' => 'Failed to generate preview URL'], 500);
+    }
+
+    $signedUrl = $url . '/storage/v1' . $response['signedURL'];
+
+    return response()->json([
+        'url'  => $signedUrl,
+        'type' => strtolower($file->type),
+        'name' => $file->filename,
+    ]);
+}
+
 }

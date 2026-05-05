@@ -142,36 +142,56 @@ class FileController extends Controller
      * Preview file using a signed Supabase URL
      */
     public function preview($id)
-    {
-        // Find file or fail
-        $file = File::findOrFail($id);
+{
+    $file = File::findOrFail($id);
 
-        // Supabase configuration
-        $bucket = env('SUPABASE_BUCKET');
-        $url    = env('SUPABASE_URL');
-        $key    = env('SUPABASE_SERVICE_KEY');
+    $bucket = env('SUPABASE_BUCKET');
+    $url    = env('SUPABASE_URL');
+    $key    = env('SUPABASE_SERVICE_KEY');
 
-        // Request signed URL for private file access
-        $response = Http::withHeaders([
-            'Authorization' => 'Bearer ' . $key,
-            'apikey'        => $key,
-            'Content-Type'  => 'application/json',
-        ])->post("$url/storage/v1/object/sign/$bucket/" . $file->filepath, [
-            'expiresIn' => 3600, // 1 hour validity
-        ]);
+    // Signed URL
+    $response = Http::withHeaders([
+        'Authorization' => 'Bearer ' . $key,
+        'apikey'        => $key,
+    ])->post("$url/storage/v1/object/sign/$bucket/" . $file->filepath, [
+        'expiresIn' => 3600,
+    ]);
 
-        // Handle failure
-        if (! $response->successful()) {
-            return back()->with('error', 'Failed to generate preview URL');
-        }
-
-        // Build full signed URL
-        $signedUrl = $url . '/storage/v1' . $response['signedURL'];
-
-        // Send to preview view
-        return view('Admin.preview', compact('file', 'signedUrl'));
+    if (!$response->successful()) {
+        abort(500, 'Failed to generate preview URL');
     }
 
+    $signedUrl = $url . '/storage/v1' . $response['signedURL'];
+
+    $ext = strtolower(pathinfo($file->filename, PATHINFO_EXTENSION));
+
+    $isImage  = in_array($ext, ['jpg','jpeg','png','gif','webp','svg']);
+    $isPdf    = $ext === 'pdf';
+    $isVideo  = in_array($ext, ['mp4','mov','webm','avi']);
+    $isAudio  = in_array($ext, ['mp3','wav','ogg','m4a']);
+    $isText   = in_array($ext, ['txt','md','csv','log','json','xml','html','css','js','php']);
+
+    // TEXT CONTENT
+    $textContent = null;
+
+    if ($isText) {
+        try {
+            $res = Http::get($signedUrl);
+
+            if ($res->successful()) {
+                $textContent = substr($res->body(), 0, 50000);
+            }
+        } catch (\Exception $e) {
+            $textContent = 'Unable to load file.';
+        }
+    }
+
+    return view('Admin.preview', compact(
+        'file','signedUrl','ext',
+        'isImage','isPdf','isVideo','isAudio','isText',
+        'textContent'
+    ));
+}
 
 public function download($id)
 {
