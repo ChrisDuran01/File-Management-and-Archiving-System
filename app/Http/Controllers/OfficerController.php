@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\OfficerTerm;
 use App\Models\Position;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class OfficerController extends Controller
 {
@@ -39,9 +41,10 @@ class OfficerController extends Controller
 
         // 1. Create user (identity)
         $user = User::create([
-            'name'     => $request->name,
-            'email'    => $request->email,
-            'password' => bcrypt($request->password),
+            'name'                  => $request->name,
+            'email'                 => $request->email,
+            'password'              => bcrypt($request->password),
+            'must_change_password'  => true,
         ]);
 
         // 2. Prevent duplicate active term per year
@@ -63,6 +66,12 @@ class OfficerController extends Controller
             'status'      => 'active',
         ]);
 
+        ActivityLog::create([
+            'user_name'  => Auth::user()->name,
+            'activity'   => 'Added officer: ' . $user->name,
+            'ip_address' => $request->ip()
+        ]);
+
         return redirect()->route('officers.index')
             ->with('success', 'Officer created successfully.');
     }
@@ -75,17 +84,29 @@ class OfficerController extends Controller
                 'status'   => 'former',
                 'term_end' => now(),
             ]);
-        
+
+        ActivityLog::create([
+            'user_name'  => Auth::user()->name,
+            'activity'   => 'Ended current officer term (all active officers moved to former)',
+            'ip_address' => request()->ip()
+        ]);
+
         return back()->with('success', 'All current officers moved to former.');
     }
 
     public function archiveOfficer($id)
     {
-        $term = OfficerTerm::findOrFail($id);
+        $term = OfficerTerm::with('user')->findOrFail($id);
 
         $term->update([
             'status'     => 'former',
             'term_end'   => now(),
+        ]);
+
+        ActivityLog::create([
+            'user_name'  => Auth::user()->name,
+            'activity'   => 'Archived officer: ' . $term->user->name,
+            'ip_address' => request()->ip()
         ]);
 
         return back()->with('success', 'Officer term archived.');
@@ -94,12 +115,18 @@ class OfficerController extends Controller
     // REACTIVATE OFFICER
     public function reactivate($id)
     {
-        $term = OfficerTerm::findOrFail($id);
+        $term = OfficerTerm::with('user')->findOrFail($id);
 
         $term->update([
             'status'     => 'active',
             'term_start' => now(),
             'term_end'   => null,
+        ]);
+
+        ActivityLog::create([
+            'user_name'  => Auth::user()->name,
+            'activity'   => 'Reactivated officer: ' . $term->user->name,
+            'ip_address' => request()->ip()
         ]);
 
         return back()->with('success', 'Officer reactivated.');
@@ -108,7 +135,15 @@ class OfficerController extends Controller
     // DELETE OFFICER TERM RECORD
     public function destroy($id)
     {
-        OfficerTerm::findOrFail($id)->delete();
+        $term = OfficerTerm::with('user')->findOrFail($id);
+        $officerName = $term->user->name;
+        $term->delete();
+
+        ActivityLog::create([
+            'user_name'  => Auth::user()->name,
+            'activity'   => 'Deleted officer record: ' . $officerName,
+            'ip_address' => request()->ip()
+        ]);
 
         return back()->with('success', 'Officer record deleted.');
     }
@@ -125,28 +160,38 @@ class OfficerController extends Controller
     // EDIT FORM
     public function edit($id)
     {
-        $term = OfficerTerm::findOrFail($id);
-        $users = User::all();
+        $term = OfficerTerm::with('user')->findOrFail($id);
+        $user = $term->user;
         $positions = Position::all();
 
-        return view('SuperAdmin.officers.edit', compact('term', 'users', 'positions'));
+        return view('SuperAdmin.editAdmin', compact('term', 'user', 'positions'));
     }
 
     // UPDATE TERM
     public function update(Request $request, $id)
     {
-        $request->validate([
-            'user_id'     => 'required|exists:users,id',
-            'position_id' => 'required|exists:positions,id',
-            'school_year' => 'required',
-        ]);
-
         $term = OfficerTerm::findOrFail($id);
 
+        $request->validate([
+            'name'        => 'required',
+            'email'       => 'required|email|unique:users,email,'.$term->user_id,
+            'position_id' => 'required|exists:positions,id',
+        ]);
+
+        $user = User::findOrFail($term->user_id);
+        $user->update([
+            'name'  => $request->name,
+            'email' => $request->email,
+        ]);
+
         $term->update([
-            'user_id'     => $request->user_id,
             'position_id' => $request->position_id,
-            'school_year' => $request->school_year,
+        ]);
+
+        ActivityLog::create([
+            'user_name'  => Auth::user()->name,
+            'activity'   => 'Updated officer: ' . $user->name,
+            'ip_address' => $request->ip()
         ]);
 
         return back()->with('success', 'Officer updated successfully.');

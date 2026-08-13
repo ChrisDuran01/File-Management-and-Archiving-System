@@ -10,10 +10,13 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "barryvdh/laravel-dompdf": "*",
         "kreait/laravel-firebase": "6.2",
         "laravel/framework": "^12.0",
         "laravel/tinker": "^2.10.1",
-        "quix-labs/laravel-supabase-flysystem": "*"
+        "quix-labs/laravel-supabase-flysystem": "*",
+        "spatie/pdf-to-text": "^1.54",
+        "thiagoalessio/tesseract_ocr": "^2.13"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

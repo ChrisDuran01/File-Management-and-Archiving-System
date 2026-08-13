@@ -1,215 +1,347 @@
-@extends('Admin.home')
+@extends($layout ?? 'Admin.home')
 @section('content')
 
 <style>
-.section-title { font-size: 12px; font-weight: 600; color: #6c757d; letter-spacing: .07em; text-transform: uppercase; margin: 0 0 10px; }
-.metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1.5rem; }
-.metric-card { background: #f8f9fa; border-radius: 10px; padding: 16px 18px; }
-.metric-card .label { font-size: 12px; color: #6c757d; margin: 0 0 6px; }
-.metric-card .value { font-size: 26px; font-weight: 600; margin: 0; line-height: 1.1; }
-.metric-card .delta { font-size: 11px; margin-top: 4px; }
-.delta-up { color: #28a745; }
-.delta-dn { color: #dc3545; }
-.card-panel { background: #fff; border: 1px solid #e9ecef; border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
-.chart-row { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 16px; }
-.half-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
-.filter-chips { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; }
-.chip { font-size: 12px; padding: 4px 14px; border-radius: 20px; border: 1px solid #dee2e6; background: transparent; color: #6c757d; cursor: pointer; transition: all .15s; }
-.chip:hover { background: #e9ecef; }
-.chip.active { background: #cfe2ff; color: #084298; border-color: transparent; }
-.mini-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.mini-bar .name { font-size: 13px; color: #495057; width: 110px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mini-bar .track { flex: 1; height: 6px; background: #e9ecef; border-radius: 3px; overflow: hidden; }
-.mini-bar .fill { height: 100%; border-radius: 3px; }
-.mini-bar .val { font-size: 12px; color: #6c757d; width: 36px; text-align: right; }
-.rtable { width: 100%; border-collapse: collapse; font-size: 13px; }
-.rtable th { font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; padding: 6px 10px; border-bottom: 1px solid #dee2e6; text-align: left; }
-.rtable td { padding: 9px 10px; border-bottom: 1px solid #f1f3f5; vertical-align: middle; }
-.rtable tr:last-child td { border-bottom: none; }
-.badge-type { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px; letter-spacing: .04em; }
-.badge-img  { background:#cfe2ff; color:#084298; }
-.badge-pdf  { background:#f8d7da; color:#842029; }
-.badge-doc  { background:#fff3cd; color:#664d03; }
-.badge-zip  { background:#e2e3e5; color:#41464b; }
-.avatar { width: 28px; height: 28px; border-radius: 50%; display:inline-flex; align-items:center; justify-content:center; font-size: 11px; font-weight: 600; }
+    :root {
+        --surface-1:      #fcfcfb;
+        --page-plane:     #f9f9f7;
+        --text-primary:   #0b0b0b;
+        --text-secondary: #52514e;
+        --text-muted:     #898781;
+        --gridline:       #e1e0d9;
+        --border:         rgba(11,11,11,0.10);
+        --success-text:   #006300;
+
+        --seq-blue:       #2a78d6;
+        --seq-blue-soft:  #b7d3f6;
+
+        --cat-blue:       #2a78d6;
+        --cat-green:      #008300;
+        --cat-magenta:    #e87ba4;
+        --cat-yellow:     #eda100;
+
+        --status-warning:  #fab219;
+        --status-critical: #d03b3b;
+    }
+
+    body { background: var(--page-plane); color: var(--text-primary); }
+
+    .section-title { font-size: 12px; font-weight: 600; color: var(--text-secondary); letter-spacing: .06em; text-transform: uppercase; margin: 0 0 4px; }
+    .section-sub { font-size: 12px; color: var(--text-muted); margin: 0 0 14px; }
+    .card-panel { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+
+    /* KPI row */
+    .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+    .metric-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+    .metric-card .label { font-size: 12px; color: var(--text-muted); margin: 0 0 6px; }
+    .metric-card .value { font-size: 26px; font-weight: 600; margin: 0; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+    .metric-card .delta { font-size: 11px; margin-top: 4px; color: var(--text-muted); }
+    .metric-card .delta.up { color: var(--success-text); }
+
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .row-2-wide { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; }
+
+    /* Meter (single ratio against a limit) */
+    .meter-figure { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; margin: 2px 0 10px; }
+    .meter-track { height: 8px; border-radius: 4px; background: var(--gridline); overflow: hidden; margin-bottom: 6px; }
+    .meter-fill { height: 100%; border-radius: 4px; background: var(--seq-blue); }
+    .meter-caption { font-size: 12px; color: var(--text-muted); }
+
+    /* Thin ranked bars (officers, categories) - direct-labeled */
+    .rank-row { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
+    .rank-row:last-child { margin-bottom: 0; }
+    .rank-name { font-size: 13px; color: var(--text-primary); width: 130px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rank-track { flex: 1; height: 8px; background: var(--gridline); border-radius: 4px; overflow: hidden; }
+    .rank-fill { height: 100%; border-radius: 4px; }
+    .rank-val { font-size: 12px; color: var(--text-secondary); width: 34px; text-align: right; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+
+    /* Proportion bar (part-to-whole, horizontal, categorical) */
+    .prop-bar { display: flex; height: 22px; border-radius: 6px; overflow: hidden; margin-bottom: 12px; }
+    .prop-seg { height: 100%; }
+    .prop-legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--text-secondary); }
+    .prop-legend span.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+    /* Tables */
+    .rtable { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .rtable th { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; padding: 6px 10px; border-bottom: 1px solid var(--gridline); text-align: left; }
+    .rtable td { padding: 9px 10px; border-bottom: 1px solid var(--gridline); vertical-align: middle; color: var(--text-primary); }
+    .rtable tr:last-child td { border-bottom: none; }
+
+    .status-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+    .status-chip.warning { background: #fff3d6; color: #7a5200; }
+    .status-chip.critical { background: #fbe1e1; color: #7a1f1f; }
+    .status-chip i { font-size: 9px; }
+
+    .badge-type { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
+    .badge-generated { background: #e6f0fb; color: #184f95; }
+    .badge-uploaded { background: #f0efec; color: var(--text-secondary); }
+
+    .empty-note { font-size: 13px; color: var(--text-muted); padding: 8px 0; }
 </style>
 
 <div class="container-fluid py-3">
-    <h5 class="fw-semibold mb-4">Reports &amp; Analytics</h5>
+    <h5 class="fw-semibold mb-1">Reports &amp; Analytics</h5>
+    <p class="section-sub">What the records archive is actually doing, not just how much is in it.</p>
 
-    {{-- METRIC CARDS --}}
-    <div class="metric-grid">
+    {{-- KPI ROW --}}
+    <div class="metric-grid" style="grid-template-columns: repeat(2, 1fr);">
         <div class="metric-card">
-            <p class="label">Total files</p>
-            <p class="value text-primary">{{ number_format($totalFiles) }}</p>
-            <p class="delta delta-up">↑ {{ $filesDelta }}% vs last month</p>
-        </div>
-        <div class="metric-card">
-            <p class="label">Total folders</p>
-            <p class="value text-success">{{ number_format($totalFolders) }}</p>
-            <p class="delta delta-up">↑ {{ $foldersDelta }}% vs last month</p>
-        </div>
-        <div class="metric-card">
-            <p class="label">Active users</p>
-            <p class="value text-warning">{{ number_format($totalUsers) }}</p>
-            <p class="delta {{ $usersDelta >= 0 ? 'delta-up' : 'delta-dn' }}">
-                {{ $usersDelta >= 0 ? '↑' : '↓' }} {{ abs($usersDelta) }}% vs last month
-            </p>
+            <p class="label">Total documents</p>
+            <p class="value">{{ number_format($totalFiles) }}</p>
+            <p class="delta {{ $filesDelta >= 0 ? 'up' : '' }}">{{ $filesDelta >= 0 ? '↑' : '↓' }} {{ abs($filesDelta) }}% vs last month</p>
         </div>
         <div class="metric-card">
             <p class="label">Storage used</p>
-            <p class="value text-danger">{{ $storageFormatted }}</p>
-            <p class="delta delta-up">↑ {{ $storageDelta }} MB this month</p>
+            <p class="value">{{ $storageFormatted }}</p>
+            <p class="delta">projected {{ $projectedTarget ?? '—' }} in 3 months</p>
         </div>
     </div>
 
-    {{-- DATE RANGE FILTER --}}
-    <div class="filter-chips">
-        <button class="chip active" data-range="7d">Last 7 days</button>
-        <button class="chip" data-range="30d">30 days</button>
-        <button class="chip" data-range="90d">90 days</button>
-        <button class="chip" data-range="12m">12 months</button>
-    </div>
-
-    {{-- CHARTS ROW --}}
-    <div class="chart-row">
+    {{-- STORAGE TREND + OFFICER LEADERBOARD --}}
+    <div class="row-2-wide">
         <div class="card-panel">
-            <p class="section-title mb-3">Monthly uploads</p>
-            <div class="mb-2" style="display:flex;gap:16px;font-size:12px;color:#6c757d;">
-                <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#3b82f6;margin-right:4px;"></span>Files</span>
-                <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#22c55e;margin-right:4px;"></span>Folders</span>
-            </div>
+            <p class="section-title">Storage growth</p>
+            <p class="section-sub">Actual monthly total, with a 3-month projection from the observed trend.</p>
             <div style="position:relative;width:100%;height:220px;">
-                <canvas id="uploadChart"></canvas>
+                <canvas id="storageChart"></canvas>
             </div>
         </div>
         <div class="card-panel">
-            <p class="section-title mb-3">File types</p>
-            <div style="position:relative;width:100%;height:150px;">
-                <canvas id="typeChart"></canvas>
+            <p class="section-title">Most active officers</p>
+            <p class="section-sub">Logged actions, last 90 days.</p>
+            @forelse($activeOfficers as $officer)
+                @php $max = $activeOfficers->max('total') ?: 1; @endphp
+                <div class="rank-row">
+                    <span class="rank-name">{{ $officer->user_name }}</span>
+                    <div class="rank-track"><div class="rank-fill" style="width:{{ round(($officer->total/$max)*100) }}%; background:var(--seq-blue);"></div></div>
+                    <span class="rank-val">{{ $officer->total }}</span>
+                </div>
+            @empty
+                <p class="empty-note">No activity recorded yet.</p>
+            @endforelse
+        </div>
+    </div>
+
+    {{-- FOLDERS NEEDING ATTENTION + FILE TYPES --}}
+    <div class="row-2">
+        <div class="card-panel">
+            <p class="section-title">Folders needing attention</p>
+            <p class="section-sub">Not archived, untouched for {{ 90 }}+ days.</p>
+            @forelse($staleFolders as $folder)
+                <div class="rank-row" style="margin-bottom:10px;">
+                    <span class="rank-name" style="width:auto; flex:1;">{{ $folder['name'] }}</span>
+                    <span class="status-chip {{ $folder['status'] }}">
+                        <i class="fas fa-circle"></i> {{ $folder['days_stale'] }}d stale
+                    </span>
+                </div>
+            @empty
+                <p class="empty-note">Nothing stale right now — every active folder has been touched recently.</p>
+            @endforelse
+        </div>
+
+        <div class="card-panel">
+            <p class="section-title">Document types</p>
+            <p class="section-sub">Share of the archive by file type.</p>
+            @php $typeColors = ['var(--cat-blue)', 'var(--cat-green)', 'var(--cat-magenta)', 'var(--cat-yellow)']; @endphp
+            <div class="prop-bar">
+                @foreach($fileTypes as $i => $type)
+                    @if($type['percent'] > 0)
+                        <div class="prop-seg" style="width:{{ $type['percent'] }}%; background:{{ $typeColors[$i] }};" title="{{ $type['label'] }} {{ $type['percent'] }}%"></div>
+                    @endif
+                @endforeach
             </div>
-            <div style="display:flex;flex-direction:column;gap:5px;font-size:12px;color:#6c757d;margin-top:10px;">
-                @foreach($fileTypes as $type)
-                <span>
-                    <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:{{ $type['color'] }};margin-right:4px;"></span>
-                    {{ $type['label'] }} {{ $type['percent'] }}%
-                </span>
+            <div class="prop-legend">
+                @foreach($fileTypes as $i => $type)
+                    <span><span class="swatch" style="background:{{ $typeColors[$i] }};"></span>{{ $type['label'] }} {{ $type['percent'] }}%</span>
                 @endforeach
             </div>
         </div>
     </div>
 
-    {{-- RECENT FILES --}}
+    {{-- RECENT DOCUMENTS --}}
     <div class="card-panel">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <p class="section-title mb-0">Recent files</p>
+            <p class="section-title mb-0">Recent documents</p>
             <a href="/folders" class="btn btn-sm btn-outline-secondary" style="font-size:12px;">View all</a>
         </div>
         <table class="rtable">
             <thead>
                 <tr>
                     <th>File name</th>
-                    <th>Type</th>
-                   
+                    <th>Source</th>
                     <th>Size</th>
                     <th>Uploaded at</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach($recentFiles as $file)
-                @php
-                    $ext = strtolower(pathinfo($file->filename, PATHINFO_EXTENSION));
-                    $badgeClass = match(true) {
-                        in_array($ext, ['png','jpg','jpeg','gif','webp']) => 'badge-img',
-                        $ext === 'pdf'                                    => 'badge-pdf',
-                        in_array($ext, ['doc','docx','xls','xlsx'])       => 'badge-doc',
-                        default                                           => 'badge-zip',
-                    };
-                    $badgeLabel = match(true) {
-                        in_array($ext, ['png','jpg','jpeg','gif','webp']) => 'IMG',
-                        $ext === 'pdf'                                    => 'PDF',
-                        in_array($ext, ['doc','docx'])                   => 'DOC',
-                        in_array($ext, ['xls','xlsx'])                   => 'XLS',
-                        default                                           => strtoupper($ext) ?: 'FILE',
-                    };
-                    $initials = collect(explode(' ', $file->user->name ?? 'U'))->map(fn($w)=>strtoupper($w[0]))->take(2)->join('');
-                @endphp
+                @forelse($recentFiles as $file)
                 <tr>
+                    <td><span style="font-weight:500;">{{ $file->filename }}</span></td>
                     <td>
-                        <span style="font-weight:500;">{{ $file->filename }}</span>
+                        @if($file->generated_from_template_id)
+                            <span class="badge-type badge-generated">Generated</span>
+                        @else
+                            <span class="badge-type badge-uploaded">Uploaded</span>
+                        @endif
                     </td>
-                    <td><span class="badge-type {{ $badgeClass }}">{{ $badgeLabel }}</span></td>
-                
                     <td>{{ $file->size ? number_format($file->size / 1024, 1) . ' KB' : '—' }}</td>
-                    <td style="color:#6c757d;">{{ $file->created_at->format('M j, Y H:i') }}</td>
+                    <td style="color:var(--text-muted);">{{ $file->created_at->format('M j, Y H:i') }}</td>
                 </tr>
-                @endforeach
+                @empty
+                <tr><td colspan="4" class="empty-note">No documents yet.</td></tr>
+                @endforelse
             </tbody>
         </table>
     </div>
+
+    @if($isSuperAdmin)
+    {{-- SECURITY: LOGIN ANOMALIES - pattern detection over activity_logs,
+         not a raw count. SuperAdmin-only: this surfaces who might be under
+         attack or have a compromised account. --}}
+    <div class="card-panel">
+        <p class="section-title"><i class="fas fa-shield-halved me-1"></i> Security: login anomalies</p>
+        <p class="section-sub">Patterns in the last {{ 7 }} days worth a human look - not just a failed-login count.</p>
+
+        <div class="row-2" style="grid-template-columns: 1fr 1fr 1fr; gap: 14px;">
+            <div>
+                <p class="section-title" style="font-size:11px;">Possible brute force</p>
+                @forelse($loginAnomalies['bruteForce'] as $row)
+                    <div class="rank-row" style="margin-bottom:10px; align-items:flex-start;">
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-size:13px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $row->user_name }}</div>
+                            <div style="font-size:11px; color:var(--text-muted);">{{ $row->distinct_ips }} {{ Str::plural('IP', $row->distinct_ips) }} &middot; last {{ \Carbon\Carbon::parse($row->last_attempt)->diffForHumans() }}</div>
+                        </div>
+                        <span class="status-chip {{ $row->attempts >= 5 ? 'critical' : 'warning' }}">
+                            <i class="fas fa-circle"></i> {{ $row->attempts }}x
+                        </span>
+                    </div>
+                @empty
+                    <p class="empty-note">No repeated failed attempts.</p>
+                @endforelse
+            </div>
+
+            <div>
+                <p class="section-title" style="font-size:11px;">Multiple IPs, same account</p>
+                @forelse($loginAnomalies['multiIp'] as $row)
+                    <div class="rank-row" style="margin-bottom:10px; align-items:flex-start;">
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-size:13px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $row->user_name }}</div>
+                            <div style="font-size:11px; color:var(--text-muted);">{{ $row->total_logins }} logins &middot; last {{ \Carbon\Carbon::parse($row->last_login)->diffForHumans() }}</div>
+                        </div>
+                        <span class="status-chip warning">
+                            <i class="fas fa-circle"></i> {{ $row->distinct_ips }} IPs
+                        </span>
+                    </div>
+                @empty
+                    <p class="empty-note">No accounts logging in from multiple locations.</p>
+                @endforelse
+            </div>
+
+            <div>
+                <p class="section-title" style="font-size:11px;">New-location logins</p>
+                @forelse($loginAnomalies['newLocation'] as $row)
+                    <div class="rank-row" style="margin-bottom:10px; align-items:flex-start;">
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-size:13px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ $row->user_name }}</div>
+                            <div style="font-size:11px; color:var(--text-muted);">{{ $row->ip_address }} &middot; {{ $row->created_at->diffForHumans() }}</div>
+                        </div>
+                        <span class="status-chip warning">
+                            <i class="fas fa-location-dot"></i> new
+                        </span>
+                    </div>
+                @empty
+                    <p class="empty-note">No unfamiliar-location logins.</p>
+                @endforelse
+            </div>
+        </div>
+    </div>
+    @endif
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    // Pass PHP data to JS safely
-    window.uploadData = @json($uploadData);
-    window.fileTypes = @json($fileTypes);
-</script>
+const storageTrend = @json($storageTrend);
+const projection = @json($projection);
 
-<script type="module" src="{{ Vite::asset('resources/js/app.js') }}"></script>
-<script>
+const labels = [...storageTrend.map(p => p.label), ...projection.map(p => p.label)];
 
+// Projected series starts from the last actual point so the two lines
+// visually connect, with nulls elsewhere so Chart.js doesn't draw it
+// across the historical range.
+const actualData = [...storageTrend.map(p => p.bytes), ...projection.map(() => null)];
+const projectedData = [
+    ...storageTrend.map(() => null),
+    ...(storageTrend.length ? [storageTrend[storageTrend.length - 1].bytes] : []),
+    ...projection.map(p => p.bytes),
+];
+if (projectedData.length > labels.length) projectedData.length = labels.length;
+while (projectedData.length < labels.length) projectedData.push(null);
 
+function formatBytesShort(bytes) {
+    if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(2) + ' GB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+}
 
-const uploadChart = new Chart(document.getElementById('uploadChart'), {
-    type: 'bar',
+new Chart(document.getElementById('storageChart'), {
+    type: 'line',
     data: {
-        labels: uploadData['12m'].labels,
+        labels,
         datasets: [
-            { label: 'Files', data: uploadData['12m'].files, backgroundColor: '#bfdbfe', borderRadius: 4 },
-            { label: 'Folders', data: uploadData['12m'].folders, backgroundColor: '#bbf7d0', borderRadius: 4 },
-        ]
-    },
-    options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-            x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#6c757d', autoSkip: false, maxRotation: 45 } },
-            y: { grid: { color: 'rgba(0,0,0,.06)' }, ticks: { font: { size: 11 }, color: '#6c757d' } }
-        }
-    }
-});
-
-document.querySelectorAll('.chip[data-range]').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.chip[data-range]').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const d = uploadData[btn.dataset.range];
-        uploadChart.data.labels = d.labels;
-        uploadChart.data.datasets[0].data = d.files;
-        uploadChart.data.datasets[1].data = d.folders;
-        uploadChart.update();
-    });
-});
-new Chart(document.getElementById('typeChart'), {
-    type: 'doughnut',
-    data: {
-        labels: window.fileTypes.map(t => t.label),
-        datasets: [{
-            data: window.fileTypes.map(t => t.percent),
-            backgroundColor: window.fileTypes.map(t => t.color),
-            borderWidth: 0,
-            hoverOffset: 4
-        }]
+            {
+                label: 'Actual',
+                data: actualData,
+                borderColor: '#2a78d6',
+                backgroundColor: 'rgba(42,120,214,0.08)',
+                borderWidth: 2,
+                pointRadius: 3,
+                pointBackgroundColor: '#2a78d6',
+                fill: true,
+                tension: 0.25,
+                spanGaps: false,
+            },
+            {
+                label: 'Projected',
+                data: projectedData,
+                borderColor: '#2a78d6',
+                borderDash: [6, 5],
+                borderWidth: 2,
+                pointRadius: 3,
+                pointStyle: 'circle',
+                pointBackgroundColor: '#fcfcfb',
+                pointBorderColor: '#2a78d6',
+                fill: false,
+                tension: 0.25,
+                spanGaps: true,
+            },
+        ],
     },
     options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '65%',
         plugins: {
-            legend: { display: false }
-        }
-    }
+            legend: {
+                display: true,
+                position: 'top',
+                align: 'end',
+                labels: { boxWidth: 10, boxHeight: 10, font: { size: 11 }, color: '#52514e' },
+            },
+            tooltip: {
+                callbacks: {
+                    label: (ctx) => ctx.dataset.label + ': ' + formatBytesShort(ctx.parsed.y),
+                },
+            },
+        },
+        scales: {
+            x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#898781' } },
+            y: {
+                grid: { color: '#e1e0d9' },
+                ticks: {
+                    font: { size: 11 }, color: '#898781',
+                    callback: (v) => formatBytesShort(v),
+                },
+            },
+        },
+    },
 });
 </script>
 

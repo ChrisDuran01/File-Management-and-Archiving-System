@@ -113,12 +113,14 @@
         transition: opacity .18s;
         border-radius: calc(var(--radius) - 1px);
     }
-    .result-card.folder::before { background: var(--warning-dim); }
-    .result-card.file::before   { background: var(--primary-dim); }
+    .result-card.folder::before  { background: var(--warning-dim); }
+    .result-card.file::before    { background: var(--primary-dim); }
+    .result-card.archive::before { background: var(--border); }
     .result-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
     .result-card:hover::before { opacity: 1; }
-    .result-card.folder:hover { border-color: var(--warning); }
-    .result-card.file:hover   { border-color: var(--primary); }
+    .result-card.folder:hover  { border-color: var(--warning); }
+    .result-card.file:hover    { border-color: var(--primary); }
+    .result-card.archive:hover { border-color: var(--text-3); }
 
     /* Icon wrapper */
     .card-icon {
@@ -134,7 +136,8 @@
         z-index: 1;
         flex-shrink: 0;
     }
-    .card-icon.folder { background: var(--warning-dim); color: var(--warning); }
+    .card-icon.folder  { background: var(--warning-dim); color: var(--warning); }
+    .card-icon.archive { background: var(--surface); color: var(--text-3); }
     .card-icon.pdf    { background: #fef2f2; color: #ef4444; }
     .card-icon.docx   { background: #eff6ff; color: #3b82f6; }
     .card-icon.xlsx   { background: #f0fdf4; color: #22c55e; }
@@ -169,6 +172,37 @@
         z-index: 1;
     }
 
+    /* ── Content-match badge + snippet ───────────────── */
+    .card-match-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: .62rem;
+        font-weight: 600;
+        letter-spacing: .02em;
+        color: #7c3aed;
+        background: #f5f3ff;
+        border-radius: 20px;
+        padding: 2px 8px;
+        margin-top: 6px;
+        position: relative;
+        z-index: 1;
+    }
+    .card-snippet {
+        font-size: .68rem;
+        color: var(--text-2);
+        line-height: 1.4;
+        margin-top: 5px;
+        position: relative;
+        z-index: 1;
+    }
+    .card-snippet mark {
+        background: #fde68a;
+        color: inherit;
+        border-radius: 2px;
+        padding: 0 1px;
+    }
+
     /* ── Empty state ──────────────────────────────── */
     .empty-state {
         text-align: center;
@@ -188,10 +222,12 @@
 @php
     $results = collect()
         ->merge($folders->map(fn($f) => ['type' => 'folder', 'data' => $f]))
-        ->merge($files->map(fn($f)   => ['type' => 'file',   'data' => $f]));
+        ->merge($files->map(fn($f)   => ['type' => 'file',   'data' => $f]))
+        ->merge($archives->map(fn($a) => ['type' => 'archive', 'data' => $a]));
 
-    $folderItems = $results->where('type', 'folder');
-    $fileItems   = $results->where('type', 'file');
+    $folderItems  = $results->where('type', 'folder');
+    $fileItems    = $results->where('type', 'file');
+    $archiveItems = $results->where('type', 'archive');
 @endphp
 {{-- ── Back Button ─────────────────────────────────── --}}
 
@@ -217,6 +253,9 @@
     @endif
     @if($fileItems->count())
     <span class="stat-chip"><i class="fas fa-file"></i>{{ $fileItems->count() }} {{ Str::plural('file', $fileItems->count()) }}</span>
+    @endif
+    @if($archiveItems->count())
+    <span class="stat-chip"><i class="fas fa-box-archive"></i>{{ $archiveItems->count() }} archived {{ Str::plural('folder', $archiveItems->count()) }}</span>
     @endif
 </div>
 
@@ -271,6 +310,17 @@
             'img'  => 'fa-file-image',
             default => 'fa-file-alt',
         };
+
+        // Escape first, then wrap the matched term - never inject raw
+        // extracted document text as HTML.
+        $highlightedSnippet = null;
+        if (!empty($file->ocr_snippet)) {
+            $highlightedSnippet = preg_replace(
+                '/(' . preg_quote(e($query), '/') . ')/i',
+                '<mark>$1</mark>',
+                e($file->ocr_snippet)
+            );
+        }
     @endphp
 
     <a href="{{ route('files.preview', $file->id) }}" class="result-card file">
@@ -287,11 +337,54 @@
             📁 {{ $file->folder->name ?? 'Root' }}
         </small>
 
+        @if($file->matched_in_content ?? false)
+            <span class="card-match-badge"><i class="fas fa-file-lines"></i> Found in document text</span>
+            @if($highlightedSnippet)
+                <span class="card-snippet">{!! $highlightedSnippet !!}</span>
+            @endif
+        @endif
+        @if($file->matched_in_folder ?? false)
+            <span class="card-match-badge"><i class="fas fa-folder"></i> Matched folder name</span>
+        @endif
+        @if($file->matched_in_school_year ?? false)
+            <span class="card-match-badge"><i class="fas fa-calendar"></i> Matched school year</span>
+        @endif
+        @if($file->matched_in_type ?? false)
+            <span class="card-match-badge"><i class="fas fa-shapes"></i> Matched file type</span>
+        @endif
+
     </a>
 
     @endforeach
 </div>
 @endif
+
+    {{-- ── Archived folders section ─────────────────────── --}}
+    @if($archiveItems->count())
+    <div class="section-label"><i class="fas fa-box-archive"></i> Archived Folders</div>
+    <div class="results-grid">
+        @foreach($archiveItems as $item)
+        @php $archive = $item['data']; @endphp
+
+        <a href="{{ route('archives.show', $archive->id) }}" class="result-card archive">
+            <div class="card-icon archive"><i class="fas fa-box-archive"></i></div>
+            <span class="card-name">{{ $archive->folder_name }}</span>
+            <span class="card-ext">archived</span>
+
+            @if($archive->matched_in_contents ?? false)
+                <span class="card-match-badge">
+                    <i class="fas fa-file-lines"></i>
+                    Found: {{ implode(', ', array_slice($archive->matched_filenames, 0, 3)) }}
+                    @if(count($archive->matched_filenames) > 3)
+                        +{{ count($archive->matched_filenames) - 3 }} more
+                    @endif
+                </span>
+            @endif
+        </a>
+
+        @endforeach
+    </div>
+    @endif
 
 @endif
 

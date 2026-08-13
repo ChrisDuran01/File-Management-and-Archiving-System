@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Archive;
+use App\Models\ActivityLog;
 use App\Models\File;
 use App\Models\Folder;
+use App\Services\FolderArchiver;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File as FileFacade;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -18,157 +20,48 @@ class ArchiveController extends Controller
 {
     public function index()
     {
-        $archives = Archive::latest()->get();
-        return view('Admin.archives', compact('archives'));
+        $archives = Archive::latest()->get()->filter(fn (Archive $archive) => $archive->isAccessibleBy(Auth::user()))->values();
+        $layout = Folder::isSuperAdmin(Auth::user()) ? 'SuperAdmin.homeSuperAdmin' : 'Admin.home';
+        return view('Admin.archives', compact('archives', 'layout'));
     }
 
-    public function archiveFolder($folderId)
+    /**
+     * Manually run the stale-folder retention check (also runs on its own
+     * daily schedule) — lets a SuperAdmin trigger it on demand instead of
+     * waiting for the next scheduled run.
+     */
+    public function runAutoArchive(Request $request)
+    {
+        $years = $request->filled('years') ? (int) $request->years : null;
+
+        $exitCode = Artisan::call('folders:archive-stale', array_filter([
+            '--years' => $years,
+        ], fn ($v) => $v !== null));
+
+        $output = trim(Artisan::output());
+
+        return back()->with($exitCode === 0 ? 'success' : 'error', $output ?: 'Retention check completed.');
+    }
+
+    public function archiveFolder($folderId, FolderArchiver $archiver)
     {
         try {
-            // Find the folder
             $folder = Folder::findOrFail($folderId);
             $folderName = $folder->name;
-            
-            Log::info('Archive started for folder: ' . $folderName);
-            
-            $supabaseUrl = env('SUPABASE_URL');
-            $supabaseKey = env('SUPABASE_SERVICE_KEY');
-            $bucket = env('SUPABASE_BUCKET', 'file');
-            
-            if (!$supabaseUrl || !$supabaseKey) {
-                return back()->with('error', 'Supabase configuration is missing');
+
+            $result = $archiver->archive($folder, Auth::user()?->name ?? 'System');
+
+            if (! $result['success']) {
+                return back()->with('error', $result['message']);
             }
 
-            // Get files from the folder
-            $files = File::where('folder_id', $folderId)->get();
-
-            if ($files->isEmpty()) {
-                return back()->with('warning', 'No files found in this folder to archive');
-            }
-
-            // Create ZIP file
-            $zipName = $folderName . '_' . now()->format('Ymd_His') . '.zip';
-            $tempZipPath = storage_path('app/temp/' . $zipName);
-            
-            if (!FileFacade::exists(storage_path('app/temp'))) {
-                FileFacade::makeDirectory(storage_path('app/temp'), 0777, true);
-            }
-            
-            $zip = new ZipArchive();
-            if ($zip->open($tempZipPath, ZipArchive::CREATE) !== true) {
-                return back()->with('error', 'Could not create ZIP file');
-            }
-
-            $archivedFilesCount = 0;
-            
-            // Add files to ZIP
-            foreach ($files as $file) {
-                $fileAdded = false;
-                
-                // Try local storage
-                if ($file->local_path && Storage::disk('public')->exists($file->local_path)) {
-                    $fileContent = Storage::disk('public')->get($file->local_path);
-                    $zip->addFromString($file->filename, $fileContent);
-                    $fileAdded = true;
-                    $archivedFilesCount++;
-                    Log::info('Added local file to ZIP: ' . $file->filename);
-                } 
-                // Try Supabase
-                else if ($file->filepath) {
-                    $fileResponse = Http::withHeaders([
-                        'apikey' => $supabaseKey,
-                        'Authorization' => 'Bearer ' . $supabaseKey
-                    ])->get("$supabaseUrl/storage/v1/object/$bucket/{$file->filepath}");
-                    
-                    if ($fileResponse->successful()) {
-                        $zip->addFromString($file->filename, $fileResponse->body());
-                        $fileAdded = true;
-                        $archivedFilesCount++;
-                        Log::info('Added Supabase file to ZIP: ' . $file->filename);
-                    }
-                }
-                
-                if (!$fileAdded) {
-                    Log::warning('File not found: ' . $file->filename);
-                }
-                
-                // Delete the file from database and storage
-                if ($fileAdded) {
-                    // Delete from local storage
-                    if ($file->local_path && Storage::disk('public')->exists($file->local_path)) {
-                        Storage::disk('public')->delete($file->local_path);
-                    }
-                    
-                    // Delete from Supabase
-                    if ($file->filepath) {
-                        Http::withHeaders([
-                            'apikey' => $supabaseKey,
-                            'Authorization' => 'Bearer ' . $supabaseKey
-                        ])->delete("$supabaseUrl/storage/v1/object/$bucket/{$file->filepath}");
-                    }
-                    
-                    // Delete file record from database
-                    $file->delete();
-                }
-            }
-            
-            $zip->close();
-            
-            if (!FileFacade::exists($tempZipPath) || FileFacade::size($tempZipPath) === 0) {
-                return back()->with('error', 'ZIP file was not created or is empty');
-            }
-            
-            // Store ZIP locally
-            $localArchivePath = 'archives/' . $zipName;
-            Storage::disk('public')->put($localArchivePath, file_get_contents($tempZipPath));
-            
-            // Upload ZIP to Supabase
-            $zipContent = file_get_contents($tempZipPath);
-            $archivePath = "archives/$zipName";
-            
-            $uploadResponse = Http::withHeaders([
-                'apikey' => $supabaseKey,
-                'Authorization' => 'Bearer ' . $supabaseKey
-            ])->attach(
-                'file',
-                $zipContent,
-                $zipName,
-                ['Content-Type' => 'application/zip']
-            )->post("$supabaseUrl/storage/v1/object/$bucket/$archivePath");
-            
-            // Delete temp ZIP file
-            FileFacade::delete($tempZipPath);
-            
-            // ========== NEW: DELETE THE FOLDER FROM MAIN FOLDERS ==========
-            // Store folder details before deleting
-            $folderData = [
-                'id' => $folder->id,
-                'name' => $folder->name,
-                'parent_id' => $folder->parent_id,
-                'description' => $folder->description
-            ];
-            
-            // Delete the folder from database
-            $folder->delete();
-            Log::info('Folder deleted from main folders: ' . $folderName);
-            
-            // Save archive record with folder info
-            $archive = Archive::create([
-                'record_id' => $folderId, // Keep the original folder ID
-                'folder_name' => $folderName,
-                'zip_name' => $zipName,
-                'file_path' => $archivePath,
-                'archive_type' => 'folder_archive',
-                'archived_by' => Auth::user()?->name ?? 'System',
-                'archived_at' => now(),
-                'status' => 'archived',
-                'remarks' => "Archived folder '{$folderName}' with {$archivedFilesCount} files. Folder removed from main directory."
+            ActivityLog::create([
+                'user_name'  => Auth::user()?->name ?? 'System',
+                'activity'   => 'Archived folder: ' . $folderName,
+                'ip_address' => request()->ip()
             ]);
-            
-            Log::info('Folder archived and removed successfully: ' . $folderName);
-            
-            return redirect()->route('folders.index')
-                ->with('success', "Folder '{$folderName}' archived successfully with {$archivedFilesCount} files. Folder removed from main directory.");
+
+            return redirect()->route('folders.index')->with('success', $result['message']);
 
         } catch (\Exception $e) {
             Log::error('Archive failed: ' . $e->getMessage());
@@ -183,16 +76,16 @@ class ArchiveController extends Controller
     {
         try {
             $archive = Archive::findOrFail($id);
-            
+
+            if (! $archive->isManageableBy(Auth::user())) {
+                return back()->with('error', 'You do not have permission to restore this archive.');
+            }
+
             // Check if folder already exists
             $existingFolder = Folder::find($archive->record_id);
             if ($existingFolder) {
                 return back()->with('error', 'Folder already exists. Please delete the existing folder first or restore to a different location.');
             }
-            
-            $supabaseUrl = env('SUPABASE_URL');
-            $supabaseKey = env('SUPABASE_SERVICE_KEY');
-            $bucket = env('SUPABASE_BUCKET', 'file');
             
             // Create the folder back
             $folder = Folder::create([
@@ -216,17 +109,12 @@ class ArchiveController extends Controller
                 $zipContent = file_get_contents($localArchivePath);
                 Log::info('Restoring from local archive');
             } 
-            // If not local, try Supabase
+            // If not local, try the cloud disk
             else if ($archive->file_path) {
-                $zipResponse = Http::withHeaders([
-                    'apikey' => $supabaseKey,
-                    'Authorization' => 'Bearer ' . $supabaseKey
-                ])->get("$supabaseUrl/storage/v1/object/$bucket/{$archive->file_path}");
-                
-                if ($zipResponse->successful()) {
-                    $zipContent = $zipResponse->body();
-                    Log::info('Restoring from Supabase archive');
-                } else {
+                try {
+                    $zipContent = Storage::disk('cloud')->get($archive->file_path);
+                    Log::info('Restoring from cloud archive');
+                } catch (\Throwable) {
                     // Delete the folder we just created
                     $folder->delete();
                     return back()->with('error', 'Archive file not found in any storage');
@@ -236,13 +124,19 @@ class ArchiveController extends Controller
                 return back()->with('error', 'Archive file location not found');
             }
             
+            // Fixity: does this ZIP still match what was recorded when it was archived?
+            $zipChecksumOk = $archive->matchesChecksum($zipContent);
+            if (! $zipChecksumOk) {
+                Log::warning('Archive checksum mismatch on restore: ' . $archive->folder_name . ' (archive #' . $archive->id . ')');
+            }
+
             // Save ZIP temporarily
             $tempZipPath = storage_path('app/temp/restore_' . $archive->zip_name);
             if (!FileFacade::exists(storage_path('app/temp'))) {
                 FileFacade::makeDirectory(storage_path('app/temp'), 0777, true);
             }
             file_put_contents($tempZipPath, $zipContent);
-            
+
             // Extract ZIP
             $zip = new ZipArchive();
             $tempExtractPath = storage_path('app/temp/extract_' . time());
@@ -259,13 +153,22 @@ class ArchiveController extends Controller
             // Get extracted files
             $extractedFiles = FileFacade::files($tempExtractPath);
             $restoredCount = 0;
-            
+            $corruptedFiles = [];
+
             // Restore each file
             foreach ($extractedFiles as $extractedFile) {
                 $filename = basename($extractedFile);
                 $fileContent = file_get_contents($extractedFile);
                 $fileSize = strlen($fileContent);
-                
+
+                // Fixity: does this extracted file still match the hash
+                // recorded for it when it went into the ZIP?
+                $expectedHash = $archive->file_checksums[$filename] ?? null;
+                if ($expectedHash && ! hash_equals($expectedHash, hash('sha256', $fileContent))) {
+                    $corruptedFiles[] = $filename;
+                    Log::warning("Restored file failed integrity check: {$filename} (archive #{$archive->id})");
+                }
+
                 // Generate unique filename if needed
                 $newFileName = $filename;
                 $count = 0;
@@ -288,16 +191,14 @@ class ArchiveController extends Controller
                 $localPath = $localRestorePath . $uniquePath;
                 Storage::disk('public')->put($localPath, $fileContent);
                 
-                // Upload to Supabase
-                $uploadResponse = Http::withHeaders([
-                    'Authorization' => 'Bearer ' . $supabaseKey,
-                    'apikey' => $supabaseKey,
-                ])->attach(
-                    'file',
-                    $fileContent,
-                    $uniquePath
-                )->post("$supabaseUrl/storage/v1/object/$bucket/$uniquePath");
-                
+                // Upload to the cloud disk
+                try {
+                    Storage::disk('cloud')->put($uniquePath, $fileContent);
+                    $uploadedToCloud = true;
+                } catch (\Throwable) {
+                    $uploadedToCloud = false;
+                }
+
                 // Save to database
                 $file = File::create([
                     'filename' => $newFileName,
@@ -305,7 +206,7 @@ class ArchiveController extends Controller
                     'local_path' => $localPath,
                     'folder_id' => $folder->id,
                     'size' => $fileSize,
-                    'storage_type' => $uploadResponse->successful() ? 'both' : 'local',
+                    'storage_type' => $uploadedToCloud ? 'both' : 'local',
                 ]);
                 
                 if ($file) {
@@ -319,14 +220,29 @@ class ArchiveController extends Controller
             FileFacade::delete($tempZipPath);
             
             // Update archive status
+            $integrityNote = ! $zipChecksumOk
+                ? ' WARNING: archive ZIP failed its integrity check.'
+                : ($corruptedFiles ? ' WARNING: ' . count($corruptedFiles) . ' file(s) failed integrity check (' . implode(', ', $corruptedFiles) . ').' : '');
+
             $archive->update([
                 'status' => 'restored',
                 'restored_at' => now(),
-                'remarks' => ($archive->remarks ? $archive->remarks . '; ' : '') . "Restored folder '{$folder->name}' with {$restoredCount} files on " . now()
+                'remarks' => ($archive->remarks ? $archive->remarks . '; ' : '') . "Restored folder '{$folder->name}' with {$restoredCount} files on " . now() . $integrityNote
             ]);
-            
+
+            ActivityLog::create([
+                'user_name'  => Auth::user()?->name ?? 'System',
+                'activity'   => 'Restored folder: ' . $archive->folder_name . $integrityNote,
+                'ip_address' => request()->ip()
+            ]);
+
+            if ($integrityNote) {
+                return redirect()->route('folders.index')
+                    ->with('error', "Folder '{$archive->folder_name}' restored with {$restoredCount} files, but failed its integrity check.{$integrityNote} The restored data may be incomplete or altered - please verify it.");
+            }
+
             return redirect()->route('folders.index')
-                ->with('success', "Folder '{$archive->folder_name}' restored successfully with {$restoredCount} files. Folder added back to main directory.");
+                ->with('success', "Folder '{$archive->folder_name}' restored successfully with {$restoredCount} files, integrity verified. Folder added back to main directory.");
             
         } catch (\Exception $e) {
             Log::error('Restore failed: ' . $e->getMessage());
@@ -334,53 +250,248 @@ class ArchiveController extends Controller
         }
     }
 
-    // Keep your existing download and destroy methods
-    public function download($id)
+    /**
+     * Downloading is a file response, not a redirect - a browser doesn't
+     * navigate anywhere when it triggers, so a flash message set alongside
+     * it would silently never be seen. When the integrity check fails, this
+     * shows a real warning page requiring an explicit "Download anyway"
+     * click instead, so the warning is guaranteed to actually be seen. The
+     * common case (checksum passes) stays a single click, unchanged.
+     */
+    public function download($id, Request $request)
     {
         try {
             $archive = Archive::findOrFail($id);
-            
+
+            if (! $archive->isAccessibleBy(Auth::user())) {
+                abort(403, 'This archive is restricted and you don\'t have access to it.');
+            }
+
+            $confirmed = $request->boolean('confirmed');
+
             // Try local archive storage first
             $localArchivePath = storage_path('app/public/archives/' . $archive->zip_name);
             if (file_exists($localArchivePath)) {
+                $verified = $archive->matchesChecksum(file_get_contents($localArchivePath));
+
+                if (! $verified && ! $confirmed) {
+                    $this->logChecksumResult($archive, false);
+                    return view('Admin.archive-integrity-warning', [
+                        'archive' => $archive,
+                        'layout'  => Folder::isSuperAdmin(Auth::user()) ? 'SuperAdmin.homeSuperAdmin' : 'Admin.home',
+                    ]);
+                }
+
+                // Either the check passed, or they clicked through the
+                // warning - either way, this is a real completed download.
+                $this->logChecksumResult($archive, $verified);
+
                 return response()->download($localArchivePath, $archive->zip_name);
             }
-            
-            // Try Supabase
-            $supabaseUrl = env('SUPABASE_URL');
-            $supabaseKey = env('SUPABASE_SERVICE_KEY');
-            $bucket = env('SUPABASE_BUCKET', 'file');
-            
-            if ($archive->file_path) {
-                $zipResponse = Http::withHeaders([
-                    'apikey' => $supabaseKey,
-                    'Authorization' => 'Bearer ' . $supabaseKey
-                ])->get("$supabaseUrl/storage/v1/object/$bucket/{$archive->file_path}");
-                
-                if ($zipResponse->successful()) {
-                    $tempZipPath = storage_path('app/temp/' . $archive->zip_name);
-                    if (!FileFacade::exists(storage_path('app/temp'))) {
-                        FileFacade::makeDirectory(storage_path('app/temp'), 0777, true);
-                    }
-                    file_put_contents($tempZipPath, $zipResponse->body());
-                    
-                    return response()->download($tempZipPath, $archive->zip_name)->deleteFileAfterSend(true);
+
+            // Try the cloud disk
+            if ($archive->file_path && Storage::disk('cloud')->exists($archive->file_path)) {
+                $zipContents = Storage::disk('cloud')->get($archive->file_path);
+                $verified    = $archive->matchesChecksum($zipContents);
+
+                if (! $verified && ! $confirmed) {
+                    $this->logChecksumResult($archive, false);
+                    return view('Admin.archive-integrity-warning', [
+                        'archive' => $archive,
+                        'layout'  => Folder::isSuperAdmin(Auth::user()) ? 'SuperAdmin.homeSuperAdmin' : 'Admin.home',
+                    ]);
                 }
+
+                $tempZipPath = storage_path('app/temp/' . $archive->zip_name);
+                if (!FileFacade::exists(storage_path('app/temp'))) {
+                    FileFacade::makeDirectory(storage_path('app/temp'), 0777, true);
+                }
+                file_put_contents($tempZipPath, $zipContents);
+
+                $this->logChecksumResult($archive, $verified);
+
+                return response()->download($tempZipPath, $archive->zip_name)->deleteFileAfterSend(true);
             }
-            
+
             return back()->with('error', 'Archive file not found');
-            
+
         } catch (\Exception $e) {
             Log::error('Download failed: ' . $e->getMessage());
             return back()->with('error', 'Download failed: ' . $e->getMessage());
         }
     }
 
+    /**
+     * Logs the outcome of a fixity check performed on download, and surfaces
+     * a visible warning on the visitor's next page load when it fails -
+     * response()->download() returns a file stream, not a redirect, so a
+     * flash message set here won't show until the next normal request.
+     */
+    private function logChecksumResult(Archive $archive, bool $verified): void
+    {
+        ActivityLog::create([
+            'user_name'  => Auth::user()?->name ?? 'System',
+            'activity'   => $verified
+                ? 'Downloaded archive: ' . $archive->folder_name
+                : 'Downloaded archive: ' . $archive->folder_name . ' (INTEGRITY CHECK FAILED - checksum mismatch)',
+            'ip_address' => request()->ip()
+        ]);
+
+        if (! $verified) {
+            Log::warning('Archive checksum mismatch on download: ' . $archive->folder_name . ' (archive #' . $archive->id . ')');
+            session()->flash('error', "Warning: \"{$archive->folder_name}\" failed its integrity check - the downloaded file may be corrupted or have been altered since it was archived.");
+        }
+    }
+
+    /**
+     * List the files preserved inside an archive - lets any signed-in
+     * officer browse what was archived without downloading the whole ZIP or
+     * restoring the folder. Deliberately not gated by isAccessibleBy()/
+     * isManageableBy(): an officer's account is fully locked out once their
+     * term ends (AuthController::login()), which would otherwise make
+     * archives created by a former officer unopenable by anyone but
+     * SuperAdmin. Downloading/restoring/deleting the whole archive still go
+     * through those checks - this is read-only browsing only.
+     */
+    public function show($id)
+    {
+        $archive = Archive::findOrFail($id);
+
+        $filenames = array_keys($archive->file_checksums ?? []);
+        sort($filenames);
+
+        $layout = Folder::isSuperAdmin(Auth::user()) ? 'SuperAdmin.homeSuperAdmin' : 'Admin.home';
+
+        return view('Admin.archiveContents', compact('archive', 'filenames', 'layout'));
+    }
+
+    /**
+     * Read-only preview of one file still sealed inside an archive's ZIP.
+     * No download link is offered here on purpose - browsing an archive is
+     * meant to stay "look, don't take" (the whole-ZIP download stays behind
+     * isManageableBy() below).
+     */
+    public function previewFile($id, $filename)
+    {
+        $archive = Archive::findOrFail($id);
+
+        if (! array_key_exists($filename, $archive->file_checksums ?? [])) {
+            abort(404, 'File not found in this archive.');
+        }
+
+        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+        $isImage = in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']);
+        $isPdf   = $ext === 'pdf';
+        $isVideo = in_array($ext, ['mp4', 'mov', 'webm', 'avi']);
+        $isAudio = in_array($ext, ['mp3', 'wav', 'ogg', 'm4a']);
+        $isText  = in_array($ext, ['txt', 'md', 'csv', 'log', 'json', 'xml', 'html', 'css', 'js', 'php']);
+
+        $textContent = null;
+
+        if ($isText) {
+            $bytes = $this->readArchiveEntry($archive, $filename);
+            $textContent = $bytes !== null ? substr($bytes, 0, 50000) : 'Unable to load file.';
+        }
+
+        $layout = Folder::isSuperAdmin(Auth::user()) ? 'SuperAdmin.homeSuperAdmin' : 'Admin.home';
+
+        return view('Admin.archiveFilePreview', compact(
+            'archive', 'filename', 'ext',
+            'isImage', 'isPdf', 'isVideo', 'isAudio', 'isText',
+            'textContent', 'layout'
+        ));
+    }
+
+    /**
+     * Streams one file's raw bytes straight out of the archive ZIP, inline
+     * only (never as an attachment) - used as the src for the image/pdf/
+     * video/audio viewer on the preview page above.
+     */
+    public function streamFile($id, $filename)
+    {
+        $archive = Archive::findOrFail($id);
+
+        $contents = $this->readArchiveEntry($archive, $filename);
+
+        if ($contents === null) {
+            abort(404, 'File not found in this archive.');
+        }
+
+        $mime = match (strtolower(pathinfo($filename, PATHINFO_EXTENSION))) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'svg' => 'image/svg+xml',
+            'pdf' => 'application/pdf',
+            'mp4' => 'video/mp4',
+            'webm' => 'video/webm',
+            'mov' => 'video/quicktime',
+            'mp3' => 'audio/mpeg',
+            'wav' => 'audio/wav',
+            'ogg' => 'audio/ogg',
+            default => 'application/octet-stream',
+        };
+
+        return response($contents)
+            ->header('Content-Type', $mime)
+            ->header('Content-Disposition', 'inline; filename="' . addslashes($filename) . '"');
+    }
+
+    /**
+     * Opens the archive's ZIP (local copy first, cloud fallback - the same
+     * preference order used everywhere else archives are read) and pulls
+     * one entry's bytes into memory without extracting anything else.
+     */
+    private function readArchiveEntry(Archive $archive, string $filename): ?string
+    {
+        $localArchivePath = storage_path('app/public/archives/' . $archive->zip_name);
+        $tempPath = null;
+
+        if (file_exists($localArchivePath)) {
+            $zipPath = $localArchivePath;
+        } elseif ($archive->file_path && Storage::disk('cloud')->exists($archive->file_path)) {
+            if (! FileFacade::exists(storage_path('app/temp'))) {
+                FileFacade::makeDirectory(storage_path('app/temp'), 0777, true);
+            }
+
+            $tempPath = storage_path('app/temp/read_' . $archive->zip_name);
+            file_put_contents($tempPath, Storage::disk('cloud')->get($archive->file_path));
+            $zipPath = $tempPath;
+        } else {
+            return null;
+        }
+
+        $zip = new ZipArchive();
+
+        if ($zip->open($zipPath) !== true) {
+            if ($tempPath) {
+                @unlink($tempPath);
+            }
+
+            return null;
+        }
+
+        $contents = $zip->getFromName($filename);
+        $zip->close();
+
+        if ($tempPath) {
+            @unlink($tempPath);
+        }
+
+        return $contents !== false ? $contents : null;
+    }
+
     public function destroy($id)
     {
         try {
             $archive = Archive::findOrFail($id);
-            
+
+            if (! $archive->isManageableBy(Auth::user())) {
+                return back()->with('error', 'You do not have permission to delete this archive.');
+            }
+
             // Delete local archive file
             $localArchivePath = storage_path('app/public/archives/' . $archive->zip_name);
             if (file_exists($localArchivePath)) {
@@ -388,21 +499,21 @@ class ArchiveController extends Controller
                 Log::info('Deleted local archive: ' . $archive->zip_name);
             }
             
-            // Delete Supabase archive file
-            $supabaseUrl = env('SUPABASE_URL');
-            $supabaseKey = env('SUPABASE_SERVICE_KEY');
-            $bucket = env('SUPABASE_BUCKET', 'file');
-            
+            // Delete cloud archive file
             if ($archive->file_path) {
-                Http::withHeaders([
-                    'apikey' => $supabaseKey,
-                    'Authorization' => 'Bearer ' . $supabaseKey
-                ])->delete("$supabaseUrl/storage/v1/object/$bucket/{$archive->file_path}");
+                Storage::disk('cloud')->delete($archive->file_path);
             }
             
             // Delete database record
+            $folderName = $archive->folder_name;
             $archive->delete();
-            
+
+            ActivityLog::create([
+                'user_name'  => Auth::user()?->name ?? 'System',
+                'activity'   => 'Deleted archive: ' . $folderName,
+                'ip_address' => request()->ip()
+            ]);
+
             return back()->with('success', 'Archive deleted successfully');
             
         } catch (\Exception $e) {

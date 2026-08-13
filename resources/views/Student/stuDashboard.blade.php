@@ -3,59 +3,175 @@
 
 @section('content')
 <div class="dashboard-container">
-    {{-- Animated Background Elements --}}
-    <div class="bg-shapes">
-        <div class="shape shape-1"></div>
-        <div class="shape shape-2"></div>
-        <div class="shape shape-3"></div>
-        <div class="shape shape-4"></div>
-        <div class="shape shape-5"></div>
+    {{-- Site Header / Navbar --}}
+    <header class="site-header" id="site-header">
+        <div class="site-header-inner">
+            <a href="#home" class="site-brand">
+                <img src="{{ $siteSettings->logo_path ? asset('storage/'.$siteSettings->logo_path) : asset('images/SG-logo.png') }}" alt="QSU Student Government Logo" class="brand-logo" onerror="this.onerror=null; this.src='https://via.placeholder.com/40x40?text=SG';">
+                <span class="brand-name">QSU Student Government</span>
+            </a>
+
+            <nav class="site-nav" id="site-nav">
+                <a href="#home">Home</a>
+                <a href="#vision-mission">Vision &amp; Mission</a>
+                <a href="#hymn">Hymn</a>
+                <a href="#announcements">Announcements <span id="announcementsBadge" class="nav-badge" style="display:none;"></span></a>
+                <a href="#documents">Documents</a>
+                <a href="#contact">Contact</a>
+            </nav>
+
+            <button class="nav-toggle" id="nav-toggle" aria-label="Toggle menu" aria-expanded="false">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </header>
+
+    {{-- Hero Masthead --}}
+    <div class="hero-section {{ $siteSettings->hero_background_path ? 'has-bg' : '' }}" id="home"
+        @if($siteSettings->hero_background_path)
+            style="background-image:url('{{ asset('storage/'.$siteSettings->hero_background_path) }}');"
+        @endif
+    >
+        <div class="hero-logo-wrap">
+            <div class="sunburst"></div>
+            <img src="{{ $siteSettings->logo_path ? asset('storage/'.$siteSettings->logo_path) : asset('images/SG-logo.png') }}" alt="QSU Student Government Logo" class="sg-logo" onerror="this.onerror=null; this.src='https://via.placeholder.com/120x120?text=SG';">
+        </div>
+        <h1 class="hero-title">QSU-Diffun Student Government</h1>
+        <p class="hero-subtitle">Official documents open to all QSU students</p>
     </div>
 
-    <div class="container-fluid px-3 px-md-4 py-4 position-relative" style="z-index: 2;">
+    <div class="container-fluid px-3 px-md-4 py-4 position-relative" style="z-index: 2; background: #faf9f5;">
 
-        {{-- Modern Hero Section with Logo --}}
-        <div class="hero-section mb-5">
-            <div class="hero-logo-wrapper">
-                <div class="logo-pulse">
-                    <img src="{{ asset('images/SG-logo.png') }}" alt="QSU Student Government Logo" class="sg-logo" onerror="this.onerror=null; this.src='https://via.placeholder.com/120x120?text=SG';">
+        {{-- Vision & Mission --}}
+        <div class="doc-section mb-4" id="vision-mission">
+            <h2 class="section-title" style="justify-content:center;margin-bottom:1rem;">
+                <span class="material-icons-outlined">flag</span>
+                Vision &amp; Mission
+            </h2>
+
+            <div class="row g-3">
+                <div class="col-12 col-md-6">
+                    <div class="info-text-card">
+                        @if($siteSettings->vision_image_path)
+                            <img src="{{ asset('storage/'.$siteSettings->vision_image_path) }}" alt="Vision" class="info-card-image">
+                        @else
+                            <h3>Vision</h3>
+                            <p>{{ $siteSettings->vision ?: 'Not set yet.' }}</p>
+                        @endif
+                    </div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <div class="info-text-card">
+                        @if($siteSettings->mission_image_path)
+                            <img src="{{ asset('storage/'.$siteSettings->mission_image_path) }}" alt="Mission" class="info-card-image">
+                        @else
+                            <h3>Mission</h3>
+                            <p>{{ $siteSettings->mission ?: 'Not set yet.' }}</p>
+                        @endif
+                    </div>
                 </div>
             </div>
-            <h1 class="hero-title">QSU Student Government</h1>
-            <p class="hero-subtitle">Official documents open to all QSU students</p>
         </div>
 
-        {{-- Two Modern Text Boxes with SVG Icons --}}
-        <div class="row g-4 mb-5">
-            <div class="col-12 col-md-6">
-                <div class="modern-card wow-card">
-                    <div class="card-icon">
-                        <img src="{{ asset('images/document-icon.png') }}" alt="Document Icon" class="info-svg">
-                    </div>
-                    <h3>What's inside?</h3>
-                    <p>
-                        Official resolutions, financial reports, meeting minutes,
-                        and communications from your Student Government — all publicly accessible.
-                    </p>
+        {{-- QSU Hymn --}}
+        <div class="doc-section mb-4" id="hymn">
+            <h2 class="section-title" style="justify-content:center;margin-bottom:1rem;">
+                <span class="material-icons-outlined">music_note</span>
+                QSU Hymn
+            </h2>
+
+            <div class="info-text-card" style="max-width:640px;margin:0 auto;text-align:center;">
+                @if($siteSettings->hymn_image_path)
+                    <img src="{{ asset('storage/'.$siteSettings->hymn_image_path) }}" alt="QSU Hymn" class="info-card-image">
+                @else
+                    <p style="white-space:pre-line;">{{ $siteSettings->hymn ?: 'Not set yet.' }}</p>
+                @endif
+            </div>
+        </div>
+
+        {{-- Officers Marquee --}}
+        @if($officers->count())
+        <div class="officers-section mb-4">
+            <h2 class="section-title" style="justify-content:center;margin-bottom:1rem;">
+                <span class="material-icons-outlined">groups</span>
+                Meet Your Student Government
+            </h2>
+
+            <div class="marquee-wrap">
+                <div class="marquee-track">
+                    @foreach($officers as $term)
+                        <div class="officer-card">
+                            @if($term->user->profile_photo)
+                                <img src="{{ asset('storage/'.$term->user->profile_photo) }}" alt="{{ $term->user->name }}" class="officer-photo">
+                            @else
+                                <div class="officer-photo officer-initial">{{ strtoupper(substr($term->user->name, 0, 1)) }}</div>
+                            @endif
+                            <div class="officer-name">{{ $term->user->name }}</div>
+                            <div class="officer-position">{{ $term->position->position_name ?? '' }}</div>
+                        </div>
+                    @endforeach
+                    @foreach($officers as $term)
+                        <div class="officer-card" aria-hidden="true">
+                            @if($term->user->profile_photo)
+                                <img src="{{ asset('storage/'.$term->user->profile_photo) }}" alt="" class="officer-photo">
+                            @else
+                                <div class="officer-photo officer-initial">{{ strtoupper(substr($term->user->name, 0, 1)) }}</div>
+                            @endif
+                            <div class="officer-name">{{ $term->user->name }}</div>
+                            <div class="officer-position">{{ $term->position->position_name ?? '' }}</div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+        @endif
+
+        {{-- Announcements Section --}}
+        <div class="doc-section mb-4" id="announcements">
+            <div class="doc-header">
+                <div>
+                    <h2 class="section-title">
+                        <span class="material-icons-outlined">campaign</span>
+                        Announcements
+                    </h2>
+                    <p class="section-subtitle">{{ $announcements->count() }} announcement(s) from the Student Government</p>
                 </div>
             </div>
 
-            <div class="col-12 col-md-6">
-                <div class="modern-card wow-card">
-                    <div class="card-icon">
-                        <img src="{{ asset('images/unlock-icon.png') }}" alt="Unlocked Icon" class="info-svg">
+            <div class="row g-2" id="announcementList">
+                @forelse($announcements as $announcement)
+                <div class="col-12">
+                    <div class="modern-doc-card announcement-card" data-ts="{{ $announcement->created_at->timestamp }}" style="cursor:default;display:block;">
+                        <h6 class="doc-name" style="white-space:normal;margin-bottom:6px;">
+                            {{ $announcement->title }}
+                            @if($announcement->created_at->diffInHours(now()) < 72)
+                                <span class="new-pill">New</span>
+                            @endif
+                        </h6>
+                        <div class="doc-meta" style="margin-bottom:8px;">
+                            <span class="doc-date">{{ $announcement->created_at->format('M d, Y g:i A') }} &middot; {{ $announcement->created_at->diffForHumans() }}</span>
+                        </div>
+                        <div style="font-size:.9rem;color:#3a3a3a;margin-bottom:8px;">{!! $announcement->body !!}</div>
+                        @if($announcement->attachment_path)
+                            <a href="{{ route('announcements.download', $announcement->id) }}" class="attachment-link">
+                                <span class="material-icons-outlined" style="font-size:16px;">attach_file</span>
+                                {{ $announcement->attachment_original_name ?? 'Download attachment' }}
+                            </a>
+                        @endif
                     </div>
-                    <h3>Open access</h3>
-                    <p>
-                        Every QSU student has the right to review these documents.
-                        Transparency and accountability are at the core of our student government.
-                    </p>
                 </div>
+                @empty
+                <div class="col-12">
+                    <div class="empty-modern">
+                        <p>No announcements yet</p>
+                    </div>
+                </div>
+                @endforelse
             </div>
         </div>
 
         {{-- Documents Section with Search --}}
-        <div class="doc-section">
+        <div class="doc-section" id="documents">
             <div class="doc-header">
                 <div>
                     <h2 class="section-title">
@@ -64,17 +180,17 @@
                     </h2>
                     <p class="section-subtitle">{{ $totalFiles }} document(s) available</p>
                 </div>
-                <div class="search-container" style="display:flex;align-items:center;gap:8px;">
+                <div class="search-container">
                     <span class="material-icons-outlined">search</span>
                     <input type="text" id="search" class="modern-search" placeholder="Search documents...">
                 </div>
             </div>
 
-            {{-- Modern Document Grid --}}
+            {{-- Document Grid --}}
             <div class="row g-3" id="fileContainer">
                 @forelse($files as $file)
                 <div class="col-12 col-sm-6 col-md-4 col-lg-3 file-item">
-                    <div class="modern-doc-card glow-card" onclick="openFilePreview('{{ $file->id }}', '{{ addslashes($file->filename) }}', '{{ $file->type }}')">
+                    <div class="modern-doc-card" onclick="openFilePreview('{{ $file->id }}', '{{ addslashes($file->filename) }}', '{{ $file->type }}')">
                         <div class="doc-content">
                             <h6 class="doc-name">{{ $file->filename }}</h6>
                             <div class="doc-meta">
@@ -83,7 +199,7 @@
                             </div>
                         </div>
                         <div class="preview-indicator">
-                            👁️
+                            <span class="material-icons-outlined" style="font-size:18px;">visibility</span>
                         </div>
                     </div>
                 </div>
@@ -98,65 +214,71 @@
         </div>
 
         {{-- Contact Section --}}
-        <div class="contact-modern mt-5">
-    <div class="contact-header">
-        <h2 class="section-title">
-            <span class="material-icons-outlined" style="font-size: 32px; line-height: 1;">mail_outline</span>
-            Need help?
-        </h2>
-        <p>Send us a message — we'll respond within 3-5 business days</p>
-    </div>
-
-    <form id="feedbackForm" class="modern-form" method="POST" action="{{ route('send.message') }}">
-        @csrf
-
-        <div class="form-row">
-            <div class="form-group">
-                <input type="text" name="name" id="senderName"
-                    placeholder="Full name" class="modern-input" required>
+        <div class="contact-modern mt-4" id="contact">
+            <div class="contact-header">
+                <h2 class="section-title">
+                    <span class="material-icons-outlined" style="font-size: 24px; line-height: 1;">mail_outline</span>
+                    Need help?
+                </h2>
+                <p>Send us a message — we'll respond within 3-5 business days</p>
             </div>
 
-            <div class="form-group">
-                <input type="email" name="email" id="senderEmail"
-                    placeholder="Email address" class="modern-input" required>
+            <form id="feedbackForm" class="modern-form" method="POST" action="{{ route('send.message') }}">
+                @csrf
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <input type="text" name="name" id="senderName"
+                            placeholder="Full name" class="modern-input" required>
+                    </div>
+
+                    <div class="form-group">
+                        <input type="email" name="email" id="senderEmail"
+                            placeholder="Email address" class="modern-input" required>
+                    </div>
+
+                    <div class="form-group">
+                        <input type="text" name="student_id" id="studentId"
+                            placeholder="Student ID" class="modern-input" required>
+                    </div>
+                </div>
+
+                <div class="form-group full-width">
+                    <input type="text" name="subject"
+                        placeholder="Subject"
+                        class="modern-input" required>
+                </div>
+
+                <div class="form-group full-width">
+                    <textarea name="message" id="message" rows="4"
+                        placeholder="Your message..."
+                        class="modern-input modern-textarea"
+                        required></textarea>
+                </div>
+
+                <button type="submit" class="modern-btn">
+                    <span class="material-icons-outlined" style="font-size:18px;vertical-align:middle;">send</span>
+                    Send message
+                </button>
+            </form>
+
+            @if(session('success'))
+                <div id="successMsg" class="modern-success mt-3">
+                    {{ session('success') }}
+                </div>
+            @endif
+
+            <div class="contact-footer">
+                <p>Or email us directly: <strong>sg@qsu.edu.ph</strong></p>
             </div>
-
-            <div class="form-group">
-                <input type="text" name="student_id" id="studentId"
-                    placeholder="Student ID" class="modern-input" required>
-            </div>
         </div>
-
-        <div class="form-group full-width">
-            <input type="text" name="subject"
-                placeholder="Subject"
-                class="modern-input" required>
-        </div>
-
-        <div class="form-group full-width">
-            <textarea name="message" id="message" rows="4"
-                placeholder="Your message..."
-                class="modern-input modern-textarea"
-                required></textarea>
-        </div>
-
-        <button type="submit" class="modern-btn">
-            ✉️ Send message
-        </button>
-    </form>
-
-    @if(session('success'))
-        <div id="successMsg" class="modern-success mt-3">
-            ✓ {{ session('success') }}
-        </div>
-    @endif
-
-    <div class="contact-footer">
-        <p>Or email us directly: <strong>sg@qsu.edu.ph</strong></p>
-    </div>
-</div>
 
     </div>
+
+    {{-- Site Footer --}}
+    <footer class="site-footer">
+        <p>&copy; {{ date('Y') }} QSU Student Government &middot; Quirino State University</p>
+    </footer>
 </div>
 
 {{-- File Preview Modal --}}
@@ -170,60 +292,70 @@
             <!-- Loading State -->
             <div id="previewLoading" style="text-align: center; padding: 40px;">
                 <div class="loading-spinner"></div>
-                <p style="margin-top: 16px; color: #6b8a5e;">Loading preview...</p>
+                <p style="margin-top: 16px; color: #6b7280;">Loading preview...</p>
             </div>
 
             <!-- PDF Preview -->
             <div id="pdfPreview" style="display: none;">
-                <iframe id="pdfFrame" src="" style="width: 100%; height: 500px; border: none; border-radius: 12px;"></iframe>
+                <iframe id="pdfFrame" src="" style="width: 100%; height: 500px; border: none; border-radius: 8px;"></iframe>
                 <div class="modal-actions">
-                    <a id="downloadPdfBtn" href="#" download class="modal-btn download-btn">📥 Download PDF</a>
+                    <a id="downloadPdfBtn" href="#" download class="modal-btn download-btn">
+                        <span class="material-icons-outlined" style="font-size:18px;">download</span> Download PDF
+                    </a>
                 </div>
             </div>
 
             <!-- Image Preview -->
             <div id="imagePreview" style="display: none;">
-                <img id="imageViewer" src="" alt="File Preview" style="max-width: 100%; max-height: 500px; border-radius: 12px; object-fit: contain;">
+                <img id="imageViewer" src="" alt="File Preview" style="max-width: 100%; max-height: 500px; border-radius: 8px; object-fit: contain;">
                 <div class="modal-actions">
-                    <a id="downloadImageBtn" href="#" download class="modal-btn download-btn">📥 Download Image</a>
+                    <a id="downloadImageBtn" href="#" download class="modal-btn download-btn">
+                        <span class="material-icons-outlined" style="font-size:18px;">download</span> Download Image
+                    </a>
                 </div>
             </div>
 
             <!-- Document Preview (Word, Excel, PPT) -->
             <div id="officePreview" style="display: none;">
                 <div class="office-viewer">
-                    <iframe id="officeFrame" src="" style="width: 100%; height: 550px; border: none; border-radius: 12px;"></iframe>
+                    <iframe id="officeFrame" src="" style="width: 100%; height: 550px; border: none; border-radius: 8px;"></iframe>
                 </div>
                 <div class="modal-actions">
-                    <a id="downloadOfficeBtn" href="#" download class="modal-btn download-btn">📥 Download File</a>
+                    <a id="downloadOfficeBtn" href="#" download class="modal-btn download-btn">
+                        <span class="material-icons-outlined" style="font-size:18px;">download</span> Download File
+                    </a>
                 </div>
             </div>
 
             <!-- Text Preview -->
             <div id="textPreview" style="display: none;">
                 <div class="text-content">
-                    <pre id="textViewer" style="white-space: pre-wrap; word-wrap: break-word; max-height: 500px; overflow: auto; padding: 16px; background: #f5f5f5; border-radius: 12px;"></pre>
+                    <pre id="textViewer" style="white-space: pre-wrap; word-wrap: break-word; max-height: 500px; overflow: auto; padding: 16px; background: #f5f5f5; border-radius: 8px;"></pre>
                 </div>
                 <div class="modal-actions">
-                    <a id="downloadTextBtn" href="#" download class="modal-btn download-btn">📥 Download File</a>
+                    <a id="downloadTextBtn" href="#" download class="modal-btn download-btn">
+                        <span class="material-icons-outlined" style="font-size:18px;">download</span> Download File
+                    </a>
                 </div>
             </div>
 
             <!-- Generic Preview -->
             <div id="genericPreview" style="display: none; text-align: center;">
                 <div class="generic-file-icon">
-                    📄
+                    <span class="material-icons-outlined" style="font-size:64px;color:#9ca3af;">description</span>
                 </div>
                 <p style="margin-top: 20px;">No preview available for this file type</p>
                 <div class="modal-actions">
-                    <a id="downloadGenericBtn" href="#" download class="modal-btn download-btn">📥 Download File</a>
+                    <a id="downloadGenericBtn" href="#" download class="modal-btn download-btn">
+                        <span class="material-icons-outlined" style="font-size:18px;">download</span> Download File
+                    </a>
                 </div>
             </div>
 
             <!-- Error State -->
             <div id="previewError" style="display: none; text-align: center; padding: 40px;">
-                <div class="error-icon">⚠️</div>
-                <p style="margin-top: 16px; color: #e74c3c;">Failed to load preview. Please try again later.</p>
+                <span class="material-icons-outlined" style="font-size:40px;color:#dc2626;">error_outline</span>
+                <p style="margin-top: 16px; color: #dc2626;">Failed to load preview. Please try again later.</p>
                 <div class="modal-actions">
                     <button onclick="closeFilePreview()" class="modal-btn download-btn">Close</button>
                 </div>
@@ -241,431 +373,365 @@
     }
 
     html, body {
-        background: #c8e0c4;
+        background: #faf9f5;
         min-height: 100vh;
-        overflow-x: hidden;
+    }
+
+    html {
+        scroll-behavior: smooth;
+        scroll-padding-top: 76px;
     }
 
     .dashboard-container {
-        background: #c8e0c4;
+        background: #faf9f5;
         min-height: 100vh;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        position: relative;
-        overflow: hidden;
     }
 
-    /* Modern Card with Preview Indicator */
-    .modern-doc-card {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(5px);
-        border-radius: 20px;
-        padding: 1rem;
-        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        border: 1px solid rgba(46, 125, 50, 0.2);
-        cursor: pointer;
-        position: relative;
-        overflow: hidden;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    .modern-doc-card:hover {
-        transform: translateY(-5px);
-        border-color: #2e7d32;
-        box-shadow: 0 15px 30px -12px rgba(46, 125, 50, 0.2);
-    }
-    .preview-indicator {
-        background: rgba(46, 125, 50, 0.1);
-        border-radius: 30px;
-        padding: 6px 10px;
-        font-size: 0.8rem;
-        transition: all 0.3s;
-        opacity: 0.6;
-    }
-    .modern-doc-card:hover .preview-indicator {
-        opacity: 1;
-        background: rgba(46, 125, 50, 0.2);
-        transform: scale(1.05);
-    }
-    .doc-content {
-        flex: 1;
-    }
-    .doc-name {
-        font-size: 0.9rem;
-        font-weight: 600;
-        color: #1a4d2a;
-        margin-bottom: 8px;
-    }
-    .doc-meta {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-        flex-wrap: wrap;
-    }
-    .doc-tag {
-        font-size: 0.65rem;
-        font-weight: 600;
-        background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
-        color: #2e7d32;
-        padding: 3px 10px;
-        border-radius: 30px;
-    }
-    .doc-date {
-        font-size: 0.65rem;
-        color: #6b8a5e;
+    #home, #vision-mission, #hymn, #announcements, #documents, #contact {
+        scroll-margin-top: 76px;
     }
 
-    /* Modal Styles */
-    .file-modal {
-        display: none;
+    /* Site Header / Navbar */
+    .site-header {
         position: fixed;
         top: 0;
         left: 0;
         width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.8);
-        backdrop-filter: blur(8px);
-        z-index: 2000;
-        justify-content: center;
+        z-index: 1000;
+        background: transparent;
+        border-bottom: 1px solid transparent;
+        transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+    .site-header.scrolled {
+        background: #ffffff;
+        border-bottom: 1px solid #0f3d1f;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+    .site-header-inner {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
         align-items: center;
-        animation: fadeIn 0.3s ease;
-    }
-    .file-modal.active {
-        display: flex;
-    }
-    .glass-modal {
-        background: rgba(255, 255, 255, 0.98);
-        border-radius: 28px;
-        width: 90%;
-        max-width: 900px;
-        max-height: 90vh;
-        overflow: hidden;
-        animation: slideUp 0.3s ease;
-        box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
-    }
-    .modal-header {
-        display: flex;
         justify-content: space-between;
-        align-items: center;
-        padding: 1.2rem 1.5rem;
-        border-bottom: 1px solid rgba(46, 125, 50, 0.2);
-        background: white;
+        padding: 0.6rem 1.25rem;
     }
-    .modal-header h3 {
-        margin: 0;
-        color: #1a4d2a;
-        font-weight: 600;
-    }
-    .modal-close {
-        background: none;
-        border: none;
-        font-size: 1.8rem;
-        cursor: pointer;
-        color: #6b8a5e;
-        transition: all 0.2s;
-        line-height: 1;
-    }
-    .modal-close:hover {
-        color: #e74c3c;
-        transform: scale(1.1);
-    }
-    .modal-body {
-        padding: 1.5rem;
-        max-height: calc(90vh - 80px);
-        overflow-y: auto;
-    }
-    .modal-actions {
+    .site-brand {
         display: flex;
-        justify-content: center;
-        gap: 1rem;
-        margin-top: 1.5rem;
-    }
-    .modal-btn {
-        padding: 10px 24px;
-        border-radius: 40px;
+        align-items: center;
+        gap: 10px;
         text-decoration: none;
+        min-width: 0;
+    }
+    .brand-logo {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        object-fit: contain;
+        background: #fff;
+        flex-shrink: 0;
+        border: 1px solid rgba(255,255,255,0.85);
+        box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+        transition: border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+    .site-header.scrolled .brand-logo {
+        border: 1px solid #0f3d1f;
+        box-shadow: none;
+    }
+    .brand-name {
+        font-weight: 700;
+        color: #ffffff;
+        font-size: 0.95rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        letter-spacing: 0.2px;
+        text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+        transition: color 0.25s ease, text-shadow 0.25s ease;
+    }
+    .site-header.scrolled .brand-name {
+        color: #0f3d1f;
+        text-shadow: none;
+    }
+    .site-nav {
+        display: flex;
+        align-items: center;
+        gap: 1.6rem;
+    }
+    .site-nav a {
+        color: #ffffff;
         font-weight: 500;
-        transition: all 0.2s;
+        font-size: 1rem;
+        text-decoration: none;
+        text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+        transition: color 0.15s ease, text-shadow 0.25s ease;
+    }
+    .site-nav a:hover {
+        color: #d7f5dd;
+    }
+    .site-header.scrolled .site-nav a {
+        color: #4b5563;
+        text-shadow: none;
+    }
+    .site-header.scrolled .site-nav a:hover {
+        color: #0f3d1f;
+    }
+    .nav-badge {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
+        justify-content: center;
+        min-width: 17px;
+        height: 17px;
+        padding: 0 4px;
+        border-radius: 9px;
+        background: #b3261e;
+        color: #fff;
+        font-size: 0.68rem;
+        font-weight: 700;
+        vertical-align: middle;
+        margin-left: 2px;
     }
-    .download-btn {
-        background: linear-gradient(135deg, #1a4d2a, #2e7d32);
-        color: white;
+    .nav-toggle {
+        display: none;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 5px;
+        width: 32px;
+        height: 32px;
+        background: none;
         border: none;
+        cursor: pointer;
+        padding: 0;
+        flex-shrink: 0;
     }
-    .download-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(46,125,50,0.3);
+    .nav-toggle span {
+        display: block;
+        width: 20px;
+        height: 2px;
+        background: #ffffff;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        transition: transform 0.2s ease, opacity 0.2s ease, background 0.25s ease;
     }
-    .generic-file-icon {
-        font-size: 5rem;
-        padding: 2rem;
+    .site-header.scrolled .nav-toggle span {
+        background: #0f3d1f;
+        box-shadow: none;
     }
-    .office-viewer iframe {
-        width: 100%;
-        min-height: 500px;
-    }
+    .nav-toggle.active span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .nav-toggle.active span:nth-child(2) { opacity: 0; }
+    .nav-toggle.active span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
-    @keyframes slideUp {
-        from {
-            opacity: 0;
-            transform: translateY(50px);
+    @media (max-width: 900px) {
+        .site-nav {
+            position: fixed;
+            top: 53px;
+            left: 0;
+            width: 100%;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 0;
+            background: #ffffff;
+            max-height: 0;
+            overflow: hidden;
+            border-bottom: 1px solid #0f3d1f;
+            transition: max-height 0.25s ease;
         }
-        to {
-            opacity: 1;
-            transform: translateY(0);
+        .site-nav.open {
+            max-height: 320px;
         }
-    }
-    @keyframes fadeIn {
-        from {
-            opacity: 0;
+        .site-nav a {
+            padding: 12px 1.5rem;
+            border-top: 1px solid rgba(0,0,0,0.05);
+            color: #4b5563;
+            text-shadow: none;
         }
-        to {
-            opacity: 1;
+        .site-nav a:hover {
+            color: #0f3d1f;
         }
-    }
-
-    /* Responsive */
-    @media (max-width: 768px) {
-        .glass-modal {
-            width: 95%;
-        }
-        .modal-body {
-            padding: 1rem;
-        }
-        .modal-header h3 {
-            font-size: 1rem;
-        }
-    }
-
-    /* Animated Background Shapes */
-    .bg-shapes {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-        z-index: 1;
-        pointer-events: none;
-    }
-
-    .shape {
-        position: absolute;
-        background: rgba(46, 125, 50, 0.08);
-        border-radius: 50%;
-        animation: float 20s infinite ease-in-out;
-    }
-
-    .shape-1 {
-        width: 300px;
-        height: 300px;
-        top: -100px;
-        left: -100px;
-        animation-delay: 0s;
-    }
-
-    .shape-2 {
-        width: 500px;
-        height: 500px;
-        bottom: -150px;
-        right: -150px;
-        animation-delay: 2s;
-        animation-duration: 25s;
-    }
-
-    .shape-3 {
-        width: 200px;
-        height: 200px;
-        top: 30%;
-        right: 10%;
-        animation-delay: 4s;
-        animation-duration: 18s;
-    }
-
-    .shape-4 {
-        width: 400px;
-        height: 400px;
-        bottom: 20%;
-        left: -100px;
-        animation-delay: 1s;
-        animation-duration: 22s;
-        background: rgba(165, 214, 167, 0.1);
-    }
-
-    .shape-5 {
-        width: 250px;
-        height: 250px;
-        top: 60%;
-        right: -50px;
-        animation-delay: 3s;
-        animation-duration: 15s;
-        background: rgba(46, 125, 50, 0.06);
-    }
-
-    @keyframes float {
-        0%, 100% {
-            transform: translateY(0) translateX(0) rotate(0deg);
-        }
-        33% {
-            transform: translateY(-30px) translateX(20px) rotate(5deg);
-        }
-        66% {
-            transform: translateY(20px) translateX(-15px) rotate(-3deg);
+        .nav-toggle {
+            display: flex;
         }
     }
 
-    /* Hero Section with Logo */
+    /* Site Footer */
+    .site-footer {
+        text-align: center;
+        padding: 1.4rem 1rem;
+        margin-top: 2rem;
+        color: #6b7280;
+        font-size: 0.78rem;
+        border-top: 1px solid #e5e2d8;
+        /* Same stacking layer as .container-fluid so it stays above the
+           sticky hero (which pins at z-index: 1 for the reveal effect)
+           instead of being hidden behind it. */
+        position: relative;
+        z-index: 2;
+        background: #faf9f5;
+    }
+
+    /* Hero Masthead */
     .hero-section {
         text-align: center;
-        margin-bottom: 2rem;
+        padding: 3.25rem 1.5rem 3rem;
+        background: #0f3d1f;
+        background-image:
+            radial-gradient(circle at 15% 20%, rgba(255,255,255,0.05) 0, transparent 45%),
+            radial-gradient(circle at 85% 80%, rgba(255,255,255,0.04) 0, transparent 45%);
+        /* Scrolls at a fraction of the page's speed (see the scroll handler
+           in the script below) so the content section below visibly gains on
+           it and slides over it - a parallax "reveal" instead of the hero
+           either scrolling away at normal speed or staying frozen in place. */
         position: relative;
-        z-index: 2;
+        z-index: 1;
+        will-change: transform;
     }
-    .hero-logo-wrapper {
-        margin-bottom: 1rem;
+    .hero-section.has-bg {
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        min-height: 65vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
     }
-    .logo-pulse {
-        display: inline-block;
-        animation: pulse 2s infinite;
-    }
-    @keyframes pulse {
-        0%, 100% {
-            transform: scale(1);
-        }
-        50% {
-            transform: scale(1.05);
-        }
-    }
-    .sg-logo {
-        width: 140px;
-        height: 140px;
-        object-fit: contain;
-        border-radius: 50%;
-        background: white;
-        padding: 15px;
-        box-shadow: 0 20px 40px -15px rgba(0,0,0,0.2);
-        transition: all 0.3s ease;
-    }
-    .sg-logo:hover {
-        transform: scale(1.05) rotate(5deg);
-        box-shadow: 0 25px 50px -15px rgba(0,0,0,0.3);
-    }
-    .hero-title {
-        font-size: 3rem;
-        font-weight: 800;
-        background: linear-gradient(135deg, #1a4d2a 0%, #2e7d32 100%);
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
-        margin-bottom: 0.5rem;
-        letter-spacing: -0.5px;
-        animation: slideDown 0.6s ease;
-    }
-    .hero-subtitle {
-        color: #2d5a2d;
-        font-size: 1.1rem;
-        animation: fadeIn 0.8s ease;
-    }
-
-    @keyframes slideDown {
-        from {
-            opacity: 0;
-            transform: translateY(-30px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-
-    @keyframes fadeIn {
-        from {
-            opacity: 0;
-        }
-        to {
-            opacity: 1;
-        }
-    }
-
-    /* Modern Cards (Two Boxes) */
-    .modern-card {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(10px);
-        border-radius: 24px;
-        padding: 1.8rem;
-        height: 100%;
-        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        border: 1px solid rgba(46, 125, 50, 0.2);
-        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-        position: relative;
-        overflow: hidden;
-    }
-    .modern-card::before {
+    .hero-section.has-bg::before {
         content: '';
         position: absolute;
-        top: 0;
-        left: -100%;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(90deg, transparent, rgba(46, 125, 50, 0.1), transparent);
-        transition: left 0.5s;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(15, 61, 31, 0.55);
     }
-    .modern-card:hover::before {
-        left: 100%;
-    }
-    .modern-card:hover {
-        transform: translateY(-8px) scale(1.02);
-        border-color: rgba(46, 125, 50, 0.4);
-        box-shadow: 0 20px 40px -15px rgba(46, 125, 50, 0.2);
-    }
-    /* Replace old emoji icon style */
-.card-icon {
-    margin-bottom: 1rem;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.info-svg {
-    width: 155px;
-    height: 155px;
-    object-fit: contain;
-    transition: all 0.3s ease;
-    animation: bounceSoft 2s infinite;
-}
-
-.modern-card:hover .info-svg {
-    transform: scale(1.08);
-}
-    @keyframes bounceSoft {
-        0%, 100% {
-            transform: translateY(0);
-        }
-        50% {
-            transform: translateY(-5px);
-        }
-    }
-    .modern-card h3 {
-        font-size: 1.3rem;
-        font-weight: 700;
-        color: #1a4d2a;
-        margin-bottom: 0.75rem;
-    }
-    .modern-card p {
-        font-size: 0.9rem;
-        color: #3a5a3a;
-        line-height: 1.6;
-        margin: 0;
-    }
-
-    /* Documents Section */
-    .doc-section {
-        margin-top: 1rem;
+    .hero-section.has-bg > * {
         position: relative;
-        z-index: 2;
+        z-index: 1;
+    }
+    .sg-logo {
+        width: 450px;
+        height: 450px;
+        object-fit: contain;
+        border-radius: 50%;
+        padding: 10px;
+        margin-bottom: 1.25rem;
+        margin-top: 1.50rem;
+        
+       
+    }
+    .hero-title {
+        font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+        font-size: 4rem;
+        font-weight: 800;
+        color: #ffffff;
+        margin-bottom: 0.7rem;
+        letter-spacing: -0.4px;
+    }
+    .hero-title::after {
+        content: '';
+        display: block;
+        width: 64px;
+        height: 3px;
+        background: rgba(255,255,255,0.55);
+        margin: 0.75rem auto 0;
+    }
+    .hero-subtitle {
+        color: rgba(255,255,255,0.85);
+        font-size: 1.02rem;
+        margin-top: 1rem;
+    }
+
+    /* Vision / Mission / Hymn */
+    .info-text-card {
+        background: #ffffff;
+        border-radius: 8px;
+        padding: 1.25rem 1.5rem;
+        border: 1px solid #e5e2d8;
+        box-shadow: 0 1px 2px rgba(15,61,31,0.04), 0 4px 10px rgba(15,61,31,0.05);
+        height: 100%;
+    }
+    .info-text-card h3 {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #0f3d1f;
+        margin-bottom: 0.6rem;
+        text-align: center;
+    }
+    .info-text-card p {
+        font-size: 0.9rem;
+        color: #3a3a3a;
+        line-height: 1.7;
+        margin: 0;
+        white-space: pre-line;
+    }
+    .info-card-image {
+        max-width: 100%;
+        height: auto;
+        display: block;
+        margin: 0 auto;
+        border-radius: 6px;
+    }
+
+    /* Officers Marquee */
+    .marquee-wrap {
+        overflow: hidden;
+        position: relative;
+        -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+        mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+    }
+    .marquee-track {
+        display: flex;
+        gap: 2.5rem;
+        width: max-content;
+        animation: marquee-scroll 34s linear infinite;
+    }
+    .marquee-wrap:hover .marquee-track {
+        animation-play-state: paused;
+    }
+    @keyframes marquee-scroll {
+        from { transform: translateX(0); }
+        to { transform: translateX(-50%); }
+    }
+    .officer-card {
+        flex: 0 0 auto;
+        width: 170px;
+        text-align: center;
+    }
+    .officer-photo {
+        width: 110px;
+        height: 110px;
+        border-radius: 50%;
+        object-fit: cover;
+        background: #fff;
+        border: 1px solid #0f3d1f;
+    }
+    .officer-initial {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #eef2ea;
+        color: #0f3d1f;
+        font-weight: 700;
+        font-size: 2.4rem;
+        margin: 0 auto;
+    }
+    .officer-name {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #0f3d1f;
+        margin-top: 10px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .officer-position {
+        font-size: 0.82rem;
+        color: #6b7280;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Section headers */
+    .doc-section {
+        margin-top: 0.5rem;
     }
     .doc-header {
         display: flex;
@@ -673,76 +739,107 @@
         align-items: flex-end;
         flex-wrap: wrap;
         gap: 1rem;
-        margin-bottom: 1.5rem;
+        margin-bottom: 1rem;
     }
     .section-title {
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: #1a4d2a;
-        margin-bottom: 0.2rem;
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: #0f3d1f;
+        margin-bottom: 0.15rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        letter-spacing: -0.2px;
+    }
+    .section-title .material-icons-outlined {
+        font-size: 1.3rem;
     }
     .section-subtitle {
         font-size: 0.8rem;
-        color: #2d5a2d;
+        color: #6b7280;
     }
     .search-container {
-        min-width: 260px;
+        min-width: 240px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
     .modern-search {
         width: 100%;
-        padding: 12px 20px;
-        border-radius: 50px;
-        border: 2px solid rgba(46, 125, 50, 0.2);
-        background: rgba(255, 255, 255, 0.95);
+        padding: 9px 14px;
+        border-radius: 6px;
+        border: 1px solid #d6d2c4;
+        background: #ffffff;
         font-size: 0.85rem;
-        transition: all 0.3s;
-        backdrop-filter: blur(5px);
+        transition: border-color 0.15s ease;
     }
     .modern-search:focus {
         outline: none;
-        border-color: #2e7d32;
-        box-shadow: 0 0 0 5px rgba(46, 125, 50, 0.1);
-        transform: scale(1.02);
+        border-color: #0f3d1f;
     }
 
-    /* Modern Document Cards */
+    /* Document / Announcement Cards */
     .modern-doc-card {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(5px);
-        border-radius: 20px;
-        padding: 1rem;
-        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        border: 1px solid rgba(46, 125, 50, 0.15);
+        background: #ffffff;
+        border-radius: 8px;
+        padding: 0.9rem 1rem;
+        border: 1px solid #e5e2d8;
         cursor: pointer;
-        position: relative;
-        overflow: hidden;
-    }
-    .modern-doc-card::after {
-        content: '';
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        width: 0%;
-        height: 3px;
-        background: linear-gradient(90deg, #2e7d32, #66bb6a);
-        transition: width 0.3s ease;
-    }
-    .modern-doc-card:hover::after {
-        width: 100%;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        box-shadow: 0 1px 2px rgba(15,61,31,0.04), 0 4px 10px rgba(15,61,31,0.05);
     }
     .modern-doc-card:hover {
-        transform: translateY(-5px) scale(1.02);
-        border-color: rgba(46, 125, 50, 0.3);
-        box-shadow: 0 15px 30px -12px rgba(46, 125, 50, 0.2);
+        border-color: #0f3d1f;
+        transform: translateY(-2px);
+        box-shadow: 0 2px 4px rgba(15,61,31,0.06), 0 10px 20px rgba(15,61,31,0.1);
+    }
+    .announcement-card {
+        position: relative;
+    }
+    .announcement-card::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: #0f3d1f;
+        border-radius: 8px 0 0 8px;
+        opacity: 0;
+    }
+    .announcement-card.is-unread::before {
+        opacity: 1;
+    }
+    .new-pill {
+        display: inline-block;
+        font-size: 0.62rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: #fff;
+        background: #0f3d1f;
+        padding: 2px 7px;
+        border-radius: 4px;
+        vertical-align: middle;
+        margin-left: 6px;
+    }
+    .preview-indicator {
+        color: #6b7280;
+        flex-shrink: 0;
     }
     .doc-content {
-        width: 100%;
+        flex: 1;
+        min-width: 0;
     }
     .doc-name {
-        font-size: 0.9rem;
+        font-size: 0.88rem;
         font-weight: 600;
-        color: #1a4d2a;
-        margin-bottom: 8px;
+        color: #0f3d1f;
+        margin-bottom: 6px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -755,48 +852,59 @@
     }
     .doc-tag {
         font-size: 0.65rem;
-        font-weight: 600;
-        background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
-        color: #2e7d32;
-        padding: 3px 10px;
-        border-radius: 30px;
+        font-weight: 700;
+        background: #ffffff;
+        color: #0f3d1f;
+        padding: 2px 8px;
+        border-radius: 4px;
+        border: 1px solid #0f3d1f;
     }
     .doc-date {
-        font-size: 0.65rem;
-        color: #6b8a5e;
+        font-size: 0.7rem;
+        color: #9ca3af;
+    }
+    .attachment-link {
+        font-size: 0.82rem;
+        color: #0f3d1f;
+        font-weight: 600;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .attachment-link:hover {
+        text-decoration: underline;
     }
 
     /* Contact Section */
     .contact-modern {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(10px);
-        border-radius: 32px;
-        padding: 2.5rem;
-        border: 1px solid rgba(46, 125, 50, 0.2);
-        box-shadow: 0 20px 40px -15px rgba(0,0,0,0.1);
-        position: relative;
-        z-index: 2;
+        background: #ffffff;
+        border-radius: 8px;
+        padding: 1.75rem;
+        border: 1px solid #e5e2d8;
+        box-shadow: 0 1px 2px rgba(15,61,31,0.04), 0 8px 20px rgba(15,61,31,0.06);
     }
     .contact-header {
         text-align: center;
-        margin-bottom: 2rem;
+        margin-bottom: 1.5rem;
     }
     .contact-header .section-title {
-        margin-bottom: 0.5rem;
+        justify-content: center;
+        margin-bottom: 0.4rem;
     }
     .contact-header p {
-        font-size: 0.9rem;
-        color: #4a6e3a;
+        font-size: 0.88rem;
+        color: #6b7280;
     }
     .modern-form {
-        max-width: 700px;
+        max-width: 640px;
         margin: 0 auto;
     }
     .form-row {
         display: flex;
-        gap: 1rem;
+        gap: 0.9rem;
         flex-wrap: wrap;
-        margin-bottom: 1rem;
+        margin-bottom: 0.9rem;
     }
     .form-group {
         flex: 1;
@@ -804,137 +912,177 @@
     }
     .full-width {
         width: 100%;
-        margin-bottom: 1rem;
+        margin-bottom: 0.9rem;
     }
     .modern-input {
         width: 100%;
-        padding: 14px 18px;
-        border-radius: 16px;
-        border: 2px solid rgba(46, 125, 50, 0.15);
-        background: white;
+        padding: 10px 14px;
+        border-radius: 6px;
+        border: 1px solid #d6d2c4;
+        background: #ffffff;
         font-size: 0.85rem;
         font-family: inherit;
-        transition: all 0.3s;
+        transition: border-color 0.15s ease;
     }
     .modern-input:focus {
         outline: none;
-        border-color: #2e7d32;
-        box-shadow: 0 0 0 5px rgba(46, 125, 50, 0.08);
-        transform: scale(1.01);
+        border-color: #0f3d1f;
     }
     .modern-textarea {
         resize: vertical;
     }
     .modern-btn {
-        background: linear-gradient(135deg, #1a4d2a 0%, #2e7d32 100%);
+        background: #0f3d1f;
         color: white;
-        border: none;
-        padding: 14px 32px;
-        border-radius: 50px;
+        border: 1px solid #0f3d1f;
+        padding: 12px 24px;
+        border-radius: 6px;
         font-weight: 600;
-        font-size: 0.9rem;
+        font-size: 0.88rem;
         cursor: pointer;
-        transition: all 0.3s;
         width: 100%;
-        position: relative;
-        overflow: hidden;
-    }
-    .modern-btn::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: -100%;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-        transition: left 0.5s;
-    }
-    .modern-btn:hover::before {
-        left: 100%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: background 0.15s ease;
     }
     .modern-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 20px -8px #2e7d32;
+        background: #145029;
     }
     .modern-success {
-        background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
-        color: #1b5e2a;
-        padding: 1rem;
-        border-radius: 20px;
-        margin-top: 1.5rem;
+        background: #ffffff;
+        color: #0f3d1f;
+        padding: 0.85rem;
+        border-radius: 6px;
+        margin-top: 1.2rem;
         text-align: center;
         font-size: 0.85rem;
         font-weight: 500;
-        animation: slideUp 0.4s ease;
-    }
-    @keyframes slideUp {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
+        border: 1px solid #0f3d1f;
     }
     .contact-footer {
         text-align: center;
-        margin-top: 1.8rem;
-        padding-top: 1.2rem;
-        border-top: 1px solid rgba(46, 125, 50, 0.15);
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e5e2d8;
         font-size: 0.8rem;
-        color: #6b8a5e;
+        color: #6b7280;
     }
     .contact-footer strong {
-        color: #1a4d2a;
+        color: #0f3d1f;
     }
 
     /* Empty State */
     .empty-modern {
         text-align: center;
-        padding: 3rem;
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(5px);
-        border-radius: 24px;
-        border: 1px solid rgba(46, 125, 50, 0.2);
+        padding: 2.5rem;
+        background: #ffffff;
+        border-radius: 8px;
+        border: 1px solid #e5e2d8;
+        box-shadow: 0 1px 2px rgba(15,61,31,0.04), 0 4px 10px rgba(15,61,31,0.05);
     }
     .empty-modern p {
-        color: #6b8a5e;
-        font-size: 0.9rem;
+        color: #9ca3af;
+        font-size: 0.88rem;
     }
 
-    /* Animations */
-    @keyframes fadeSlideUp {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
+    /* Modal Styles */
+    .file-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.55);
+        z-index: 2000;
+        justify-content: center;
+        align-items: center;
     }
-    .file-item {
-        animation: fadeSlideUp 0.4s ease forwards;
+    .file-modal.active {
+        display: flex;
     }
-
-    /* Stagger animation for cards */
-    .file-item:nth-child(1) { animation-delay: 0.05s; }
-    .file-item:nth-child(2) { animation-delay: 0.1s; }
-    .file-item:nth-child(3) { animation-delay: 0.15s; }
-    .file-item:nth-child(4) { animation-delay: 0.2s; }
+    .glass-modal {
+        background: #ffffff;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 900px;
+        max-height: 90vh;
+        overflow: hidden;
+        box-shadow: 0 20px 50px -12px rgba(0,0,0,0.3);
+    }
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid #e5e2d8;
+        background: #ffffff;
+    }
+    .modal-header h3 {
+        margin: 0;
+        color: #0f3d1f;
+        font-weight: 600;
+        font-size: 1rem;
+    }
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 1.6rem;
+        cursor: pointer;
+        color: #6b7280;
+        line-height: 1;
+    }
+    .modal-close:hover {
+        color: #dc2626;
+    }
+    .modal-body {
+        padding: 1.25rem;
+        max-height: calc(90vh - 70px);
+        overflow-y: auto;
+    }
+    .modal-actions {
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+        margin-top: 1.25rem;
+    }
+    .modal-btn {
+        padding: 9px 20px;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 0.85rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: background 0.15s ease;
+    }
+    .download-btn {
+        background: #0f3d1f;
+        color: white;
+        border: 1px solid #0f3d1f;
+        cursor: pointer;
+    }
+    .download-btn:hover {
+        background: #145029;
+    }
+    .generic-file-icon {
+        padding: 1.5rem;
+    }
+    .office-viewer iframe {
+        width: 100%;
+        min-height: 500px;
+    }
 
     /* Responsive */
     @media (max-width: 768px) {
-        .hero-title {
-            font-size: 2rem;
+        .glass-modal {
+            width: 95%;
         }
-        .sg-logo {
-            width: 100px;
-            height: 100px;
-        }
-        .modern-card {
-            padding: 1.2rem;
+        .modal-body {
+            padding: 1rem;
         }
         .doc-header {
             flex-direction: column;
@@ -944,22 +1092,144 @@
             width: 100%;
         }
         .contact-modern {
-            padding: 1.5rem;
+            padding: 1.25rem;
         }
         .form-row {
             flex-direction: column;
-            gap: 0.75rem;
+            gap: 0.6rem;
         }
-        .modern-doc-card {
-            padding: 0.75rem;
+    }
+
+    @media (max-width: 480px) {
+        .site-header-inner {
+            padding: 0.5rem 1rem;
         }
-        .shape-1, .shape-2, .shape-3, .shape-4, .shape-5 {
-            opacity: 0.5;
+        .brand-name {
+            font-size: 0.82rem;
+            max-width: 140px;
+        }
+        .hero-section {
+            padding: 2.25rem 1rem 2rem;
+        }
+        .hero-section.has-bg {
+            min-height: 55vh;
+        }
+        .hero-title {
+            font-size: 1.6rem;
+        }
+        .sg-logo {
+            width: 72px;
+            height: 72px;
+        }
+        .section-title {
+            font-size: 1.05rem;
+        }
+        .contact-modern {
+            padding: 1rem;
         }
     }
 </style>
 
 <script>
+    // Solidify the header once the page is scrolled past the hero
+    const siteHeader = document.getElementById('site-header');
+
+    function updateHeaderOnScroll() {
+        siteHeader.classList.toggle('scrolled', window.scrollY > 40);
+    }
+
+    updateHeaderOnScroll();
+    window.addEventListener('scroll', updateHeaderOnScroll, { passive: true });
+
+    // Parallax hero: moves at a fraction of the page's scroll speed so the
+    // content section visibly gains on it and slides over it, instead of the
+    // hero either scrolling away at full speed or staying frozen in place.
+    const heroEl = document.getElementById('home');
+    const HERO_SCROLL_SPEED = 0.4; // 0 = fully frozen, 1 = normal scroll speed
+
+    function updateHeroParallax() {
+        const maxOffset = heroEl.offsetHeight;
+        const offset = Math.min(window.scrollY, maxOffset) * (1 - HERO_SCROLL_SPEED);
+        heroEl.style.transform = `translateY(${offset}px)`;
+    }
+
+    updateHeroParallax();
+    window.addEventListener('scroll', updateHeroParallax, { passive: true });
+
+    // Mobile nav toggle
+    const navToggle = document.getElementById('nav-toggle');
+    const siteNav = document.getElementById('site-nav');
+
+    navToggle.addEventListener('click', function() {
+        const isOpen = siteNav.classList.toggle('open');
+        navToggle.classList.toggle('active', isOpen);
+        navToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+
+    siteNav.querySelectorAll('a').forEach(function(link) {
+        link.addEventListener('click', function() {
+            siteNav.classList.remove('open');
+            navToggle.classList.remove('active');
+            navToggle.setAttribute('aria-expanded', 'false');
+        });
+    });
+
+    // Announcement freshness tracking (localStorage only - no account/server tracking needed)
+    (function() {
+        const STORAGE_KEY = 'sg_announcements_last_seen';
+        const cards = document.querySelectorAll('.announcement-card[data-ts]');
+        const badge = document.getElementById('announcementsBadge');
+
+        if (!cards.length || !badge) return;
+
+        let lastSeen = 0;
+        try {
+            lastSeen = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10);
+        } catch (e) {}
+
+        let latestTs = 0;
+        let unreadCount = 0;
+
+        cards.forEach(function(card) {
+            const ts = parseInt(card.dataset.ts, 10);
+            if (ts > latestTs) latestTs = ts;
+            if (ts > lastSeen) {
+                unreadCount++;
+                card.classList.add('is-unread');
+            }
+        });
+
+        if (unreadCount > 0) {
+            badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+            badge.style.display = 'inline-flex';
+        }
+
+        function markSeen() {
+            if (unreadCount === 0) return;
+            try {
+                localStorage.setItem(STORAGE_KEY, String(latestTs));
+            } catch (e) {}
+            unreadCount = 0;
+            badge.style.display = 'none';
+            cards.forEach(function(card) { card.classList.remove('is-unread'); });
+        }
+
+        const announcementsSection = document.getElementById('announcements');
+        if (announcementsSection && 'IntersectionObserver' in window) {
+            const observer = new IntersectionObserver(function(entries) {
+                entries.forEach(function(entry) {
+                    if (entry.isIntersecting) {
+                        markSeen();
+                        observer.disconnect();
+                    }
+                });
+            }, { threshold: 0.4 });
+            observer.observe(announcementsSection);
+        }
+
+        document.querySelector('a[href="#announcements"]').addEventListener('click', markSeen);
+    })();
+
     // Search Filter
     const searchInput = document.getElementById('search');
     const fileItems = document.querySelectorAll('.file-item');
@@ -968,12 +1238,7 @@
         let value = this.value.toLowerCase();
         fileItems.forEach(item => {
             const text = item.innerText.toLowerCase();
-            if (text.includes(value)) {
-                item.style.display = '';
-                item.style.animation = 'fadeSlideUp 0.3s ease forwards';
-            } else {
-                item.style.display = 'none';
-            }
+            item.style.display = text.includes(value) ? '' : 'none';
         });
     });
 
@@ -1000,15 +1265,13 @@ function openFilePreview(id, name, type) {
 
             let url = data.url;
 
-            // 🔥 FIX: detect extension from filename (reliable)
+            // detect extension from filename (reliable)
             let fileType = data.name.split('.').pop().toLowerCase();
 
-            // 🔍 fallback to MIME if needed
+            // fallback to MIME if needed
             let mimeType = (data.type || '').toLowerCase();
 
-            console.log("EXT:", fileType, "MIME:", mimeType);
-
-            // ✅ PDF
+            // PDF
             if (fileType === 'pdf' || mimeType.includes('pdf')) {
                 document.getElementById('pdfPreview').style.display = 'block';
                 document.getElementById('pdfFrame').src = url;
@@ -1018,7 +1281,7 @@ function openFilePreview(id, name, type) {
 };
             }
 
-            // ✅ IMAGES (FIXED)
+            // IMAGES
             else if (
                 ['jpg','jpeg','png','gif','webp'].includes(fileType) ||
                 mimeType.includes('image')
@@ -1028,17 +1291,13 @@ function openFilePreview(id, name, type) {
                 const img = document.getElementById('imageViewer');
                 img.src = url;
 
-                // debug (optional)
-                img.onload = () => console.log("✅ Image loaded");
-                img.onerror = () => console.log("❌ Image failed");
-
                 document.getElementById('downloadImageBtn').onclick = function(e) {
     e.preventDefault();
     forceDownload(url, data.name);
 };
             }
 
-            // ✅ OFFICE
+            // OFFICE
             else if (['doc','docx','xls','xlsx','ppt','pptx'].includes(fileType)) {
                 document.getElementById('officePreview').style.display = 'block';
 
@@ -1050,7 +1309,7 @@ function openFilePreview(id, name, type) {
 };
             }
 
-            // ✅ TEXT
+            // TEXT
             else if (['txt','csv','json','log'].includes(fileType)) {
                 document.getElementById('textPreview').style.display = 'block';
                 document.getElementById('downloadTextBtn').onclick = function(e) {
@@ -1065,7 +1324,7 @@ function openFilePreview(id, name, type) {
                     });
             }
 
-            // ✅ FALLBACK
+            // FALLBACK
             else {
                 document.getElementById('genericPreview').style.display = 'block';
                 document.getElementById('downloadGenericBtn').onclick = function(e) {
@@ -1081,7 +1340,6 @@ function openFilePreview(id, name, type) {
 }
 
 
-// 🔹 Helpers (unchanged but safe)
 function hideAllPreviews() {
     document.getElementById('previewLoading').style.display = 'none';
     document.getElementById('pdfPreview').style.display = 'none';
@@ -1113,7 +1371,7 @@ function forceDownload(url, filename) {
 
             const a = document.createElement('a');
             a.href = blobUrl;
-            a.download = filename; // 👈 forces download
+            a.download = filename;
             document.body.appendChild(a);
             a.click();
 
@@ -1123,8 +1381,6 @@ function forceDownload(url, filename) {
         .catch(() => alert('Download failed'));
 }
 </script>
-
-
 
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
 @endsection

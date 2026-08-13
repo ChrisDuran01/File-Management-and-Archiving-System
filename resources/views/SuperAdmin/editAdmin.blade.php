@@ -5,7 +5,7 @@
 <div class="container card p-4">
     <h4>Edit Officer</h4>
 
-    <form action="{{ route('officers.update', $user->id) }}" method="POST">
+    <form action="{{ route('officers.update', $term->id) }}" method="POST">
         @csrf
         @method('PUT')
 
@@ -24,7 +24,7 @@
             <select name="position_id" class="form-control">
                 @foreach ($positions as $position)
                     <option value="{{ $position->id }}"
-                        {{ $user->position_id == $position->id ? 'selected' : '' }}>
+                        {{ $term->position_id == $position->id ? 'selected' : '' }}>
                         {{ $position->position_name }}
                     </option>
                 @endforeach

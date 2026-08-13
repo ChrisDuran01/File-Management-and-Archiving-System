@@ -9,8 +9,14 @@ class Backup extends Model
     protected $fillable = [
     'name',
     'file_path',
-    'cloud_path', // ✅ ADD THIS
+    'cloud_path',
+    'local_path',
+    'includes_database',
     'size',
     'status'
 ];
+
+    protected $casts = [
+        'includes_database' => 'boolean',
+    ];
 }

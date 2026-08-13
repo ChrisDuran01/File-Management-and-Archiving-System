@@ -9,6 +9,15 @@ Schedule::call(function () {
     Log::info('TEST: Scheduler is running every minute');
 })->everyMinute();
 
+// Retention policy: move folders stored under a past school year into the
+// ZIP archive once they haven't been opened in a long time
+Schedule::command('folders:archive-stale')->dailyAt('03:00');
+
+// Retry files whose cloud upload failed at the time (Supabase has shown
+// repeated intermittent timeouts - see storage/logs/laravel.log) and were
+// saved local-only instead - see CloudFileUploader.
+Schedule::command('files:sync-to-cloud')->everyFifteenMinutes()->withoutOverlapping();
+
 // Your actual backup schedule
 $frequency = session('backup_frequency', 'daily');
 $backupEnabled = session('backup_enabled', true);

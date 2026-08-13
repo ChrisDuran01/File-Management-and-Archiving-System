@@ -1,4 +1,4 @@
-@extends('Admin.home')
+@extends($layout ?? 'Admin.home')
 
 @section('content')
 

@@ -369,6 +369,11 @@
         <div class="bm-stat-val green">{{ $backups->where('status','Success')->count() }}</div>
     </div>
     <div class="bm-stat">
+
+
+
+
+        
         <div class="bm-stat-label">Failed</div>
         <div class="bm-stat-val red">{{ $backups->where('status','Failed')->count() }}</div>
     </div>

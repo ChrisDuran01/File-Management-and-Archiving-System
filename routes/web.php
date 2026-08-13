@@ -14,6 +14,11 @@ use App\Http\Controllers\StudentController;
 use App\Http\Controllers\ArchiveController;
 use App\Http\Controllers\MailController;
 use App\Http\Controllers\OfficerController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\TemplateController;
+use App\Http\Controllers\LetterheadController;
+use App\Http\Controllers\AnnouncementController;
+use App\Http\Controllers\SiteSettingController;
 
 use Illuminate\Support\Facades\Schema;
 
@@ -37,41 +42,33 @@ Route::get('/folders', [FolderController::class, 'index']);
 
 Route::get('/superAdminDashboard', [PageController::class, 'superAdminDashboard'] );
 
-Route::get('/manageAdmins', [PageController::class, 'manageAdmins'] );
-
-Route::get('/activityLogs', [PageController::class, 'activityLogs'] );
-
 Route::get('/landingPage', [PageController::class, 'landingPage'] );
 
-Route::get('/backup', [PageController::class, 'backup'] );
-
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
+
+Route::get('/forgot-password', [AuthController::class, 'showForgotPassword'])->name('password.request');
+Route::post('/forgot-password', [AuthController::class, 'sendResetLink'])->name('password.email')->middleware('throttle:5,1');
+Route::get('/reset-password/{token}', [AuthController::class, 'showResetPassword'])->name('password.reset');
+Route::post('/reset-password', [AuthController::class, 'resetPassword'])->name('password.update')->middleware('throttle:10,1');
 
 Route::get('/adminDashboard', [AuthController::class, 'adminDashboard'])->middleware('auth');
 Route::get('/superAdminDashboard', [AuthController::class, 'superAdminDashboard'])->middleware('auth');
 
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
+Route::get('/change-password', [AuthController::class, 'showChangePassword'])
+    ->name('password.change')
+    ->middleware('auth');
+Route::post('/change-password', [AuthController::class, 'changePassword'])
+    ->name('password.change.submit')
+    ->middleware('auth');
+
 Route::get('/activityLogs', [SuperAdminController::class, 'activityLogs'])
     ->name('activity.logs')
     ->middleware('auth');
 
 Route::get('/superAdminDashboard', [DashboardController::class, 'superAdminDashboard']);
-
-Route::get('/manageAdmins', [DashboardController::class, 'officers']);
-
-
-// Show add officer form
-Route::get('/addAdmin', [DashboardController::class, 'createOfficer'])->name('officers.create');
-
-// Store officer in DB
-Route::post('/manageAdmins', [DashboardController::class, 'storeOfficer'])->name('officers.store');
-
-
-
-Route::get('/officers/{id}/edit', [DashboardController::class, 'edit'])->name('officers.edit');
-Route::put('/officers/{id}', [DashboardController::class, 'update'])->name('officers.update');
 
 Route::get('/adminDashboard', [FolderController::class, 'adminDashboard'])
     ->name('Admin.adminDashboard');
@@ -82,20 +79,21 @@ Route::get('/folders/{id}', [FolderController::class, 'show'])
     ->name('folders.show');
 
 Route::post('/files', [FileController::class, 'store'])->name('files.store');
+Route::post('/files/prepare-upload', [FileController::class, 'prepareUpload'])->name('files.prepareUpload');
+Route::post('/files/confirm-upload', [FileController::class, 'confirmUpload'])->name('files.confirmUpload');
 
-Route::get('/search', [SearchController::class, 'index'])->name('search');
+Route::middleware('auth')->group(function () {
+    Route::get('/search', [SearchController::class, 'index'])->name('search');
+    Route::get('/search/live', [SearchController::class, 'live'])->name('search.live');
+});
 
-Route::get('/activity-logs', [SuperAdminController::class, 'index'])
-    ->name('activity.logs');
-
-Route::get('/backup', [BackupController::class, 'index'])->name('backup.index');
-Route::post('/backup/create', [BackupController::class, 'createBackup'])->name('backup.create');
-Route::get('/backup/download/{id}', [BackupController::class, 'download'])->name('backup.download');
-Route::post('/backup/toggle', [BackupController::class, 'toggle'])
-    ->name('backup.toggle');
-
-Route::post('/backup/frequency', [BackupController::class, 'setFrequency'])
-    ->name('backup.frequency');
+Route::middleware('auth')->group(function () {
+    Route::get('/backup', [BackupController::class, 'index'])->name('backup.index');
+    Route::post('/backup/create', [BackupController::class, 'createBackup'])->name('backup.create');
+    Route::get('/backup/download/{id}', [BackupController::class, 'download'])->name('backup.download');
+    Route::post('/backup/toggle', [BackupController::class, 'toggle'])->name('backup.toggle');
+    Route::post('/backup/frequency', [BackupController::class, 'setFrequency'])->name('backup.frequency');
+});
 
 
 Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
@@ -109,34 +107,48 @@ Route::get('/files/{id}/preview', [FileController::class, 'preview'])->name('fil
 
 Route::put('/folders/{id}', [FolderController::class, 'update'])->name('folders.update');
 Route::delete('/folders/{id}', [FolderController::class, 'destroy'])->name('folders.destroy');
+Route::post('/folders/{id}/access', [FolderController::class, 'updateAccess'])->name('folders.updateAccess');
 
 // Archive routes
-Route::get('/archives', [ArchiveController::class, 'index'])->name('archives.index');
-Route::post('/{id}/archives', [ArchiveController::class, 'archiveFolder'])->name('folders.archive');
-Route::post('/archives/{id}/restore', [ArchiveController::class, 'restore'])->name('archives.restore');
-Route::get('/archives/{id}', [ArchiveController::class, 'download'])->name('archives.download');
-Route::delete('/archives/{id}', [ArchiveController::class, 'destroy'])->name('archives.destroy');
+Route::middleware('auth')->group(function () {
+    Route::get('/archives', [ArchiveController::class, 'index'])->name('archives.index');
+    Route::post('/{id}/archives', [ArchiveController::class, 'archiveFolder'])->name('folders.archive');
+    Route::post('/archives/{id}/restore', [ArchiveController::class, 'restore'])->name('archives.restore');
+    Route::get('/archives/{id}', [ArchiveController::class, 'download'])->name('archives.download');
+    Route::delete('/archives/{id}', [ArchiveController::class, 'destroy'])->name('archives.destroy');
+    Route::post('/archives/run-auto-archive', [ArchiveController::class, 'runAutoArchive'])->name('archives.runAutoArchive');
+
+    Route::get('/archives/{id}/view', [ArchiveController::class, 'show'])->name('archives.show');
+    Route::get('/archives/{id}/files/{filename}', [ArchiveController::class, 'previewFile'])->name('archives.previewFile');
+    Route::get('/archives/{id}/files/{filename}/raw', [ArchiveController::class, 'streamFile'])->name('archives.streamFile');
+});
 
 Route::post('/file/{id}/toggle-access', [FileController::class, 'toggleAccess'])
     ->name('file.toggleAccess');
 
 Route::post('/send-message', [MailController::class, 'sendMessage'])->name('send.message');
 
-// Make sure you have this route with the correct name
-Route::get('/manageAdmins', [OfficerController::class, 'index'])->name('officers.index');
-Route::get('/officers/create', [OfficerController::class, 'create'])->name('officers.create');
-Route::post('/manageAdmins', [OfficerController::class, 'store'])->name('officers.store');
-Route::get('/officers/edit/{id}', [OfficerController::class, 'edit'])->name('officers.edit');
-Route::put('/officers/update/{id}', [OfficerController::class, 'update'])->name('officers.update');
-Route::delete('/officers/destroy/{id}', [OfficerController::class, 'destroy'])->name('officers.destroy');
-
-// Archive and restore routes
-Route::delete('/officers/archiveAll', [OfficerController::class, 'archiveAll'])->name('officers.archiveAll');
-Route::patch('/officers/reactivate/{id}', [OfficerController::class, 'reactivate'])->name('officers.reactivate');
-Route::delete('/officers/force-delete/{id}', [OfficerController::class, 'forceDelete'])->name('officers.forceDelete');
+Route::middleware('auth')->group(function () {
+    Route::get('/manageAdmins', [OfficerController::class, 'index'])->name('officers.index');
+    Route::get('/addAdmin', [DashboardController::class, 'createOfficer'])->name('officers.create');
+    Route::post('/manageAdmins', [OfficerController::class, 'store'])->name('officers.store');
+    Route::get('/editAdmin/{id}', [OfficerController::class, 'edit'])->name('officers.edit');
+    Route::put('/officers/update/{id}', [OfficerController::class, 'update'])->name('officers.update');
+    Route::delete('/officers/destroy/{id}', [OfficerController::class, 'destroy'])->name('officers.destroy');
+    Route::delete('/officers/archiveAll', [OfficerController::class, 'archiveAll'])->name('officers.archiveAll');
+    Route::patch('/officers/reactivate/{id}', [OfficerController::class, 'reactivate'])->name('officers.reactivate');
+    Route::delete('/officers/force-delete/{id}', [OfficerController::class, 'forceDelete'])->name('officers.forceDelete');
+    Route::patch('/officers/archive/{id}', [OfficerController::class, 'archiveOfficer'])->name('officers.archiveOfficer');
+});
 
 Route::post('/folders/archive-selected', [FolderController::class, 'archiveSelected'])
     ->name('folders.archive.selected');
+
+Route::post('/folders/start-new-year', [FolderController::class, 'startNewSchoolYear'])
+    ->name('folders.startNewYear');
+
+Route::get('/folders/history/{year}', [FolderController::class, 'history'])
+    ->name('folders.history');
 
 Route::get('/files/{id}/download', [FileController::class, 'download'])->name('files.download');
 
@@ -147,4 +159,23 @@ Route::post('/files/{id}/rename', [FileController::class, 'rename'])
 
 Route::get('/files/{id}/previewStudentDashboard', [StudentController::class, 'previewStudentDashboard'])->name('files.previewStudentDashboard');
 
-Route::patch('/officers/archive/{id}', [OfficerController::class, 'archiveOfficer'])->name('officers.archiveOfficer');
+Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit')->middleware('auth');
+Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update')->middleware('auth');
+
+Route::get('/templates', [TemplateController::class, 'index'])->name('templates.index');
+Route::post('/templates/generate', [TemplateController::class, 'generate'])->name('templates.generate');
+
+Route::get('/letterheads', [LetterheadController::class, 'index'])->name('letterheads.index');
+Route::get('/letterheads/{letterhead}/preview', [LetterheadController::class, 'preview'])->name('letterheads.preview');
+Route::post('/letterheads', [LetterheadController::class, 'store'])->name('letterheads.store');
+Route::put('/letterheads/{letterhead}', [LetterheadController::class, 'update'])->name('letterheads.update');
+Route::delete('/letterheads/{letterhead}', [LetterheadController::class, 'destroy'])->name('letterheads.destroy');
+
+Route::get('/announcements', [AnnouncementController::class, 'index'])->name('announcements.index')->middleware('auth');
+Route::post('/announcements', [AnnouncementController::class, 'store'])->name('announcements.store')->middleware('auth');
+Route::put('/announcements/{announcement}', [AnnouncementController::class, 'update'])->name('announcements.update')->middleware('auth');
+Route::delete('/announcements/{announcement}', [AnnouncementController::class, 'destroy'])->name('announcements.destroy')->middleware('auth');
+Route::get('/announcements/{announcement}/download', [AnnouncementController::class, 'download'])->name('announcements.download');
+
+Route::get('/site-settings', [SiteSettingController::class, 'edit'])->name('site-settings.edit')->middleware('auth');
+Route::post('/site-settings', [SiteSettingController::class, 'update'])->name('site-settings.update')->middleware('auth');

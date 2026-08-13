@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\Folder;
+use App\Models\File;
+use App\Models\Backup;
+use App\Models\OfficerTerm;
 use App\Models\ActivityLog;
 use App\Models\Position;
 use Illuminate\Http\Request;
@@ -12,14 +15,23 @@ class DashboardController extends Controller
 {
     /**
      * Display Super Admin dashboard summary
-     * Shows total users, folders, logs, and latest activities
+     * Shows system-wide totals, officer standing, backup status, and recent activity
      */
     public function superAdminDashboard()
     {
-        // Count total records
-        $users = User::count();
+        $users   = User::count();
         $folders = Folder::count();
-      //  $logs = ActivityLog::count();
+        $files   = File::count();
+
+        $storageUsed = File::sum('size');
+        $storageFormatted = $storageUsed >= 1073741824
+            ? number_format($storageUsed / 1073741824, 2) . ' GB'
+            : number_format($storageUsed / 1048576, 2) . ' MB';
+
+        $activeOfficers = OfficerTerm::where('status', 'active')->count();
+        $formerOfficers = OfficerTerm::where('status', 'former')->count();
+
+        $latestBackup = Backup::latest()->first();
 
         // Get latest 10 activity logs
         $activities = ActivityLog::latest()->take(10)->get();
@@ -28,7 +40,11 @@ class DashboardController extends Controller
         return view('SuperAdmin.superAdminDashboard', compact(
             'users',
             'folders',
-         //   'logs',
+            'files',
+            'storageFormatted',
+            'activeOfficers',
+            'formerOfficers',
+            'latestBackup',
             'activities'
         ));
     }

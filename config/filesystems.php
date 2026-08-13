@@ -60,13 +60,28 @@ return [
             'report' => false,
         ],
 
-        'supabase' => [
-    'driver' => 'supabase',
-    'key'    => env('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBrYW1rdWx1d2Zjd21zdGJlcmJzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTgyNDI4NiwiZXhwIjoyMDkxNDAwMjg2fQ.LFkTnBsWMw2LaRMRsMlmk83gYwm2qHE8uIHqXun2TCI'), // service_role key from Supabase
-    'bucket' => env('file'),
-    'endpoint' => env('https://pkamkuluwfcwmstberbs.storage.supabase.co/storage/v1/s3'),
-    'public' => true, // Set false if using private bucket
-],
+        /*
+        | The single disk every controller/service in this app talks to for
+        | user-uploaded documents. Swapping cloud providers later means
+        | replacing just this block (and installing a different Flysystem
+        | adapter package if the new provider needs one) - application code
+        | always calls Storage::disk('cloud') and never a provider name
+        | directly, so nothing else needs to change.
+        */
+        'cloud' => [
+            'driver' => 'supabase',
+            'key' => env('SUPABASE_SERVICE_KEY'),
+            'bucket' => env('SUPABASE_BUCKET'),
+            'endpoint' => env('SUPABASE_URL'),
+            'url' => null,
+            'public' => true,
+            'defaultUrlGeneration' => null,
+            'defaultUrlGenerationOptions' => [
+                'download' => false,
+                'transform' => [],
+            ],
+            'signedUrlExpires' => 3600,
+        ],
 
     ],
 

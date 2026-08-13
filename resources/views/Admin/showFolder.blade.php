@@ -1,4 +1,4 @@
-@extends('Admin.home')
+@extends($layout ?? 'Admin.home')
 @section('content')
 
 <style>
@@ -138,6 +138,7 @@
         border-radius: var(--radius);
         overflow: visible;
         box-shadow: var(--shadow-sm);
+        margin-bottom: 20px;
     }
     .file-table {
         width: 100%;
@@ -314,7 +315,8 @@
     cursor: pointer;
     transition: border-color 0.2s, background 0.2s;
 }
-.upload-zone:hover { border-color: #378ADD; background: #f0f7ff; }
+.upload-zone:hover,
+.upload-zone.drag-over { border-color: #378ADD; background: #f0f7ff; }
 .upload-zone i { font-size: 2rem; color: #378ADD; margin-bottom: 8px; display: block; }
 
 /* 3-dot menu */
@@ -357,6 +359,34 @@
 <div class="page-header">
     <h4><i class="fas fa-folder-open me-2" style="color:var(--primary);"></i>{{ $folders->name }}</h4>
 </div>
+
+@if (session('success'))
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ session('success') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
+@if (session('error'))
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ session('error') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
+@if ($errors->any())
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ $errors->first() }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
+@if($folders->is_archived)
+<div class="alert alert-warning d-flex align-items-center gap-2" style="border-radius:10px;">
+    <i class="fas fa-lock"></i>
+    <span>This folder is stored under school year <strong>{{ $folders->school_year }}</strong> and is read-only.</span>
+</div>
+@endif
 
 {{-- ── Breadcrumb ──────────────────────────────────────── --}}
 <nav aria-label="breadcrumb">
@@ -452,7 +482,7 @@
                  {{-- ✅ ACTION MENU --}}
     <td style="text-align: right; position: relative; width: 50px; vertical-align: middle;">
     <div class="dropdown folder-menu-btn" style="display: inline-block;">
-                <button class="btn btn-sm" data-bs-toggle="dropdown" aria-expanded="false"
+                <button class="btn btn-sm" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false"
                         onclick="event.stopPropagation()">
                     <i class="bi bi-three-dots-vertical"></i>
                 </button>
@@ -463,6 +493,7 @@
         <i class="bi bi-folder2-open me-2 text-primary"></i> Download
     </a>
 </li>
+                    @if(!$folders->is_archived)
                     <li>
     <button class="dropdown-item py-2"
             data-bs-toggle="modal"
@@ -498,6 +529,7 @@
         </button>
     </form>
 </li>
+                    @endif
                 </ul>
             </div>
         </td>
@@ -558,6 +590,7 @@
     {{-- Optional: no files message --}}
 @endforelse
 
+@if(!$folders->is_archived)
 {{-- FLOATING ACTION BUTTON --}}
 <div class="fab-container" id="fabContainer">
     <div class="fab-options">
@@ -585,6 +618,8 @@
         <i class="fas fa-plus"></i>
     </button>
 </div>
+
+@endif
 
 {{-- UPLOAD FILES MODAL --}}
 <div class="modal fade" id="uploadModal" tabindex="-1" aria-hidden="true">
@@ -621,11 +656,19 @@
                            name="files[]"
                            multiple
                            hidden
+                           accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp"
                            onchange="showFileNames(this)">
 
                     <div id="fileNameList"
                          class="mt-2"
                          style="font-size:12px; color:#666;">
+                    </div>
+
+                    <div class="form-check mt-3">
+                        <input type="checkbox" class="form-check-input" id="scanAsDocument" name="scan_as_document" value="1">
+                        <label class="form-check-label" for="scanAsDocument" style="font-size:13px;">
+                            Scan as document <span class="text-muted">(convert a photo of a hardcopy into a searchable PDF)</span>
+                        </label>
                     </div>
 
                 </div>
@@ -642,6 +685,17 @@
 
             </form>
         </div>
+    </div>
+</div>
+
+{{-- UPLOAD PROGRESS TOAST (top right, survives the modal closing) --}}
+<div id="uploadToast" style="display:none; position:fixed; top:20px; right:20px; width:320px; z-index:2000;">
+    <div style="background:#fff; border:1px solid #e5e5e5; border-radius:12px; box-shadow:0 8px 30px rgba(0,0,0,0.15); overflow:hidden;">
+        <div style="padding:10px 14px; border-bottom:1px solid #f0f0f0; font-weight:600; font-size:13px; display:flex; justify-content:space-between; align-items:center;">
+            <span><i class="fas fa-cloud-upload-alt me-1" style="color:#534AB7;"></i> Uploading</span>
+            <button type="button" id="uploadToastClose" style="border:none; background:none; color:#999; cursor:pointer; font-size:16px; line-height:1;" aria-label="Close">&times;</button>
+        </div>
+        <div id="uploadToastList" style="max-height:280px; overflow-y:auto;"></div>
     </div>
 </div>
 
@@ -701,6 +755,31 @@
     {{-- Optional: no files message --}}
 @endforelse
 
+<style>
+.upload-toast-row { padding: 10px 14px; border-bottom: 1px solid #f5f5f5; }
+.upload-toast-row:last-child { border-bottom: none; }
+.upload-toast-row .row-top { display:flex; justify-content:space-between; font-size:12px; color:#333; margin-bottom:4px; gap:8px; }
+.upload-toast-row .row-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:200px; }
+.upload-toast-row .row-status { color:#888; white-space:nowrap; flex-shrink:0; }
+.upload-toast-row .row-track { height:6px; border-radius:4px; background:#eee; overflow:hidden; }
+.upload-toast-row .row-bar { height:100%; width:0%; background:#534AB7; transition:width .15s ease; }
+.upload-toast-row .row-bar.is-indeterminate {
+    background-image: linear-gradient(45deg, rgba(255,255,255,.3) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.3) 50%, rgba(255,255,255,.3) 75%, transparent 75%, transparent);
+    background-size: 20px 20px;
+    animation: upload-progress-stripes 1s linear infinite;
+}
+.upload-toast-row .row-bar.is-done { background: #2e8b57; }
+.upload-toast-row .row-bar.is-failed { background: #c0392b; }
+@keyframes upload-progress-stripes {
+    from { background-position: 20px 0; }
+    to   { background-position: 0 0; }
+}
+.upload-toast-row .row-cancel-btn {
+    border: none; background: none; color: #aaa; cursor: pointer;
+    font-size: 11px; padding: 0; flex-shrink: 0; line-height: 1;
+}
+.upload-toast-row .row-cancel-btn:hover { color: #c0392b; }
+</style>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 let fabOpen = false;
@@ -735,5 +814,242 @@ function showFileNames(input) {
     list.innerHTML = `<div style="max-height:120px; overflow-y:auto; border:1px solid #eee;
                            border-radius:8px; padding:6px 10px; margin-top:6px;">${names}</div>`;
 }
+
+// Without this, dropping files anywhere the browser doesn't explicitly
+// handle makes it navigate to/download the file instead of accepting it.
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => e.preventDefault());
+
+(function setupDragDrop(zoneId, inputId) {
+    const zone = document.getElementById(zoneId);
+    const input = document.getElementById(inputId);
+    if (!zone || !input) return;
+
+    ['dragenter', 'dragover'].forEach(evt => {
+        zone.addEventListener(evt, function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            zone.classList.add('drag-over');
+        });
+    });
+
+    ['dragleave', 'drop'].forEach(evt => {
+        zone.addEventListener(evt, function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            zone.classList.remove('drag-over');
+        });
+    });
+
+    zone.addEventListener('drop', function (e) {
+        if (e.dataTransfer.files && e.dataTransfer.files.length) {
+            input.files = e.dataTransfer.files;
+            showFileNames(input);
+        }
+    });
+})('uploadZone', 'fileInput');
+
+// Uploads go straight from the browser to cloud storage (a signed URL from
+// prepareUpload()) instead of relaying the bytes through this server - one
+// hop instead of two. The modal closes immediately and progress shows in a
+// corner toast so the page stays usable while it runs. If the direct
+// upload fails for any file (network issue, or the browser's connection to
+// Supabase specifically being blocked), that file automatically falls back
+// to the older server-relayed path (files.store) instead of failing.
+(function setupDirectUpload(formSelector, modalId) {
+    const form = document.querySelector(formSelector);
+    const modalEl = document.getElementById(modalId);
+    const toast = document.getElementById('uploadToast');
+    const toastList = document.getElementById('uploadToastList');
+    const toastClose = document.getElementById('uploadToastClose');
+    if (!form || !modalEl || !toast || !toastList) return;
+
+    const csrfToken = form.querySelector('[name="_token"]').value;
+    const scanCheckbox = form.querySelector('[name="scan_as_document"]');
+
+    if (toastClose) {
+        toastClose.addEventListener('click', function () {
+            toast.style.display = 'none';
+        });
+    }
+
+    function addRow(name) {
+        const row = document.createElement('div');
+        row.className = 'upload-toast-row';
+        row.innerHTML =
+            '<div class="row-top">' +
+                '<span class="row-name">' + name + '</span>' +
+                '<span class="row-status">Preparing…</span>' +
+                '<button type="button" class="row-cancel-btn" title="Cancel upload"><i class="fas fa-times"></i></button>' +
+            '</div>' +
+            '<div class="row-track"><div class="row-bar"></div></div>';
+        toastList.appendChild(row);
+
+        const ui = {
+            status: row.querySelector('.row-status'),
+            bar: row.querySelector('.row-bar'),
+            cancelBtn: row.querySelector('.row-cancel-btn'),
+            xhr: null,       // whichever transfer is currently in flight for this file
+            cancelled: false,
+        };
+
+        ui.cancelBtn.addEventListener('click', function () {
+            ui.cancelled = true;
+            if (ui.xhr) ui.xhr.abort();
+            ui.status.textContent = 'Cancelled';
+            ui.bar.classList.remove('is-indeterminate');
+            ui.bar.classList.add('is-failed');
+            ui.cancelBtn.style.display = 'none';
+        });
+
+        return ui;
+    }
+
+    // Cancelling aborts whichever leg (cloud or local fallback) is actively
+    // sending bytes right now - ui.xhr always points at the current one, so
+    // one abort() reaches whichever is running.
+    function directUploadToCloud(file, uploadUrl, ui, onProgress) {
+        return new Promise(function (resolve, reject) {
+            if (ui.cancelled) { reject(new Error('cancelled')); return; }
+
+            const xhr = new XMLHttpRequest();
+            ui.xhr = xhr;
+            xhr.upload.addEventListener('progress', function (evt) {
+                if (evt.lengthComputable) onProgress(Math.round((evt.loaded / evt.total) * 100));
+            });
+            xhr.addEventListener('load', function () {
+                if (xhr.status >= 200 && xhr.status < 300) resolve();
+                else reject(new Error('Cloud PUT failed with status ' + xhr.status));
+            });
+            xhr.addEventListener('error', function () { reject(new Error('Cloud PUT network error')); });
+            xhr.addEventListener('abort', function () { reject(new Error('cancelled')); });
+            xhr.open('PUT', uploadUrl, true);
+            xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+            xhr.send(file);
+        });
+    }
+
+    function fallbackServerUpload(file, folderId, ui) {
+        if (ui.cancelled) return Promise.resolve();
+
+        ui.status.textContent = 'Saving locally…';
+        ui.bar.classList.remove('is-indeterminate');
+
+        return new Promise(function (resolve) {
+            const fd = new FormData();
+            fd.append('files[]', file);
+            if (folderId) fd.append('folder_id', folderId);
+            if (scanCheckbox && scanCheckbox.checked) fd.append('scan_as_document', '1');
+            fd.append('_token', csrfToken);
+
+            const xhr = new XMLHttpRequest();
+            ui.xhr = xhr;
+            xhr.upload.addEventListener('progress', function (evt) {
+                if (evt.lengthComputable && ! ui.cancelled) ui.bar.style.width = Math.round((evt.loaded / evt.total) * 100) + '%';
+            });
+            xhr.addEventListener('loadend', function () {
+                if (ui.cancelled) { resolve(); return; }
+                ui.status.textContent = 'Saved (fallback)';
+                ui.bar.style.width = '100%';
+                ui.bar.classList.add('is-done');
+                ui.cancelBtn.style.display = 'none';
+                resolve();
+            });
+            xhr.addEventListener('abort', function () { resolve(); });
+            xhr.open('POST', "{{ route('files.store') }}", true);
+            xhr.send(fd);
+        });
+    }
+
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        const fileInput = form.querySelector('input[type="file"]');
+        const files = Array.from(fileInput.files || []);
+        if (! files.length) return;
+
+        const folderIdField = form.querySelector('[name="folder_id"]');
+        const folderId = folderIdField ? folderIdField.value : '';
+
+        (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl)).hide();
+
+        toast.style.display = 'block';
+        toastList.innerHTML = '';
+        const rows = files.map(function (file) { return { file: file, ui: addRow(file.name) }; });
+
+        fetch("{{ route('files.prepareUpload') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
+            body: JSON.stringify({ filenames: files.map(function (f) { return f.name; }), folder_id: folderId || null }),
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            const prepared = data.files || [];
+
+            const tasks = rows.map(function (entry, index) {
+                const prep = prepared[index];
+
+                if (entry.ui.cancelled) return Promise.resolve();
+
+                if (! prep || ! prep.uploadUrl) {
+                    return fallbackServerUpload(entry.file, folderId, entry.ui);
+                }
+
+                entry.ui.status.textContent = '0%';
+
+                return directUploadToCloud(entry.file, prep.uploadUrl, entry.ui, function (percent) {
+                        if (entry.ui.cancelled) return;
+                        entry.ui.bar.style.width = percent + '%';
+                        entry.ui.status.textContent = percent + '%';
+                    })
+                    .then(function () {
+                        if (entry.ui.cancelled) return;
+                        entry.ui.status.textContent = 'Saving…';
+                        entry.ui.bar.classList.add('is-indeterminate');
+
+                        return fetch("{{ route('files.confirmUpload') }}", {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
+                            body: JSON.stringify({
+                                filename: prep.newFileName,
+                                cloudPath: prep.cloudPath,
+                                folder_id: folderId || null,
+                                size: entry.file.size,
+                                scan_as_document: (scanCheckbox && scanCheckbox.checked) ? 1 : 0,
+                            }),
+                        });
+                    })
+                    .then(function (res) {
+                        if (entry.ui.cancelled) return;
+                        if (! res.ok) throw new Error('confirmUpload failed');
+                        entry.ui.bar.classList.remove('is-indeterminate');
+                        entry.ui.bar.classList.add('is-done');
+                        entry.ui.status.textContent = 'Done ✓';
+                        entry.ui.cancelBtn.style.display = 'none';
+                    })
+                    .catch(function () {
+                        // Don't fall back to the server-relay path if the
+                        // user cancelled on purpose - only on a genuine failure.
+                        if (entry.ui.cancelled) return;
+                        entry.ui.bar.classList.remove('is-indeterminate');
+                        return fallbackServerUpload(entry.file, folderId, entry.ui);
+                    });
+            });
+
+            return Promise.all(tasks);
+        })
+        .catch(function () {
+            // prepareUpload itself failed (offline, etc.) - relay every
+            // non-cancelled file through the server instead.
+            return Promise.all(rows.map(function (entry) {
+                if (entry.ui.cancelled) return Promise.resolve();
+                return fallbackServerUpload(entry.file, folderId, entry.ui);
+            }));
+        })
+        .finally(function () {
+            setTimeout(function () { window.location.reload(); }, 1200);
+        });
+    });
+})('#uploadModal form', 'uploadModal');
 </script>
 @endsection

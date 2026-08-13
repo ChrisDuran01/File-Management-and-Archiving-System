@@ -373,6 +373,7 @@
                     $activity = strtolower($log->activity);
                     $type = match(true) {
                         str_contains($activity, 'upload')                   => 'upload',
+                        str_contains($activity, 'added')                   => 'upload',
                         str_contains($activity, 'delete')                   => 'delete',
                         str_contains($activity, 'rename')                   => 'rename',
                         str_contains($activity, 'public') ||
@@ -384,6 +385,7 @@
                     };
                     $badgeLabel = match($type) {
                         'upload' => 'Upload',
+                        
                         'delete' => 'Delete',
                         'rename' => 'Rename',
                         'access' => 'Access',

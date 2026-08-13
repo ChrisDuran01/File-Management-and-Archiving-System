@@ -1,4 +1,4 @@
-@extends('Admin.home')
+@extends($layout ?? 'Admin.home')
 @section('content')
 <!DOCTYPE html>
 <html lang="en">
@@ -359,9 +359,21 @@
             Archives
             <span class="archive-count" id="archiveCount">{{ $archives->count() }} archives</span>
         </h4>
-        <a href="{{ route('folders.index') }}" class="back-btn">
-            <i class="fas fa-folder" style="font-size:13px;"></i> Back to Folders
-        </a>
+        <div class="d-flex align-items-center gap-2">
+            <form action="{{ route('archives.runAutoArchive') }}" method="POST" class="d-flex align-items-center gap-2">
+                @csrf
+                <label for="staleYears" class="visually-hidden">Years of inactivity before auto-archiving</label>
+                <input type="number" min="0" name="years" id="staleYears"
+                       class="form-control form-control-sm" style="width:70px;"
+                       placeholder="3" title="Years of inactivity before auto-archiving (default 3)">
+                <button type="submit" class="back-btn" style="border:1px solid #e0e0e0; cursor:pointer;">
+                    <i class="fas fa-clock-rotate-left" style="font-size:13px;"></i> Run Auto-Archive Check
+                </button>
+            </form>
+            <a href="{{ route('folders.index') }}" class="back-btn">
+                <i class="fas fa-folder" style="font-size:13px;"></i> Back to Folders
+            </a>
+        </div>
     </div>
 
     {{-- Flash Messages --}}
@@ -413,6 +425,15 @@
                     </button>
 
                     <div class="card-dropdown">
+
+                        {{-- Open / View contents --}}
+                        <a href="{{ route('archives.show', $archive->id) }}"
+                           class="card-dropdown-item">
+                            <i class="fas fa-eye" style="font-size:12px;color:#534AB7;"></i>
+                            Open (view only)
+                        </a>
+
+                        <div class="card-dropdown-divider"></div>
 
                         {{-- Download --}}
                         <a href="{{ route('archives.download', $archive->id) }}"

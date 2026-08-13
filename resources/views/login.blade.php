@@ -299,6 +299,12 @@
     .btn-login:active {
       transform: translateY(1px);
     }
+    .btn-login:disabled {
+      background: #9ca3af;
+      box-shadow: none;
+      cursor: not-allowed;
+      transform: none;
+    }
 
     /* extra footer */
     .signup-text {
@@ -423,6 +429,12 @@
       <form method="POST" action="/login">
         @csrf
 
+        @if ($errors->any())
+          <div class="alert alert-danger py-2 px-3 mb-3" style="font-size:0.85rem;" role="alert" id="loginAlert">
+            <span id="loginAlertText">{{ $errors->first() }}</span>
+          </div>
+        @endif
+
         <!-- Email input with icon + floating label -->
         <div class="input-group-custom">
           <i class="fas fa-envelope input-icon"></i>
@@ -439,12 +451,12 @@
 
         <!-- Forgot password row -->
         <div class="d-flex justify-content-end mb-4">
-          <a href="#" class="forgot-link"><i class="fas fa-key me-1"></i> Forgot password?</a>
+          <a href="{{ route('password.request') }}" class="forgot-link"><i class="fas fa-key me-1"></i> Forgot password?</a>
         </div>
 
         <!-- Login Button with arrow icon -->
-        <button type="submit" class="btn-login">
-          <i class="fas fa-sign-in-alt"></i> Log in
+        <button type="submit" class="btn-login" id="loginSubmitBtn">
+          <i class="fas fa-sign-in-alt"></i> <span id="loginSubmitBtnText">Log in</span>
         </button>
 
         <!-- Additional help text -->
@@ -482,6 +494,38 @@
     });
   })();
 </script>
+
+@if (session('lockout_seconds'))
+<script>
+  (function() {
+    let remaining = {{ (int) session('lockout_seconds') }};
+
+    const textEl = document.getElementById('loginAlertText');
+    const submitBtn = document.getElementById('loginSubmitBtn');
+    const submitBtnText = document.getElementById('loginSubmitBtnText');
+
+    function render() {
+      if (remaining <= 0) {
+        textEl.textContent = 'You can try again now.';
+        submitBtn.disabled = false;
+        submitBtnText.textContent = 'Log in';
+        return;
+      }
+
+      const unit = remaining === 1 ? 'second' : 'seconds';
+      textEl.textContent = `Too many login attempts. Please try again in ${remaining} ${unit}.`;
+      submitBtn.disabled = true;
+      submitBtnText.textContent = `Try again in ${remaining}s`;
+
+      remaining--;
+      setTimeout(render, 1000);
+    }
+
+    render();
+  })();
+</script>
+@endif
+
 <!-- optional bootstrap bundle (for proper interactions) -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
 </body>
