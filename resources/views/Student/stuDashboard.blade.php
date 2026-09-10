@@ -36,7 +36,7 @@
             <div class="sunburst"></div>
             <img src="{{ $siteSettings->logo_path ? asset('storage/'.$siteSettings->logo_path) : asset('images/SG-logo.png') }}" alt="QSU Student Government Logo" class="sg-logo" onerror="this.onerror=null; this.src='https://via.placeholder.com/120x120?text=SG';">
         </div>
-        <h1 class="hero-title">QSU-Diffun Student Government</h1>
+        <h1 class="hero-title">QSU Diffun-Student Government</h1>
         <p class="hero-subtitle">Official documents open to all QSU students</p>
     </div>
 
@@ -89,43 +89,6 @@
             </div>
         </div>
 
-        {{-- Officers Marquee --}}
-        @if($officers->count())
-        <div class="officers-section mb-4">
-            <h2 class="section-title" style="justify-content:center;margin-bottom:1rem;">
-                <span class="material-icons-outlined">groups</span>
-                Meet Your Student Government
-            </h2>
-
-            <div class="marquee-wrap">
-                <div class="marquee-track">
-                    @foreach($officers as $term)
-                        <div class="officer-card">
-                            @if($term->user->profile_photo)
-                                <img src="{{ asset('storage/'.$term->user->profile_photo) }}" alt="{{ $term->user->name }}" class="officer-photo">
-                            @else
-                                <div class="officer-photo officer-initial">{{ strtoupper(substr($term->user->name, 0, 1)) }}</div>
-                            @endif
-                            <div class="officer-name">{{ $term->user->name }}</div>
-                            <div class="officer-position">{{ $term->position->position_name ?? '' }}</div>
-                        </div>
-                    @endforeach
-                    @foreach($officers as $term)
-                        <div class="officer-card" aria-hidden="true">
-                            @if($term->user->profile_photo)
-                                <img src="{{ asset('storage/'.$term->user->profile_photo) }}" alt="" class="officer-photo">
-                            @else
-                                <div class="officer-photo officer-initial">{{ strtoupper(substr($term->user->name, 0, 1)) }}</div>
-                            @endif
-                            <div class="officer-name">{{ $term->user->name }}</div>
-                            <div class="officer-position">{{ $term->position->position_name ?? '' }}</div>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-        </div>
-        @endif
-
         {{-- Announcements Section --}}
         <div class="doc-section mb-4" id="announcements">
             <div class="doc-header">
@@ -138,20 +101,20 @@
                 </div>
             </div>
 
-            <div class="row g-2" id="announcementList">
+            <div class="row g-3" id="announcementList">
                 @forelse($announcements as $announcement)
-                <div class="col-12">
-                    <div class="modern-doc-card announcement-card" data-ts="{{ $announcement->created_at->timestamp }}" style="cursor:default;display:block;">
-                        <h6 class="doc-name" style="white-space:normal;margin-bottom:6px;">
+                <div class="col-12 col-sm-6 col-lg-4">
+                    <div class="modern-doc-card announcement-card" data-ts="{{ $announcement->created_at->timestamp }}">
+                        <h6 class="doc-name announcement-title">
                             {{ $announcement->title }}
                             @if($announcement->created_at->diffInHours(now()) < 72)
                                 <span class="new-pill">New</span>
                             @endif
                         </h6>
-                        <div class="doc-meta" style="margin-bottom:8px;">
+                        <div class="doc-meta announcement-meta">
                             <span class="doc-date">{{ $announcement->created_at->format('M d, Y g:i A') }} &middot; {{ $announcement->created_at->diffForHumans() }}</span>
                         </div>
-                        <div style="font-size:.9rem;color:#3a3a3a;margin-bottom:8px;">{!! $announcement->body !!}</div>
+                        <div class="announcement-body">{!! $announcement->body !!}</div>
                         @if($announcement->attachment_path)
                             <a href="{{ route('announcements.download', $announcement->id) }}" class="attachment-link">
                                 <span class="material-icons-outlined" style="font-size:16px;">attach_file</span>
@@ -212,6 +175,30 @@
                 @endforelse
             </div>
         </div>
+
+        {{-- Officers --}}
+        @if($officers->count())
+        <div class="officers-section mb-4">
+            <h2 class="section-title" style="justify-content:center;margin-bottom:1rem;">
+                <span class="material-icons-outlined">groups</span>
+                Meet Your Student Government
+            </h2>
+
+            <div class="officers-grid">
+                @foreach($officers as $term)
+                    <div class="officer-card">
+                        @if($term->user->profile_photo)
+                            <img src="{{ asset('storage/'.$term->user->profile_photo) }}" alt="{{ $term->user->name }}" class="officer-photo">
+                        @else
+                            <div class="officer-photo officer-initial">{{ strtoupper(substr($term->user->name, 0, 1)) }}</div>
+                        @endif
+                        <div class="officer-name">{{ $term->user->name }}</div>
+                        <div class="officer-position">{{ $term->position->position_name ?? '' }}</div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
 
         {{-- Contact Section --}}
         <div class="contact-modern mt-4" id="contact">
@@ -669,38 +656,29 @@
         border-radius: 6px;
     }
 
-    /* Officers Marquee */
-    .marquee-wrap {
-        overflow: hidden;
-        position: relative;
-        -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
-        mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
-    }
-    .marquee-track {
+    /* Officers Grid */
+    .officers-grid {
         display: flex;
-        gap: 2.5rem;
-        width: max-content;
-        animation: marquee-scroll 34s linear infinite;
-    }
-    .marquee-wrap:hover .marquee-track {
-        animation-play-state: paused;
-    }
-    @keyframes marquee-scroll {
-        from { transform: translateX(0); }
-        to { transform: translateX(-50%); }
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 2rem 2.5rem;
+        max-width: 1000px;
+        margin: 0 auto;
     }
     .officer-card {
-        flex: 0 0 auto;
-        width: 170px;
         text-align: center;
+        width: 230px;
+        flex: 0 0 auto;
     }
     .officer-photo {
-        width: 110px;
-        height: 110px;
-        border-radius: 50%;
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        border-radius: 10px;
         object-fit: cover;
         background: #fff;
-        border: 1px solid #0f3d1f;
+        border: 1px solid #e5e2d8;
+        box-shadow: 0 1px 2px rgba(15,61,31,0.04), 0 4px 10px rgba(15,61,31,0.05);
+        display: block;
     }
     .officer-initial {
         display: flex;
@@ -709,20 +687,19 @@
         background: #eef2ea;
         color: #0f3d1f;
         font-weight: 700;
-        font-size: 2.4rem;
-        margin: 0 auto;
+        font-size: 4rem;
     }
     .officer-name {
-        font-size: 1rem;
+        font-size: 1.15rem;
         font-weight: 700;
         color: #0f3d1f;
-        margin-top: 10px;
+        margin-top: 14px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
     .officer-position {
-        font-size: 0.82rem;
+        font-size: 0.9rem;
         color: #6b7280;
         white-space: nowrap;
         overflow: hidden;
@@ -799,6 +776,13 @@
     }
     .announcement-card {
         position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: stretch;
+        cursor: default;
+        min-height: 340px;
+        padding: 1.5rem 1.5rem 1.25rem;
     }
     .announcement-card::before {
         content: '';
@@ -813,6 +797,30 @@
     }
     .announcement-card.is-unread::before {
         opacity: 1;
+    }
+    .announcement-card .announcement-title {
+        font-size: 1.1rem;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        margin-bottom: 10px;
+    }
+    .announcement-card .announcement-meta {
+        margin-bottom: 14px;
+    }
+    .announcement-body {
+        flex: 1;
+        font-size: 0.92rem;
+        line-height: 1.6;
+        color: #3a3a3a;
+        margin-bottom: 12px;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 9;
+        -webkit-box-orient: vertical;
+    }
+    .announcement-card .attachment-link {
+        margin-top: auto;
     }
     .new-pill {
         display: inline-block;

@@ -20,7 +20,9 @@ class StudentController extends Controller
 
         $officers = OfficerTerm::with(['user', 'position'])
             ->where('status', 'active')
-            ->get();
+            ->get()
+            ->sortBy(fn ($term) => $this->positionRank($term->position->position_name ?? ''))
+            ->values();
 
         $siteSettings = SiteSetting::current();
 
@@ -57,6 +59,48 @@ class StudentController extends Controller
                         $folderQuery->where('is_restricted', false);
                     });
             });
+    }
+
+    /**
+     * Ranks a position name by where it falls in the standard student
+     * government hierarchy (President, Vice President, Secretary, ...) so
+     * officers display in that order regardless of how they were entered
+     * or fetched from the database. Matching is by keyword, so labels like
+     * "SSLG - Vice President" still match "Vice President". Anything that
+     * doesn't match a known role sorts after all recognized ones, in the
+     * order it was found.
+     */
+    private function positionRank(string $positionName): int
+    {
+        // Rank values in display order. "vice president" is checked before
+        // "president" below since "president" is a substring of it - a
+        // check in display order would otherwise mis-rank Vice President
+        // as President.
+        $rank = [
+            'president' => 0,
+            'vice president' => 1,
+            'secretary' => 2,
+            'treasurer' => 3,
+            'auditor' => 4,
+            'public information officer' => 5,
+            'pio' => 5,
+            'business manager' => 6,
+            'peace officer' => 7,
+            'representative' => 8,
+        ];
+
+        $checkOrder = ['vice president', 'president', 'secretary', 'treasurer', 'auditor',
+            'public information officer', 'pio', 'business manager', 'peace officer', 'representative'];
+
+        $name = strtolower($positionName);
+
+        foreach ($checkOrder as $keyword) {
+            if (str_contains($name, $keyword)) {
+                return $rank[$keyword];
+            }
+        }
+
+        return count($rank);
     }
 
     public function previewStudentDashboard($id)

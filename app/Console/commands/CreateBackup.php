@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Http\Controllers\BackupController;
+use Illuminate\Support\Facades\Cache;
 
 class CreateBackup extends Command
 {
@@ -29,19 +30,26 @@ class CreateBackup extends Command
     public function handle()
     {
         $this->info('Starting backup...');
-        
-        $backupController = new BackupController();
-        
-        // You might need to modify your createBackup method to work in CLI
-        // or create a separate method for CLI backup
-        $result = $backupController->createBackup();
-        
-        if ($result) {
-            $this->info('Backup completed successfully!');
-            return Command::SUCCESS;
-        } else {
-            $this->error('Backup failed!');
+
+        // Runs directly and synchronously, not via the queue - that
+        // indirection (RunBackupJob) exists to keep the web server free to
+        // answer progress-polling requests while a backup runs; a CLI
+        // command already blocks its own terminal for as long as it takes,
+        // so there's nothing to free up here.
+        (new BackupController())->performBackup();
+
+        // performBackup() doesn't return a result - it reports outcome via
+        // the same progress cache the SuperAdmin page polls, so read that
+        // back rather than always reporting success regardless of what
+        // actually happened (the previous check here was always truthy).
+        $progress = Cache::get('backup_progress', []);
+
+        if (($progress['stage'] ?? null) === 'error') {
+            $this->error('Backup failed: ' . ($progress['message'] ?? 'unknown error'));
             return Command::FAILURE;
         }
+
+        $this->info($progress['message'] ?? 'Backup completed successfully!');
+        return Command::SUCCESS;
     }
 }

@@ -93,7 +93,10 @@ class FolderArchiver
                 Storage::disk('cloud')->delete($file->filepath);
             }
 
-            $file->delete();
+            // Hard delete, not trash: the ZIP built above already preserves
+            // this file's contents, so keeping a trashed row (with its bytes
+            // just removed) would only clutter the recycle bin.
+            $file->forceDelete();
         }
 
         $zip->close();
@@ -117,7 +120,9 @@ class FolderArchiver
 
         FileFacade::delete($tempZipPath);
 
-        $folder->delete();
+        // Hard delete for the same reason as the files above - the archive
+        // ZIP is the preserved copy, not the trash.
+        $folder->forceDelete();
         Log::info('Folder deleted from main folders: ' . $folderName);
 
         Archive::create([

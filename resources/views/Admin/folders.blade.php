@@ -1,6 +1,8 @@
 @extends($layout ?? 'Admin.home')
 @section('content')
 
+@include('Admin.partials.theme')
+
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 
 <style>
@@ -62,7 +64,7 @@ body { font-family: 'Segoe UI', sans-serif; }
     flex-shrink: 0;
 }
 .live-search-icon.folder  { background: #fffbeb; color: #f59e0b; }
-.live-search-icon.file    { background: #eff4ff; color: #2563eb; }
+.live-search-icon.file    { background: #e9f5ee; color: #058028; }
 .live-search-icon.archive { background: #f4f4f5; color: #71717a; }
 .live-search-text { min-width: 0; display: flex; flex-direction: column; }
 .live-search-name {
@@ -88,7 +90,7 @@ body { font-family: 'Segoe UI', sans-serif; }
     padding: 10px;
     font-size: 12px;
     font-weight: 600;
-    color: #2563eb;
+    color: #058028;
     text-decoration: none;
     border-top: 1px solid #f0f0f0;
 }
@@ -117,13 +119,13 @@ body { font-family: 'Segoe UI', sans-serif; }
 .btn-year i { font-size: 15px; }
 
 .btn-year-new {
-    background: linear-gradient(135deg, #f6b93b, #e08e0b);
+    background: #058028;
     color: #fff;
-    box-shadow: 0 3px 10px rgba(224,142,11,0.35);
+    box-shadow: 0 3px 10px rgba(5,128,40,.25);
 }
 .btn-year-new:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 18px rgba(224,142,11,0.4);
+    box-shadow: 0 6px 18px rgba(5,128,40,.3);
     color: #fff;
 }
 
@@ -246,14 +248,14 @@ body { font-family: 'Segoe UI', sans-serif; }
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    background: #0F6E56;
+    background: #058028;
     border: none;
     color: #fff;
     font-size: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 16px rgba(83,74,183,0.35);
+    box-shadow: 0 4px 16px rgba(5,128,40,.25);
     cursor: pointer;
     transition: transform 0.25s ease, background 0.2s;
 }
@@ -302,8 +304,8 @@ body { font-family: 'Segoe UI', sans-serif; }
     box-shadow: 0 3px 10px rgba(0,0,0,0.15);
 }
 .fab-mini:hover { transform: scale(1.1); }
-.fab-mini.upload { background: #378ADD; }
-.fab-mini.folder { background: #1D9E75; }
+.fab-mini.upload { background: #058028; }
+.fab-mini.folder { background: #046322; }
 
 /* Modals */
 .modal-content { border-radius: 16px; border: none; box-shadow: 0 12px 40px rgba(0,0,0,0.12); }
@@ -323,8 +325,8 @@ body { font-family: 'Segoe UI', sans-serif; }
     transition: border-color 0.2s, background 0.2s;
 }
 .upload-zone:hover,
-.upload-zone.drag-over { border-color: #378ADD; background: #f0f7ff; }
-.upload-zone i { font-size: 2rem; color: #378ADD; margin-bottom: 8px; display: block; }
+.upload-zone.drag-over { border-color: #058028; background: #f0f7ff; }
+.upload-zone i { font-size: 2rem; color: #058028; margin-bottom: 8px; display: block; }
 
 /* Page header */
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
@@ -424,6 +426,57 @@ body { font-family: 'Segoe UI', sans-serif; }
     color: #aaa;
     margin-top: 2px;
 }
+
+/* ===== DARK MODE — re-point this page's hard-coded light colours to tokens.
+   Light mode is untouched; these only apply under data-theme="dark". ===== */
+[data-theme="dark"] .search-bar .input-group { border-color: var(--border); box-shadow: none; }
+[data-theme="dark"] .search-bar .form-control { background: var(--card); color: var(--text-1); }
+[data-theme="dark"] .search-bar .btn { background: var(--card); color: var(--text-2); }
+[data-theme="dark"] .search-bar .btn:hover { background: var(--nav-hover-bg); }
+
+[data-theme="dark"] .live-search-dropdown { background: var(--card); border-color: var(--border); }
+[data-theme="dark"] .live-search-row { color: var(--text-1); }
+[data-theme="dark"] .live-search-row:hover { background: var(--nav-hover-bg); }
+[data-theme="dark"] .live-search-icon.folder  { background: var(--warning-dim); color: var(--warning); }
+[data-theme="dark"] .live-search-icon.file    { background: var(--primary-dim); color: var(--primary); }
+[data-theme="dark"] .live-search-icon.archive { background: var(--nav-hover-bg); color: var(--text-2); }
+[data-theme="dark"] .live-search-viewall { color: var(--primary); border-top-color: var(--border); }
+[data-theme="dark"] .live-search-viewall:hover { background: var(--nav-hover-bg); }
+
+[data-theme="dark"] .btn-year-prev { background: var(--card); color: var(--text-1); border-color: var(--border); box-shadow: none; }
+[data-theme="dark"] .btn-year-prev:hover { background: var(--nav-hover-bg); border-color: var(--text-3); color: var(--text-1); }
+[data-theme="dark"] .year-dropdown-menu { border-color: var(--border); }
+[data-theme="dark"] .year-dropdown-menu .dropdown-item { color: var(--text-1); }
+[data-theme="dark"] .year-dropdown-menu .dropdown-item:hover { background: var(--warning-dim); color: var(--warning); }
+
+[data-theme="dark"] .folder-card,
+[data-theme="dark"] .file-card { background: var(--card); border-color: var(--border); }
+[data-theme="dark"] .folder-card:hover,
+[data-theme="dark"] .file-card:hover { border-color: var(--text-3); box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+
+[data-theme="dark"] .folder-menu-btn .btn,
+[data-theme="dark"] .file-menu-btn .btn { background: rgba(0,0,0,.35); border-color: var(--border); color: var(--text-2); }
+[data-theme="dark"] .folder-menu-btn .btn:hover,
+[data-theme="dark"] .file-menu-btn .btn:hover { background: var(--nav-hover-bg); }
+
+[data-theme="dark"] .fab-label { background: var(--card); border-color: var(--border); color: var(--text-1); }
+
+[data-theme="dark"] .modal-header,
+[data-theme="dark"] .modal-footer { border-color: var(--border); }
+
+[data-theme="dark"] .upload-zone { border-color: var(--border); color: var(--text-2); }
+[data-theme="dark"] .upload-zone:hover,
+[data-theme="dark"] .upload-zone.drag-over { border-color: var(--primary); background: var(--primary-dim); }
+
+[data-theme="dark"] .page-title { color: var(--text-1); }
+[data-theme="dark"] .folder-count { background: var(--nav-hover-bg); border-color: var(--border); color: var(--text-2); }
+
+[data-theme="dark"] .section-divider { color: var(--text-3); }
+[data-theme="dark"] .section-divider::before,
+[data-theme="dark"] .section-divider::after { background: var(--border); }
+
+[data-theme="dark"] .file-name { color: var(--text-1); }
+[data-theme="dark"] .file-meta { color: var(--text-3); }
 </style>
 
 
@@ -938,7 +991,7 @@ body { font-family: 'Segoe UI', sans-serif; }
 <div id="uploadToast" style="display:none; position:fixed; top:20px; right:20px; width:320px; z-index:2000;">
     <div style="background:#fff; border:1px solid #e5e5e5; border-radius:12px; box-shadow:0 8px 30px rgba(0,0,0,0.15); overflow:hidden;">
         <div style="padding:10px 14px; border-bottom:1px solid #f0f0f0; font-weight:600; font-size:13px; display:flex; justify-content:space-between; align-items:center;">
-            <span><i class="fas fa-cloud-upload-alt me-1" style="color:#534AB7;"></i> Uploading</span>
+            <span><i class="fas fa-cloud-upload-alt me-1" style="color:#058028;"></i> Uploading</span>
             <button type="button" id="uploadToastClose" style="border:none; background:none; color:#999; cursor:pointer; font-size:16px; line-height:1;" aria-label="Close">&times;</button>
         </div>
         <div id="uploadToastList" style="max-height:280px; overflow-y:auto;"></div>
@@ -953,7 +1006,7 @@ body { font-family: 'Segoe UI', sans-serif; }
 .upload-toast-row .row-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:200px; }
 .upload-toast-row .row-status { color:#888; white-space:nowrap; flex-shrink:0; }
 .upload-toast-row .row-track { height:6px; border-radius:4px; background:#eee; overflow:hidden; }
-.upload-toast-row .row-bar { height:100%; width:0%; background:#534AB7; transition:width .15s ease; }
+.upload-toast-row .row-bar { height:100%; width:0%; background:#058028; transition:width .15s ease; }
 .upload-toast-row .row-bar.is-indeterminate {
     background-image: linear-gradient(45deg, rgba(255,255,255,.3) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.3) 50%, rgba(255,255,255,.3) 75%, transparent 75%, transparent);
     background-size: 20px 20px;
@@ -970,6 +1023,12 @@ body { font-family: 'Segoe UI', sans-serif; }
     font-size: 11px; padding: 0; flex-shrink: 0; line-height: 1;
 }
 .upload-toast-row .row-cancel-btn:hover { color: #c0392b; }
+
+[data-theme="dark"] #uploadToast > div { background: var(--card) !important; border-color: var(--border) !important; }
+[data-theme="dark"] #uploadToast > div > div:first-child { border-bottom-color: var(--border) !important; color: var(--text-1); }
+[data-theme="dark"] .upload-toast-row { border-bottom-color: var(--border); }
+[data-theme="dark"] .upload-toast-row .row-top { color: var(--text-1); }
+[data-theme="dark"] .upload-toast-row .row-track { background: var(--nav-hover-bg); }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>

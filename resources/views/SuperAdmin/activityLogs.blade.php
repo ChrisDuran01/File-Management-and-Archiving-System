@@ -1,25 +1,11 @@
 @extends('SuperAdmin.homeSuperAdmin')
 @section('content')
 
+@include('Admin.partials.theme')
+
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
-
-    :root {
-        --surface:     #f7f8fc;
-        --card:        #ffffff;
-        --border:      #e8eaf0;
-        --primary:     #534AB7;
-        --primary-dim: #EEEDFE;
-        --text-1:      #111827;
-        --text-2:      #6b7280;
-        --text-3:      #9ca3af;
-        --shadow-sm:   0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
-        --radius:      12px;
-        --radius-sm:   8px;
-    }
-
     * { box-sizing: border-box; }
-    body { background: var(--surface); font-family: 'DM Sans', sans-serif; color: var(--text-1); }
+    body { background: var(--surface); font-family: 'Inter', sans-serif; color: var(--text-1); }
 
     /* ── Page Header ── */
     .page-header {
@@ -86,7 +72,7 @@
         border-radius: var(--radius-sm);
         padding: 5px 10px;
         font-size: 14px;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Inter', sans-serif;
         background: var(--card);
         color: var(--text-1);
         outline: none;
@@ -102,12 +88,12 @@
         padding: 5px 14px;
         font-size: 12px;
         font-weight: 500;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Inter', sans-serif;
         cursor: pointer;
         transition: background .15s;
         white-space: nowrap;
     }
-    .al-filter-btn:hover { background: #3C3489; }
+    .al-filter-btn:hover { background: #046322; }
     .al-clear-btn {
         background: none;
         border: 1px solid var(--border);
@@ -115,7 +101,7 @@
         color: var(--text-2);
         padding: 5px 10px;
         font-size: 14px;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Inter', sans-serif;
         cursor: pointer;
         transition: all .15s;
         text-decoration: none;
@@ -136,7 +122,7 @@
         border-radius: 50px;
         padding: 7px 14px 7px 34px;
         font-size: 14px;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Inter', sans-serif;
         background: var(--card);
         color: var(--text-1);
         outline: none;
@@ -144,7 +130,7 @@
     }
     .al-search-inner input:focus {
         border-color: var(--primary);
-        box-shadow: 0 0 0 3px rgba(83,74,183,.1);
+        box-shadow: 0 0 0 3px rgba(5,128,40,.15);
     }
     .al-search-icon {
         position: absolute;
@@ -213,8 +199,8 @@
     .al-dot.upload  { background: #185FA5; }
     .al-dot.delete  { background: #A32D2D; }
     .al-dot.rename  { background: #854F0B; }
-    .al-dot.access  { background: #0F6E56; }
-    .al-dot.login   { background: #3C3489; }
+    .al-dot.access  { background: #058028; }
+    .al-dot.login   { background: #046322; }
     .al-line {
         width: 1.5px;
         flex: 1;
@@ -275,7 +261,7 @@
     .al-badge.delete { background: #FCEBEB; color: #791F1F; }
     .al-badge.rename { background: #FAEEDA; color: #633806; }
     .al-badge.access { background: #E1F5EE; color: #085041; }
-    .al-badge.login  { background: #EEEDFE; color: #3C3489; }
+    .al-badge.login  { background: #EEEDFE; color: #046322; }
 
     /* ── Empty State ── */
     .al-empty {
@@ -285,6 +271,15 @@
     }
     .al-empty i { font-size: 2rem; margin-bottom: 12px; display: block; }
     .al-empty p { margin: 0; font-size: .9rem; }
+
+    /* ===== DARK MODE ===== */
+    [data-theme="dark"] .al-card-header,
+    [data-theme="dark"] .al-ip { background: var(--surface); }
+    [data-theme="dark"] .al-badge.upload { background: #16233a; color: #8fc2f0; }
+    [data-theme="dark"] .al-badge.delete { background: var(--danger-dim); color: #fca5a5; }
+    [data-theme="dark"] .al-badge.rename { background: var(--warning-dim); color: #e3b877; }
+    [data-theme="dark"] .al-badge.access { background: var(--success-dim); color: var(--success-text); }
+    [data-theme="dark"] .al-badge.login  { background: #201f33; color: #a5a3e0; }
 </style>
 
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
@@ -294,9 +289,9 @@
     <h4>
         <div class="page-title-icon">
             <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="2" y="2" width="12" height="12" rx="2" stroke="#534AB7" stroke-width="1.2"/>
-                <line x1="5" y1="6" x2="11" y2="6" stroke="#534AB7" stroke-width="1.2" stroke-linecap="round"/>
-                <line x1="5" y1="9" x2="9" y2="9" stroke="#534AB7" stroke-width="1.2" stroke-linecap="round"/>
+                <rect x="2" y="2" width="12" height="12" rx="2" stroke="#058028" stroke-width="1.2"/>
+                <line x1="5" y1="6" x2="11" y2="6" stroke="#058028" stroke-width="1.2" stroke-linecap="round"/>
+                <line x1="5" y1="9" x2="9" y2="9" stroke="#058028" stroke-width="1.2" stroke-linecap="round"/>
             </svg>
         </div>
         Activity Logs

@@ -1,30 +1,12 @@
 @extends($layout ?? 'Admin.home')
 @section('content')
 
+@include('Admin.partials.theme')
+
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
-
-    :root {
-        --surface:     #f7f8fc;
-        --card:        #ffffff;
-        --border:      #e8eaf0;
-        --primary:     #2563eb;
-        --primary-dim: #eff4ff;
-        --success:     #16a34a;
-        --success-dim: #f0fdf4;
-        --text-1:      #111827;
-        --text-2:      #6b7280;
-        --text-3:      #9ca3af;
-        --shadow-sm:   0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
-        --shadow-md:   0 4px 16px rgba(0,0,0,.08);
-        --shadow-lg:   0 8px 32px rgba(0,0,0,.12);
-        --radius:      12px;
-        --radius-sm:   8px;
-    }
-
     * { box-sizing: border-box; }
 
-    body { background: var(--surface); font-family: 'DM Sans', sans-serif; color: var(--text-1); }
+    body { background: var(--surface); font-family: 'Inter', sans-serif; color: var(--text-1); }
 
     /* ── Page header ─────────────────────────────── */
     .page-header {
@@ -83,7 +65,7 @@
         border-radius: 50px;
         padding: 9px 42px 9px 38px;
         font-size: .88rem;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Inter', sans-serif;
         background: var(--card);
         color: var(--text-1);
         box-shadow: var(--shadow-sm);
@@ -92,7 +74,7 @@
     }
     .search-inner input:focus {
         border-color: var(--primary);
-        box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+        box-shadow: 0 0 0 3px rgba(5,128,40,.15);
     }
     .search-inner button {
         position: absolute;
@@ -108,7 +90,7 @@
         cursor: pointer;
         transition: background .15s;
     }
-    .search-inner button:hover { background: #1d4ed8; }
+    .search-inner button:hover { background: #046322; }
 
     /* ── Stats bar ────────────────────────────────── */
     .stats-bar {
@@ -190,7 +172,7 @@
     }
     .file-icon.pdf  { background: #fef2f2; color: #ef4444; }
     .file-icon.docx { background: #eff6ff; color: #3b82f6; }
-    .file-icon.xlsx { background: #f0fdf4; color: #22c55e; }
+    .file-icon.xlsx { background: #e9f5ee; color: #22c55e; }
     .file-icon.img  { background: #fdf4ff; color: #a855f7; }
     .file-icon.default { background: var(--primary-dim); color: var(--primary); }
 
@@ -240,7 +222,7 @@
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    background: #0F6E56;;
+    background: #058028;
     border: none;
     color: #fff;
     font-size: 22px;
@@ -296,8 +278,8 @@
     box-shadow: 0 3px 10px rgba(0,0,0,0.15);
 }
 .fab-mini:hover { transform: scale(1.1); }
-.fab-mini.upload { background: #378ADD; }
-.fab-mini.folder { background: #1D9E75; }
+.fab-mini.upload { background: #058028; }
+.fab-mini.folder { background: #046322; }
 
 .modal-content { border-radius: 16px; border: none; box-shadow: 0 12px 40px rgba(0,0,0,0.12); }
 .modal-header { border-bottom: 1px solid #f0f0f0; padding: 1.25rem 1.5rem; }
@@ -316,8 +298,8 @@
     transition: border-color 0.2s, background 0.2s;
 }
 .upload-zone:hover,
-.upload-zone.drag-over { border-color: #378ADD; background: #f0f7ff; }
-.upload-zone i { font-size: 2rem; color: #378ADD; margin-bottom: 8px; display: block; }
+.upload-zone.drag-over { border-color: #058028; background: #f0f7ff; }
+.upload-zone i { font-size: 2rem; color: #058028; margin-bottom: 8px; display: block; }
 
 /* 3-dot menu */
 .folder-menu-btn {
@@ -692,7 +674,7 @@
 <div id="uploadToast" style="display:none; position:fixed; top:20px; right:20px; width:320px; z-index:2000;">
     <div style="background:#fff; border:1px solid #e5e5e5; border-radius:12px; box-shadow:0 8px 30px rgba(0,0,0,0.15); overflow:hidden;">
         <div style="padding:10px 14px; border-bottom:1px solid #f0f0f0; font-weight:600; font-size:13px; display:flex; justify-content:space-between; align-items:center;">
-            <span><i class="fas fa-cloud-upload-alt me-1" style="color:#534AB7;"></i> Uploading</span>
+            <span><i class="fas fa-cloud-upload-alt me-1" style="color:#058028;"></i> Uploading</span>
             <button type="button" id="uploadToastClose" style="border:none; background:none; color:#999; cursor:pointer; font-size:16px; line-height:1;" aria-label="Close">&times;</button>
         </div>
         <div id="uploadToastList" style="max-height:280px; overflow-y:auto;"></div>
@@ -762,7 +744,7 @@
 .upload-toast-row .row-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:200px; }
 .upload-toast-row .row-status { color:#888; white-space:nowrap; flex-shrink:0; }
 .upload-toast-row .row-track { height:6px; border-radius:4px; background:#eee; overflow:hidden; }
-.upload-toast-row .row-bar { height:100%; width:0%; background:#534AB7; transition:width .15s ease; }
+.upload-toast-row .row-bar { height:100%; width:0%; background:#058028; transition:width .15s ease; }
 .upload-toast-row .row-bar.is-indeterminate {
     background-image: linear-gradient(45deg, rgba(255,255,255,.3) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.3) 50%, rgba(255,255,255,.3) 75%, transparent 75%, transparent);
     background-size: 20px 20px;

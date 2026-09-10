@@ -1,19 +1,13 @@
 @extends($layout ?? 'Admin.home')
 @section('content')
 
+@include('Admin.partials.theme')
+
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap');
-
-    :root {
-        --surface: #f7f8fc; --card: #ffffff; --border: #e8eaf0; --primary: #0f3d1f; --primary-dim: #eaf1ec;
-        --text-1: #111827; --text-2: #6b7280; --text-3: #9ca3af;
-        --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
-        --radius: 12px; --radius-sm: 8px;
-    }
     * { box-sizing: border-box; }
-    body { background: var(--surface); font-family: 'DM Sans', sans-serif; color: var(--text-1); }
+    body { background: var(--surface); font-family: 'Inter', sans-serif; color: var(--text-1); }
 
     .page-header h2 { font-size: 1.35rem; font-weight: 600; letter-spacing: -.3px; margin: 0 0 4px; }
     .page-header .sub { font-size: .85rem; color: var(--text-2); margin: 0 0 20px; }

@@ -15,6 +15,12 @@ class SiteSetting extends Model
         'vision_image_path',
         'mission',
         'mission_image_path',
+        'backup_frequency',
+        'backup_enabled',
+    ];
+
+    protected $casts = [
+        'backup_enabled' => 'boolean',
     ];
 
     /**

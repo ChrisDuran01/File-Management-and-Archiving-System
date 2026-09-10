@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Archive;
+use App\Models\Document;
 use App\Models\Folder;
 use App\Models\File;
 use Illuminate\Support\Facades\Auth;
@@ -38,9 +39,9 @@ class SearchController extends Controller
     {
         $query = $request->input('query');
 
-        [$folders, $files, $archives] = $this->performSearch($query);
+        [$folders, $files, $archives, $documents] = $this->performSearch($query);
 
-        return view('Admin.searchResults', compact('folders', 'files', 'archives', 'query'));
+        return view('Admin.searchResults', compact('folders', 'files', 'archives', 'documents', 'query'));
     }
 
     /**
@@ -56,9 +57,9 @@ class SearchController extends Controller
             return response('');
         }
 
-        [$folders, $files, $archives] = $this->performSearch($query, limit: 5);
+        [$folders, $files, $archives, $documents] = $this->performSearch($query, limit: 5);
 
-        return view('Admin.searchLive', compact('folders', 'files', 'archives', 'query'));
+        return view('Admin.searchLive', compact('folders', 'files', 'archives', 'documents', 'query'));
     }
 
     /**
@@ -119,10 +120,27 @@ class SearchController extends Controller
             })
             ->values();
 
+        // Structured document records - matched on the human-entered metadata
+        // (the split PDF's OCR text is already covered by the File search
+        // above). Same post-fetch access filtering via the folder rules.
+        $documents = Document::where('is_archived', false)
+            ->where(function ($documentQuery) use ($query) {
+                $documentQuery->where('title', 'like', "%{$query}%")
+                    ->orWhere('reference_no', 'like', "%{$query}%")
+                    ->orWhere('sender', 'like', "%{$query}%")
+                    ->orWhere('recipient', 'like', "%{$query}%")
+                    ->orWhere('notes', 'like', "%{$query}%");
+            })
+            ->with('folder')
+            ->get()
+            ->filter(fn (Document $document) => $document->isAccessibleBy($user))
+            ->values();
+
         if ($limit) {
             $folders = $folders->take($limit)->values();
             $files = $files->take($limit)->values();
             $archives = $archives->take($limit)->values();
+            $documents = $documents->take($limit)->values();
         }
 
         // Flag which field a result matched on (beyond the obviously-visible
@@ -166,7 +184,7 @@ class SearchController extends Controller
             $archive->matched_filenames = $matchedFiles;
         });
 
-        return [$folders, $files, $archives];
+        return [$folders, $files, $archives, $documents];
     }
 
     /**

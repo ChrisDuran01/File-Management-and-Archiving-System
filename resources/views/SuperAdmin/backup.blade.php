@@ -1,25 +1,11 @@
 @extends('SuperAdmin.homeSuperAdmin')
 @section('content')
 
+@include('Admin.partials.theme')
+
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
-
-    :root {
-        --surface:     #f7f8fc;
-        --card:        #ffffff;
-        --border:      #e8eaf0;
-        --primary:     #534AB7;
-        --primary-dim: #EEEDFE;
-        --text-1:      #111827;
-        --text-2:      #6b7280;
-        --text-3:      #9ca3af;
-        --shadow-sm:   0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
-        --radius:      12px;
-        --radius-sm:   8px;
-    }
-
     * { box-sizing: border-box; }
-    body { background: var(--surface); font-family: 'DM Sans', sans-serif; color: var(--text-1); }
+    body { background: var(--surface); font-family: 'Inter', sans-serif; color: var(--text-1); }
 
     /* ── Page Header ── */
     .page-header {
@@ -130,13 +116,13 @@
         border-radius: var(--radius-sm);
         padding: 5px 10px;
         font-size: 14px;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Inter', sans-serif;
         background: var(--card);
         color: var(--text-1);
         outline: none;
         cursor: pointer;
     }
-    .bm-select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(83,74,183,.1); }
+    .bm-select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(5,128,40,.15); }
 
     .bm-btn-primary {
         background: var(--primary);
@@ -146,7 +132,7 @@
         padding: 6px 16px;
         font-size: 14px;
         font-weight: 500;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Inter', sans-serif;
         cursor: pointer;
         transition: background .15s;
         display: inline-flex;
@@ -154,7 +140,7 @@
         gap: 6px;
         white-space: nowrap;
     }
-    .bm-btn-primary:hover { background: #3C3489; }
+    .bm-btn-primary:hover { background: #046322; }
 
     /* ── Filters Card ── */
     .bm-filters-card {
@@ -191,14 +177,14 @@
         border-radius: var(--radius-sm);
         padding: 6px 10px 6px 30px;
         font-size: 13px;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Inter', sans-serif;
         background: var(--card);
         color: var(--text-1);
         outline: none;
         width: 100%;
         transition: border-color .15s;
     }
-    .bm-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(83,74,183,.1); }
+    .bm-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(5,128,40,.15); }
     .bm-input-icon {
         position: absolute;
         left: 9px;
@@ -216,7 +202,7 @@
         color: var(--text-2);
         padding: 6px 14px;
         font-size: 13px;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Inter', sans-serif;
         cursor: pointer;
         transition: all .15s;
         white-space: nowrap;
@@ -312,7 +298,7 @@
         border: 1px solid var(--border);
         background: none;
         font-size: 14px;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Inter', sans-serif;
         color: var(--text-2);
         cursor: pointer;
         text-decoration: none;
@@ -339,6 +325,87 @@
         .bm-settings-card { flex-direction: column; align-items: flex-start; }
         .bm-sep { width: 100%; height: 1px; }
     }
+
+    /* ── Backup Progress Modal ── */
+    .bm-progress-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(17, 24, 39, 0.45);
+        z-index: 2000;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+    }
+    .bm-progress-overlay.open { display: flex; }
+    .bm-progress-card {
+        background: var(--card);
+        border-radius: var(--radius);
+        padding: 1.5rem;
+        width: 100%;
+        max-width: 420px;
+        box-shadow: 0 20px 50px -12px rgba(0,0,0,0.3);
+    }
+    .bm-progress-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 15px;
+        font-weight: 500;
+        color: var(--text-1);
+        margin-bottom: 1.1rem;
+    }
+    .bm-progress-track {
+        height: 8px;
+        border-radius: 5px;
+        background: var(--border);
+        overflow: hidden;
+    }
+    .bm-progress-bar {
+        height: 100%;
+        width: 0%;
+        background: var(--primary);
+        border-radius: 5px;
+        transition: width 0.25s ease;
+    }
+    .bm-progress-bar.is-error { background: #C0392B; }
+    .bm-progress-bar.is-done { background: #2e8b57; }
+    .bm-progress-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        margin-top: 0.6rem;
+    }
+    .bm-progress-msg {
+        font-size: 13px;
+        color: var(--text-2);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .bm-progress-pct {
+        font-family: 'DM Mono', monospace;
+        font-size: 13px;
+        color: var(--text-1);
+        flex-shrink: 0;
+    }
+    .bm-progress-close {
+        margin-top: 1.1rem;
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* ===== DARK MODE ===== */
+    [data-theme="dark"] .bm-stat-val.green { color: var(--success-text); }
+    [data-theme="dark"] .bm-stat-val.red   { color: #fca5a5; }
+    [data-theme="dark"] .bm-stat-val.amber { color: #e3b877; }
+    [data-theme="dark"] .bm-slider { background: #4a4842; }
+    [data-theme="dark"] .bm-table thead,
+    [data-theme="dark"] .bm-footer { background: var(--surface); }
+    [data-theme="dark"] .bm-badge.success { background: var(--success-dim); color: var(--success-text); }
+    [data-theme="dark"] .bm-badge.failed  { background: var(--danger-dim); color: #fca5a5; }
+    [data-theme="dark"] .bm-badge.pending { background: var(--warning-dim); color: #e3b877; }
 </style>
 
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
@@ -349,9 +416,9 @@
         <div class="page-title-icon">
             <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M8 2C5.24 2 3 4.24 3 7c0 .34.04.67.1.99C2.43 8.4 2 9.15 2 10c0 1.66 1.34 3 3 3h7c1.38 0 2.5-1.12 2.5-2.5 0-1.3-.99-2.37-2.26-2.49C12.08 5.09 10.24 2 8 2z"
-                      stroke="#534AB7" stroke-width="1.1" stroke-linejoin="round"/>
+                      stroke="#058028" stroke-width="1.1" stroke-linejoin="round"/>
                 <path d="M8 9v3M6.5 10.5L8 9l1.5 1.5"
-                      stroke="#534AB7" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+                      stroke="#058028" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
         </div>
         Backup Management
@@ -416,9 +483,9 @@
 
     <div class="bm-sep"></div>
 
-    <form method="POST" action="{{ route('backup.create') }}">
+    <form method="POST" action="{{ route('backup.create') }}" id="backupCreateForm">
         @csrf
-        <button type="submit" class="bm-btn-primary">
+        <button type="submit" class="bm-btn-primary" id="backupCreateBtn">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                 <path d="M6 1v6M6 1L3.5 3.5M6 1l2.5 2.5" stroke="#fff" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M1.5 8.5V10a.5.5 0 00.5.5h8a.5.5 0 00.5-.5V8.5" stroke="#fff" stroke-width="1.3" stroke-linecap="round"/>
@@ -426,6 +493,43 @@
             Backup now
         </button>
     </form>
+</div>
+
+<p class="bm-encryption-note" style="font-size:12px;color:var(--text-2);margin:8px 2px 0;">
+    <i class="fas fa-lock" style="margin-right:4px;"></i>
+    Backups are AES-256 password-protected (RA 10173 compliance). Windows Explorer can't open them directly —
+    use <a href="https://www.7-zip.org/" target="_blank" rel="noopener">7-Zip</a> and the escrowed backup
+    encryption key to extract one.
+</p>
+
+{{-- ── Backup Progress Modal ── --}}
+<div class="bm-progress-overlay" id="backupProgressModal">
+    <div class="bm-progress-card">
+        <div class="bm-progress-header">
+            <div class="bm-progress-icon" id="backupProgressIcon">
+                <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M8 2C5.24 2 3 4.24 3 7c0 .34.04.67.1.99C2.43 8.4 2 9.15 2 10c0 1.66 1.34 3 3 3h7c1.38 0 2.5-1.12 2.5-2.5 0-1.3-.99-2.37-2.26-2.49C12.08 5.09 10.24 2 8 2z"
+                          stroke="#058028" stroke-width="1.1" stroke-linejoin="round"/>
+                    <path d="M8 9v3M6.5 10.5L8 9l1.5 1.5"
+                          stroke="#058028" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <span>Creating backup</span>
+        </div>
+
+        <div class="bm-progress-track">
+            <div class="bm-progress-bar" id="backupProgressBar" style="width:0%;"></div>
+        </div>
+
+        <div class="bm-progress-meta">
+            <span class="bm-progress-msg" id="backupProgressMsg">Starting backup…</span>
+            <span class="bm-progress-pct" id="backupProgressPct">0%</span>
+        </div>
+
+        <button type="button" class="bm-btn-secondary bm-progress-close" id="backupProgressClose" style="display:none;">
+            Close
+        </button>
+    </div>
 </div>
 
 {{-- ── Filters Card ── --}}
@@ -504,8 +608,8 @@
                         <div class="bm-name-cell">
                             <div class="bm-file-icon">
                                 <svg viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M3 2h5.5L11 4.5V12H3V2z" stroke="#534AB7" stroke-width="1.1" stroke-linejoin="round"/>
-                                    <path d="M8.5 2v3H11" stroke="#534AB7" stroke-width="1.1" stroke-linejoin="round"/>
+                                    <path d="M3 2h5.5L11 4.5V12H3V2z" stroke="#058028" stroke-width="1.1" stroke-linejoin="round"/>
+                                    <path d="M8.5 2v3H11" stroke="#058028" stroke-width="1.1" stroke-linejoin="round"/>
                                 </svg>
                             </div>
                             <span class="bm-name-text" title="{{ $backup->name }}">{{ $backup->name }}</span>
@@ -626,6 +730,101 @@ document.addEventListener('DOMContentLoaded', function () {
     dateFilter.addEventListener('change', applyFilters);
 
     applyFilters();
+});
+</script>
+
+{{-- Runs the backup via AJAX instead of a full-page form submit so the
+     page can poll backup.progress and show a real progress bar while the
+     backup is being built and uploaded, instead of the browser just
+     hanging on a blank request until the whole thing finishes. --}}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const form      = document.getElementById('backupCreateForm');
+    const submitBtn = document.getElementById('backupCreateBtn');
+    const modal     = document.getElementById('backupProgressModal');
+    const bar       = document.getElementById('backupProgressBar');
+    const pct       = document.getElementById('backupProgressPct');
+    const msg       = document.getElementById('backupProgressMsg');
+    const closeBtn  = document.getElementById('backupProgressClose');
+
+    if (!form) return;
+
+    let pollTimer = null;
+    // Guards against firing more than one reload. Polling requests can queue
+    // up behind the (potentially very long) backup request itself - once it
+    // finally finishes, several already-in-flight poll() calls can each see
+    // stage:"done" and land back-to-back, and without this guard each one
+    // would independently schedule its own window.location.reload(), which
+    // is what a burst of overlapping reloads looks like from the outside.
+    let doneHandled = false;
+
+    function render(data) {
+        const percent = Math.max(0, Math.min(100, Math.round(data.percent || 0)));
+        bar.style.width = percent + '%';
+        pct.textContent = percent + '%';
+        msg.textContent = data.message || '';
+        bar.classList.toggle('is-error', data.stage === 'error');
+        bar.classList.toggle('is-done', data.stage === 'done');
+    }
+
+    function stopPolling() {
+        if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+        }
+    }
+
+    function poll() {
+        fetch("{{ route('backup.progress') }}", { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(res => res.json())
+            .then(data => {
+                render(data);
+                if ((data.stage === 'done' || data.stage === 'error') && !doneHandled) {
+                    doneHandled = true;
+                    stopPolling();
+                    closeBtn.style.display = 'block';
+                    submitBtn.disabled = false;
+                    if (data.stage === 'done') {
+                        setTimeout(() => window.location.reload(), 1200);
+                    }
+                }
+            })
+            .catch(() => { /* transient network hiccup - next tick retries */ });
+    }
+
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        submitBtn.disabled = true;
+        closeBtn.style.display = 'none';
+        doneHandled = false;
+        render({ stage: 'starting', percent: 0, message: 'Starting backup…' });
+        modal.classList.add('open');
+
+        stopPolling();
+        pollTimer = setInterval(poll, 800);
+
+        fetch(form.action, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': form.querySelector('input[name="_token"]').value,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: new FormData(form),
+        }).catch(() => {
+            // The request itself failed to even reach the server (offline,
+            // DNS, etc). Polling will keep reporting the last known state;
+            // surface something rather than leaving the bar frozen forever.
+            stopPolling();
+            render({ stage: 'error', percent: 100, message: 'Could not reach the server.' });
+            closeBtn.style.display = 'block';
+            submitBtn.disabled = false;
+        });
+    });
+
+    closeBtn.addEventListener('click', function () {
+        modal.classList.remove('open');
+    });
 });
 </script>
 

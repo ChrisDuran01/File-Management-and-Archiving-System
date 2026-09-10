@@ -2,29 +2,13 @@
 
 @section('content')
 
+@include('Admin.partials.theme')
+
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
-
-    :root {
-        --surface:     #f7f8fc;
-        --card:        #ffffff;
-        --border:      #e8eaf0;
-        --primary:     #534AB7;
-        --primary-dim: #EEEDFE;
-        --text-1:      #111827;
-        --text-2:      #6b7280;
-        --text-3:      #9ca3af;
-        --shadow-sm:   0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
-        --radius:      12px;
-        --radius-sm:   8px;
-        --red:         #A32D2D;
-        --red-dim:     #FCEBEB;
-    }
-
     * { box-sizing: border-box; }
     body {
         background: var(--surface);
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Inter', sans-serif;
         color: var(--text-1);
     }
 
@@ -147,7 +131,7 @@
         border-radius: var(--radius-sm);
         padding: 8px 12px;
         font-size: 15px;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Inter', sans-serif;
         color: var(--text-1);
         background: var(--card);
         outline: none;
@@ -159,7 +143,7 @@
     .field-input:focus,
     .field-select:focus {
         border-color: var(--primary);
-        box-shadow: 0 0 0 3px rgba(83,74,183,.1);
+        box-shadow: 0 0 0 3px rgba(5,128,40,.15);
     }
 
     /* mono inputs */
@@ -266,7 +250,7 @@
         color: var(--text-2);
         padding: 7px 16px;
         font-size: 15px;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Inter', sans-serif;
         cursor: pointer;
         transition: all .15s;
         text-decoration: none;
@@ -283,14 +267,14 @@
         padding: 7px 20px;
         font-size: 15px;
         font-weight: 500;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Inter', sans-serif;
         cursor: pointer;
         transition: background .15s;
         display: inline-flex;
         align-items: center;
         gap: 6px;
     }
-    .btn-save:hover { background: #3C3489; }
+    .btn-save:hover { background: #046322; }
 
     /* ── Validation errors ── */
     .field-error {
@@ -306,6 +290,10 @@
         border-color: var(--red);
         box-shadow: 0 0 0 3px rgba(163,45,45,.08);
     }
+
+    /* ===== DARK MODE ===== */
+    [data-theme="dark"] .al-card-header,
+    [data-theme="dark"] .form-footer { background: var(--surface); }
 </style>
 
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
@@ -315,9 +303,9 @@
     <h4>
         <div class="page-title-icon">
             <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="6" cy="5" r="2.5" stroke="#534AB7" stroke-width="1.2"/>
-                <path d="M2 13c0-2.21 1.79-4 4-4s4 1.79 4 4" stroke="#534AB7" stroke-width="1.2" stroke-linecap="round"/>
-                <path d="M11 7.5l1.5 1.5L15 6" stroke="#534AB7" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="6" cy="5" r="2.5" stroke="#058028" stroke-width="1.2"/>
+                <path d="M2 13c0-2.21 1.79-4 4-4s4 1.79 4 4" stroke="#058028" stroke-width="1.2" stroke-linecap="round"/>
+                <path d="M11 7.5l1.5 1.5L15 6" stroke="#058028" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
         </div>
         Add Officer

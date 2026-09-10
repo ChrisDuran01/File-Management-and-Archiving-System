@@ -1,6 +1,8 @@
 @extends($layout ?? 'Admin.home')
 @section('content')
 
+@include('Admin.partials.theme')
+
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 
 <style>
@@ -14,7 +16,7 @@
         margin-bottom: 1.25rem;
         transition: color 0.15s;
     }
-    .back-link:hover { color: #534AB7; }
+    .back-link:hover { color: #058028; }
 
     .archive-header {
         background: #fff;
@@ -93,8 +95,8 @@
         align-items: center;
         justify-content: center;
         font-size: 13px;
-        background: #eff4ff;
-        color: #2563eb;
+        background: #e9f5ee;
+        color: #058028;
         flex-shrink: 0;
     }
     .file-row-name { font-size: 13px; font-weight: 500; flex: 1; word-break: break-word; }
@@ -106,6 +108,17 @@
         color: #bbb;
     }
     .empty-state i { font-size: 2.5rem; display: block; margin-bottom: 10px; opacity: 0.4; }
+
+    /* ===== DARK MODE (page-unique classes; shared ones live in partials/theme) ===== */
+    [data-theme="dark"] .archive-header,
+    [data-theme="dark"] .file-list { background: var(--card); border-color: var(--border); box-shadow: none; }
+    [data-theme="dark"] .archive-header-icon { background: var(--nav-hover-bg); color: var(--text-2); }
+    [data-theme="dark"] .archive-header-name { color: var(--text-1); }
+    [data-theme="dark"] .archive-header-meta { color: var(--text-3); }
+    [data-theme="dark"] .view-only-note { color: #e3b877; background: var(--warning-dim); }
+    [data-theme="dark"] .file-row-icon { background: var(--primary-dim); color: var(--primary); }
+    [data-theme="dark"] .file-row-chevron { color: var(--text-3); }
+    [data-theme="dark"] .empty-state { color: var(--text-3); }
 </style>
 
 <div style="max-width:760px; margin:0 auto;">

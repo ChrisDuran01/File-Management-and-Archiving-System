@@ -116,11 +116,11 @@ class ArchiveController extends Controller
                     Log::info('Restoring from cloud archive');
                 } catch (\Throwable) {
                     // Delete the folder we just created
-                    $folder->delete();
+                    $folder->forceDelete(); // rollback of the empty folder just created - nothing to keep in Trash
                     return back()->with('error', 'Archive file not found in any storage');
                 }
             } else {
-                $folder->delete();
+                $folder->forceDelete(); // rollback of the empty folder just created - nothing to keep in Trash
                 return back()->with('error', 'Archive file location not found');
             }
             
@@ -146,7 +146,7 @@ class ArchiveController extends Controller
                 $zip->extractTo($tempExtractPath);
                 $zip->close();
             } else {
-                $folder->delete();
+                $folder->forceDelete(); // rollback of the empty folder just created - nothing to keep in Trash
                 return back()->with('error', 'Failed to open ZIP file');
             }
             

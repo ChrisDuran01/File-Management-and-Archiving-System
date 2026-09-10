@@ -2,36 +2,13 @@
 
 @section('content')
 
+@include('Admin.partials.theme')
+
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
-
-    :root {
-        --surface:     #f7f8fc;
-        --card:        #ffffff;
-        --border:      #e8eaf0;
-        --primary:     #534AB7;
-        --primary-dim: #EEEDFE;
-        --text-1:      #111827;
-        --text-2:      #6b7280;
-        --text-3:      #9ca3af;
-        --shadow-sm:   0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
-        --radius:      12px;
-        --radius-sm:   8px;
-
-        --green:       #0F6E56;
-        --green-dim:   #E1F5EE;
-        --red:         #A32D2D;
-        --red-dim:     #FCEBEB;
-        --amber:       #854F0B;
-        --amber-dim:   #FAEEDA;
-        --blue:        #185FA5;
-        --blue-dim:    #E6F1FB;
-    }
-
     * { box-sizing: border-box; }
     body {
         background: var(--surface);
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Inter', sans-serif;
         color: var(--text-1);
     }
 
@@ -85,7 +62,7 @@
         padding: 7px 16px;
         font-size: 15px;
         font-weight: 500;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Inter', sans-serif;
         cursor: pointer;
         transition: background .15s;
         text-decoration: none;
@@ -104,7 +81,7 @@
         padding: 7px 16px;
         font-size: 14px;
         font-weight: 500;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Inter', sans-serif;
         cursor: pointer;
         transition: all .15s;
         display: inline-flex;
@@ -273,7 +250,7 @@
         border-radius: var(--radius-sm);
         font-size: 13px;
         font-weight: 500;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Inter', sans-serif;
         cursor: pointer;
         border: 1px solid transparent;
         transition: all .15s;
@@ -395,7 +372,7 @@
         color: var(--text-2);
         padding: 7px 16px;
         font-size: 13px;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Inter', sans-serif;
         cursor: pointer;
         transition: all .15s;
     }
@@ -408,7 +385,7 @@
         padding: 7px 16px;
         font-size: 13px;
         font-weight: 500;
-        font-family: 'DM Sans', sans-serif;
+        font-family: 'Inter', sans-serif;
         cursor: pointer;
         transition: background .15s;
         display: inline-flex;
@@ -416,6 +393,20 @@
         gap: 6px;
     }
     .modal-confirm:hover { background: #633806; }
+
+    /* ===== DARK MODE ===== */
+    [data-theme="dark"] .al-card-header,
+    [data-theme="dark"] .al-stats,
+    [data-theme="dark"] .al-table thead tr { background: var(--surface); }
+    [data-theme="dark"] .btn-warning-custom { border-color: #7a5a1e; color: #e3b877; }
+    [data-theme="dark"] .tbl-btn.edit,
+    [data-theme="dark"] .tbl-btn.reactivate { border-color: #2f5d1e; }
+    [data-theme="dark"] .tbl-btn.end-term { border-color: #7f2a2a; }
+    [data-theme="dark"] .tbl-btn.edit:hover,
+    [data-theme="dark"] .tbl-btn.reactivate:hover { background: #1c3a24; }
+    [data-theme="dark"] .tbl-btn.end-term:hover,
+    [data-theme="dark"] .tbl-btn.delete:hover { background: #3a1c1c; border-color: #7f2a2a; }
+    [data-theme="dark"] .modal-warning { border-color: #7f2a2a; }
 </style>
 
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
@@ -425,9 +416,9 @@
     <h4>
         <div class="page-title-icon">
             <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="6" cy="5" r="2.5" stroke="#534AB7" stroke-width="1.2"/>
-                <path d="M2 13c0-2.21 1.79-4 4-4s4 1.79 4 4" stroke="#534AB7" stroke-width="1.2" stroke-linecap="round"/>
-                <path d="M11 7.5l1.5 1.5L15 6" stroke="#534AB7" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="6" cy="5" r="2.5" stroke="#058028" stroke-width="1.2"/>
+                <path d="M2 13c0-2.21 1.79-4 4-4s4 1.79 4 4" stroke="#058028" stroke-width="1.2" stroke-linecap="round"/>
+                <path d="M11 7.5l1.5 1.5L15 6" stroke="#058028" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
         </div>
         SG Officers
@@ -594,28 +585,46 @@
 
 </div>
 
-{{-- ── END ALL TERMS MODAL ── --}}
+{{-- ── END TERM (BY SCHOOL YEAR) MODAL ── --}}
+@php $currentSchoolYears = $currentOfficers->pluck('school_year')->unique()->sort()->values(); @endphp
 <div id="archiveModal" class="modal-overlay" onclick="handleOverlayClick(event, 'archiveModal')">
     <div class="modal-box">
         <div class="modal-icon">
             <i class="fas fa-clock-rotate-left"></i>
         </div>
-        <h5>End Current Term</h5>
-        <p>This will conclude the active term for all current officers.</p>
-        <div class="modal-warning">
-            <i class="fas fa-triangle-exclamation"></i>
-            All active officers will be moved to Former Officers.
-        </div>
-        <div class="modal-actions">
-            <button onclick="closeModal('archiveModal')" class="modal-cancel">Cancel</button>
-            <form action="{{ route('officers.archiveAll') }}" method="POST" style="margin:0;">
-                @csrf
-                @method('DELETE')
+        <h5>End Term</h5>
+        <p>Pick which school year's officers to move to Former Officers.</p>
+
+        <form action="{{ route('officers.archiveAll') }}" method="POST" style="margin:0; text-align:left;">
+            @csrf
+            @method('DELETE')
+
+            <label for="archiveSchoolYear" style="display:block; font-size:.78rem; font-weight:600; color:var(--text-2); margin:14px 0 6px;">
+                School year to end
+            </label>
+            <select name="school_year" id="archiveSchoolYear" required
+                style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--card); color:var(--text-1); font-size:.88rem;">
+                @forelse ($currentSchoolYears as $year)
+                    <option value="{{ $year }}">{{ $year }}</option>
+                @empty
+                    <option value="" disabled>No active officers</option>
+                @endforelse
+            </select>
+
+            <div class="modal-warning" style="margin-top:14px;">
+                <i class="fas fa-triangle-exclamation"></i>
+                Only officers active for the selected school year move to Former Officers - if you've
+                already added next year's batch, add them first, confirm they can log in, then end
+                the outgoing year here. Officers for other years are left untouched.
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" onclick="closeModal('archiveModal')" class="modal-cancel">Cancel</button>
                 <button type="submit" class="modal-confirm">
                     <i class="fas fa-check"></i> Yes, End Term
                 </button>
-            </form>
-        </div>
+            </div>
+        </form>
     </div>
 </div>
 

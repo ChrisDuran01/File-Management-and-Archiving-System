@@ -1,19 +1,13 @@
 @extends($layout ?? 'Admin.home')
 @section('content')
 
+@include('Admin.partials.theme')
+
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap');
-
-    :root {
-        --surface: #f7f8fc; --card: #ffffff; --border: #e8eaf0; --primary: #2563eb; --primary-dim: #eff4ff;
-        --text-1: #111827; --text-2: #6b7280; --text-3: #9ca3af;
-        --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
-        --radius: 12px; --radius-sm: 8px;
-    }
     * { box-sizing: border-box; }
-    body { background: var(--surface); font-family: 'DM Sans', sans-serif; color: var(--text-1); }
+    body { background: var(--surface); font-family: 'Inter', sans-serif; color: var(--text-1); }
 
     .page-header h2 { font-size: 1.35rem; font-weight: 600; letter-spacing: -.3px; margin: 0 0 4px; }
     .page-header .sub { font-size: .85rem; color: var(--text-2); margin: 0 0 20px; }
@@ -42,7 +36,7 @@
         background: var(--primary); color: #fff; border: none; border-radius: var(--radius-sm);
         padding: 10px 20px; font-size: .86rem; font-weight: 600; cursor: pointer;
     }
-    .btn-primary-flat:hover { background: #1d4ed8; }
+    .btn-primary-flat:hover { background: #046322; }
 
     .lh-card {
         border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px;
@@ -71,6 +65,12 @@
     .edit-panel { display: none; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); }
     .edit-panel.show { display: block; }
     .empty-row { text-align: center; color: var(--text-3); padding: 24px; font-size: .85rem; }
+
+    /* ===== DARK MODE ===== */
+    [data-theme="dark"] .lh-thumb { background: var(--surface); }
+    [data-theme="dark"] .lh-actions button,
+    [data-theme="dark"] .lh-actions a { background: var(--card); }
+    [data-theme="dark"] .lh-actions .danger:hover { background: var(--danger-dim); border-color: #7f2a2a; color: #fca5a5; }
 </style>
 
 <a href="{{ route('templates.index') }}" class="back-link"><i class="fas fa-arrow-left"></i> Back to Document Templates</a>

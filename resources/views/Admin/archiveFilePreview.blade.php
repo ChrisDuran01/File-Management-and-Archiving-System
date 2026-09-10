@@ -1,6 +1,8 @@
 @extends($layout ?? 'Admin.home')
 @section('content')
 
+@include('Admin.partials.theme')
+
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 
 @php
@@ -26,7 +28,7 @@
     display: inline-flex; align-items: center; gap: 6px;
     font-size: 13px; color: #888; text-decoration: none; margin-bottom: 1.25rem;
 }
-.back-link:hover { color: #534AB7; }
+.back-link:hover { color: #058028; }
 
 .file-header {
     background: #fff; border: 1px solid #ececec; border-radius: 16px;
@@ -81,6 +83,17 @@
 }
 .preview-none h5 { font-size: 16px; font-weight: 600; color: #333; margin: 0; }
 .preview-none p { font-size: 13px; color: #999; margin: 0; max-width: 340px; }
+
+/* ===== DARK MODE (page-unique classes; shared ones live in partials/theme) ===== */
+[data-theme="dark"] .file-header,
+[data-theme="dark"] .preview-container { background: var(--card); border-color: var(--border); box-shadow: none; }
+[data-theme="dark"] .file-header-name { color: var(--text-1); }
+[data-theme="dark"] .file-header-meta { color: var(--text-3); }
+[data-theme="dark"] .view-only-note { color: #e3b877; background: var(--warning-dim); }
+[data-theme="dark"] .preview-image-wrap { background: repeating-conic-gradient(#1c1c1a 0% 25%, #121211 0% 50%) 0 0 / 20px 20px; }
+[data-theme="dark"] .preview-text-wrap { background: var(--surface); }
+[data-theme="dark"] .preview-audio-wrap { background: linear-gradient(135deg, #14161c 0%, #12141a 100%); }
+[data-theme="dark"] .preview-none h5 { color: var(--text-1); }
 </style>
 
 <div class="preview-wrapper">
@@ -119,7 +132,7 @@
 
         @elseif($isAudio)
             <div class="preview-audio-wrap">
-                <div class="audio-icon-ring"><i class="fas fa-music" style="color:#534AB7;"></i></div>
+                <div class="audio-icon-ring"><i class="fas fa-music" style="color:#058028;"></i></div>
                 <audio controls controlsList="nodownload">
                     <source src="{{ $streamUrl }}">
                 </audio>

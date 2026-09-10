@@ -2,16 +2,18 @@
 
 @section('content')
 
+@include('Admin.partials.theme')
+
 <style>
-.section-title { font-size: 12px; font-weight: 600; color: #6c757d; letter-spacing: .07em; text-transform: uppercase; margin: 0 0 10px; }
+.section-title { font-size: 12px; font-weight: 600; color: var(--text-2); letter-spacing: .07em; text-transform: uppercase; margin: 0 0 10px; }
 .metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 1.5rem; }
-.metric-card { background: #f8f9fa; border-radius: 10px; padding: 16px 18px; }
-.metric-card .label { font-size: 12px; color: #6c757d; margin: 0 0 6px; }
+.metric-card { background: var(--card); border-radius: 10px ; border: 1px solid var(--border); padding: 16px 18px; }
+.metric-card .label { font-size: 12px; color: var(--text-2); margin: 0 0 6px; }
 .metric-card .value { font-size: 26px; font-weight: 600; margin: 0; line-height: 1.1; }
-.card-panel { background: #fff; border: 1px solid #e9ecef; border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+.card-panel { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
 .rtable { width: 100%; border-collapse: collapse; font-size: 13px; }
-.rtable th { font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; padding: 6px 10px; border-bottom: 1px solid #dee2e6; text-align: left; }
-.rtable td { padding: 9px 10px; border-bottom: 1px solid #f1f3f5; vertical-align: middle; }
+.rtable th { font-size: 11px; color: var(--text-2); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+.rtable td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .rtable tr:last-child td { border-bottom: none; }
 
 .quick-links { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -20,20 +22,20 @@
     align-items: center;
     padding: 9px 16px;
     border-radius: 8px;
-    border: 1px solid #dee2e6;
-    color: #212529;
+    border: 1px solid var(--border);
+    color: var(--text-1);
     font-size: 14px;
     font-weight: 500;
     text-decoration: none;
     transition: background .15s, border-color .15s;
 }
-.quick-links a:hover { background: #f8f9fa; border-color: #adb5bd; }
+.quick-links a:hover { background: var(--surface); border-color: var(--text-3); }
 .quick-links a:focus-visible {
-    outline: 2px solid #0d6efd;
+    outline: 2px solid var(--primary);
     outline-offset: 2px;
 }
-.quick-links a.primary { background: #0d6efd; border-color: #0d6efd; color: #fff; }
-.quick-links a.primary:hover { background: #0b5ed7; border-color: #0a58ca; }
+.quick-links a.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.quick-links a.primary:hover { background: var(--primary-dark); border-color: var(--primary-dark); }
 
 @media (max-width: 700px) {
     .metric-grid { grid-template-columns: 1fr; }
@@ -57,7 +59,7 @@
         </div>
         <div class="metric-card">
             <p class="label">Storage used</p>
-            <p class="value" style="color:#b45309;">{{ $storageFormatted }}</p>
+            <p class="value" style="color:var(--warning);">{{ $storageFormatted }}</p>
         </div>
     </section>
 
@@ -89,7 +91,7 @@
                 @forelse($recentFolders as $folder)
                     <tr>
                         <td>{{ $folder->name }}</td>
-                        <td style="color:#6c757d;">{{ $folder->created_at->format('M j, Y g:i A') }}</td>
+                        <td style="color:var(--text-2);">{{ $folder->created_at->format('M j, Y g:i A') }}</td>
                     </tr>
                 @empty
                     <tr>

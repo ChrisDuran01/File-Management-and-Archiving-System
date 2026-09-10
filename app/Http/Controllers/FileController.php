@@ -6,6 +6,8 @@ use App\Jobs\ExtractFileOcrText;
 use App\Models\ActivityLog;
 use App\Models\File;
 use App\Models\Folder;
+use App\Models\User;
+use App\Notifications\FileUploadedToYourFolder;
 use App\Services\CloudFileUploader;
 use App\Services\SupabaseSignedUpload;
 use Illuminate\Http\Request;
@@ -145,6 +147,8 @@ class FileController extends Controller
                 'activity'   => 'Uploaded ' . count($rows) . ' file(s): ' . collect($rows)->pluck('filename')->implode(', '),
                 'ip_address' => $request->ip(),
             ]);
+
+            $this->notifyFolderCreator($request->folder_id, count($rows), $rows[0]['filename']);
         }
 
         if ($localOnlyNames) {
@@ -257,7 +261,31 @@ class FileController extends Controller
             'ip_address' => $request->ip(),
         ]);
 
+        $this->notifyFolderCreator($request->folder_id, 1, $file->filename);
+
         return response()->json(['id' => $file->id, 'filename' => $file->filename]);
+    }
+
+    /**
+     * In-app bell for the folder's creator when someone ELSE uploads into
+     * their folder - a no-op for root uploads, folders without a recorded
+     * creator, or uploads into your own folder.
+     */
+    private function notifyFolderCreator(?int $folderId, int $fileCount, string $firstFilename): void
+    {
+        if (! $folderId) {
+            return;
+        }
+
+        $folder = Folder::find($folderId);
+
+        if (! $folder || ! $folder->created_by || $folder->created_by === Auth::id()) {
+            return;
+        }
+
+        User::find($folder->created_by)?->notify(
+            new FileUploadedToYourFolder($folder->id, $folder->name, Auth::user()->name, $fileCount, $firstFilename)
+        );
     }
 
     /**
@@ -413,33 +441,20 @@ public function destroy($id)
         return back()->with('error', 'This file is stored under a past school year and cannot be modified.');
     }
 
-    // 1. Delete file from cloud storage - skipped for local-only files
-    // (nothing there to delete), and never allowed to block the rest of
-    // the delete if the cloud disk itself is unreachable.
-    if ($file->storage_type !== 'local') {
-        try {
-            Storage::disk('cloud')->delete($file->filepath);
-        } catch (\Throwable $e) {
-            Log::warning("Cloud delete failed for file {$file->id}, continuing with local/database cleanup: " . $e->getMessage());
-        }
-    }
+    // Soft delete only - the local and cloud copies are kept so this can
+    // be undone from the Trash screen. Bytes are removed for real by
+    // TrashPurger (permanent delete from Trash, or trash:purge-expired
+    // after the retention window).
+    $file->moveToTrash();
 
-    // 2. Delete local copy, if any
-    if ($file->local_path) {
-        Storage::disk('public')->delete($file->local_path);
-    }
-
-    // 3. Delete from database
-    $file->delete();
-
-    // Log activity  
+    // Log activity
      ActivityLog::create([
         'user_name' => Auth::user()->name,
-        'activity' => 'Deleted file: ' . $file->filename,
+        'activity' => 'Moved file to Trash: ' . $file->filename,
         'ip_address' => request()->ip()
     ]);
 
-    return back()->with('success', 'File deleted successfully.');
+    return back()->with('success', 'File moved to Trash. It can be restored from there within ' . config('trash.retention_days') . ' days.');
 }
 
 

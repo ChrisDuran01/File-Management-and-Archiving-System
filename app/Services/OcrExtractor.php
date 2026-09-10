@@ -351,6 +351,17 @@ class OcrExtractor
         return trim(implode("\n\n", array_filter($pages)));
     }
 
+    /**
+     * OCR a single already-rasterized page image (e.g. a page PNG the scan
+     * pipeline has already produced with pdftoppm), applying the same
+     * GD-only cleanup the PDF path uses. Public wrapper over ocrImage() so
+     * callers outside this class don't re-implement the preprocessing.
+     */
+    public function ocrImageFile(string $imagePath): string
+    {
+        return $this->ocrImage($imagePath);
+    }
+
     private function ocrImage(string $imagePath): string
     {
         $cleaned = $this->preprocessForOcr($imagePath);

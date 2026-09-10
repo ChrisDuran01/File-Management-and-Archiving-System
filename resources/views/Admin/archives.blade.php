@@ -1,5 +1,7 @@
 @extends($layout ?? 'Admin.home')
 @section('content')
+
+@include('Admin.partials.theme')
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -160,7 +162,7 @@
         align-items: center;
         justify-content: center;
         font-size: 20px;
-        color: #534AB7;
+        color: #058028;
     }
 
     /* ── 3-dot Menu ── */
@@ -348,6 +350,27 @@
         .archive-grid { grid-template-columns: 1fr; }
         .page-header { flex-wrap: wrap; gap: 10px; }
     }
+
+    /* ===== DARK MODE (page-unique classes; shared ones live in partials/theme) ===== */
+    [data-theme="dark"] .archive-count { background: var(--nav-hover-bg); border-color: var(--border); color: var(--text-2); }
+    [data-theme="dark"] .back-btn:hover { background: var(--nav-hover-bg); border-color: var(--text-3); color: var(--text-1); }
+    [data-theme="dark"] .search-box button:hover { color: var(--text-1); }
+    [data-theme="dark"] .archive-card { background: var(--card); border-color: var(--border); }
+    [data-theme="dark"] .archive-card:hover { border-color: var(--text-3); }
+    [data-theme="dark"] .folder-icon-wrap { background: var(--primary-dim); color: var(--primary); }
+    [data-theme="dark"] .card-dropdown-divider { background: var(--border); }
+    [data-theme="dark"] .card-folder-name { color: var(--text-1); }
+    [data-theme="dark"] .card-zip-name,
+    [data-theme="dark"] .card-date { color: var(--text-3); }
+    [data-theme="dark"] .card-footer-row { border-top-color: var(--border); }
+    [data-theme="dark"] .empty-state { color: var(--text-3); }
+    [data-theme="dark"] .alert-custom.success { background: var(--success-dim); color: var(--success-text); border-color: #2f5d1e; }
+    [data-theme="dark"] .alert-custom.danger  { background: var(--danger-dim); color: #fca5a5; border-color: #7f2a2a; }
+    [data-theme="dark"] .badge-archived { background: var(--success-dim); color: var(--success-text); }
+    [data-theme="dark"] .badge-pending  { background: var(--warning-dim); color: #e3b877; }
+    [data-theme="dark"] .btn-action.secondary { background: var(--nav-hover-bg); border-color: var(--border); color: var(--text-1); }
+    [data-theme="dark"] .btn-action.warn   { background: var(--warning-dim); border-color: #7a5a1e; color: #e3b877; }
+    [data-theme="dark"] .btn-action.danger { background: var(--danger-dim); border-color: #7f2a2a; color: #fca5a5; }
 </style>
 
 <body>
@@ -429,7 +452,7 @@
                         {{-- Open / View contents --}}
                         <a href="{{ route('archives.show', $archive->id) }}"
                            class="card-dropdown-item">
-                            <i class="fas fa-eye" style="font-size:12px;color:#534AB7;"></i>
+                            <i class="fas fa-eye" style="font-size:12px;color:#058028;"></i>
                             Open (view only)
                         </a>
 
@@ -438,7 +461,7 @@
                         {{-- Download --}}
                         <a href="{{ route('archives.download', $archive->id) }}"
                            class="card-dropdown-item">
-                            <i class="fas fa-download" style="font-size:12px;color:#378ADD;"></i>
+                            <i class="fas fa-download" style="font-size:12px;color:#058028;"></i>
                             Download
                         </a>
 

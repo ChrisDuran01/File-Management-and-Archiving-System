@@ -12,6 +12,7 @@ class Backup extends Model
     'cloud_path',
     'local_path',
     'includes_database',
+    'checksum',
     'size',
     'status'
 ];

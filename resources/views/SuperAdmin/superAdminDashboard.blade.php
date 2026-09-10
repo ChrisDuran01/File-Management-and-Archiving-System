@@ -1,25 +1,11 @@
 @extends('SuperAdmin.homeSuperAdmin')
 @section('content')
 
+@include('Admin.partials.theme')
+
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
-
-    :root {
-        --surface:     #f7f8fc;
-        --card:        #ffffff;
-        --border:      #e8eaf0;
-        --primary:     #534AB7;
-        --primary-dim: #EEEDFE;
-        --text-1:      #111827;
-        --text-2:      #6b7280;
-        --text-3:      #9ca3af;
-        --shadow-sm:   0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
-        --radius:      12px;
-        --radius-sm:   8px;
-    }
-
     * { box-sizing: border-box; }
-    body { background: var(--surface); font-family: 'DM Sans', sans-serif; color: var(--text-1); }
+    body { background: var(--surface); font-family: 'Inter', sans-serif; color: var(--text-1); }
 
     /* ── Page Header ── */
     .page-header {
@@ -121,8 +107,8 @@
     .al-dot.upload  { background: #185FA5; }
     .al-dot.delete  { background: #A32D2D; }
     .al-dot.rename  { background: #854F0B; }
-    .al-dot.access  { background: #0F6E56; }
-    .al-dot.login   { background: #3C3489; }
+    .al-dot.access  { background: #058028; }
+    .al-dot.login   { background: #046322; }
     .al-line { width: 1.5px; flex: 1; background: var(--border); margin-top: 4px; min-height: 10px; }
     .al-content { flex: 1; min-width: 0; }
     .al-time { font-size: 12px; color: var(--text-2); font-family: 'DM Mono', monospace; }
@@ -166,10 +152,10 @@
     <h4>
         <div class="page-title-icon">
             <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="2" y="2" width="5" height="5" rx="1" stroke="#534AB7" stroke-width="1.2"/>
-                <rect x="9" y="2" width="5" height="5" rx="1" stroke="#534AB7" stroke-width="1.2"/>
-                <rect x="2" y="9" width="5" height="5" rx="1" stroke="#534AB7" stroke-width="1.2"/>
-                <rect x="9" y="9" width="5" height="5" rx="1" stroke="#534AB7" stroke-width="1.2"/>
+                <rect x="2" y="2" width="5" height="5" rx="1" stroke="#058028" stroke-width="1.2"/>
+                <rect x="9" y="2" width="5" height="5" rx="1" stroke="#058028" stroke-width="1.2"/>
+                <rect x="2" y="9" width="5" height="5" rx="1" stroke="#058028" stroke-width="1.2"/>
+                <rect x="9" y="9" width="5" height="5" rx="1" stroke="#058028" stroke-width="1.2"/>
             </svg>
         </div>
         Dashboard

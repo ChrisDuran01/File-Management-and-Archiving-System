@@ -5,9 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\ActivityLog;
 use App\Models\Announcement;
 use App\Models\Folder;
+use App\Models\User;
+use App\Notifications\AnnouncementPosted;
 use App\Services\HtmlSanitizer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 
 class AnnouncementController extends Controller
@@ -46,6 +49,12 @@ class AnnouncementController extends Controller
             'activity' => 'Posted announcement: '.$announcement->title,
             'ip_address' => $request->ip(),
         ]);
+
+        // In-app bell for every other officer (the author already knows).
+        Notification::send(
+            User::activeOfficers()->where('id', '!=', Auth::id()),
+            new AnnouncementPosted($announcement->title, Auth::user()->name)
+        );
 
         return back()->with('success', 'Announcement "'.$announcement->title.'" posted.');
     }

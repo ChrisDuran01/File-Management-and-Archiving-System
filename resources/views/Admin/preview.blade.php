@@ -2,6 +2,8 @@
 
 @section('content')
 
+@include('Admin.partials.theme')
+
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 
 @php
@@ -64,7 +66,7 @@
     margin-bottom: 1.25rem;
     transition: color 0.15s;
 }
-.back-link:hover { color: #534AB7; }
+.back-link:hover { color: #058028; }
 .back-link i { font-size: 12px; }
 
 /* ── File header card ── */
@@ -113,7 +115,7 @@
     align-items: center;
     gap: 7px;
     padding: 8px 18px;
-    background: #534AB7;
+    background: #058028;
     color: #fff;
     border: none;
     border-radius: 10px;
@@ -124,7 +126,7 @@
     transition: background 0.2s, transform 0.15s;
     flex-shrink: 0;
 }
-.btn-download:hover { background: #3C3489; color: #fff; transform: translateY(-1px); }
+.btn-download:hover { background: #046322; color: #fff; transform: translateY(-1px); }
 .btn-download i { font-size: 12px; }
 
 /* ── Preview container ── */
@@ -276,6 +278,18 @@
     transition: background 0.15s, border-color 0.15s;
 }
 .tb-btn:hover { background: #f0f0f0; border-color: #d5d5d5; color: #333; }
+
+/* ===== DARK MODE (page-unique classes; shared ones live in partials/theme) ===== */
+[data-theme="dark"] .file-header,
+[data-theme="dark"] .preview-container { background: var(--card); border-color: var(--border); box-shadow: none; }
+[data-theme="dark"] .file-header-name { color: var(--text-1); }
+[data-theme="dark"] .file-header-meta { color: var(--text-3); }
+[data-theme="dark"] .preview-image-wrap { background: repeating-conic-gradient(#1c1c1a 0% 25%, #121211 0% 50%) 0 0 / 20px 20px; }
+[data-theme="dark"] .preview-text-wrap { background: var(--surface); }
+[data-theme="dark"] .preview-audio-wrap { background: linear-gradient(135deg, #14161c 0%, #12141a 100%); }
+[data-theme="dark"] .preview-none h5 { color: var(--text-1); }
+[data-theme="dark"] .preview-toolbar { background: var(--surface); border-bottom-color: var(--border); color: var(--text-3); }
+[data-theme="dark"] .tb-btn:hover { background: var(--nav-hover-bg); border-color: var(--text-3); color: var(--text-1); }
 </style>
 
 <div class="preview-wrapper">

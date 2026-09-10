@@ -2,6 +2,8 @@
 
 @section('content')
 
+@include('Admin.partials.theme')
+
 <style>
 .profile-card {
     border-radius: 12px;

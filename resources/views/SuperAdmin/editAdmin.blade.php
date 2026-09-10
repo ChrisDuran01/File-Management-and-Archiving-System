@@ -2,6 +2,8 @@
 
 @section('content')
 
+@include('Admin.partials.theme')
+
 <div class="container card p-4">
     <h4>Edit Officer</h4>
 

@@ -1,16 +1,13 @@
 @extends($layout ?? 'Admin.home')
 @section('content')
 
+@include('Admin.partials.theme')
+
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap');
-
-    :root {
-        --danger: #b3261e; --danger-dim: #fdecea; --border: #e8eaf0; --text-1: #111827; --text-2: #6b7280;
-    }
     * { box-sizing: border-box; }
-    body { font-family: 'DM Sans', sans-serif; color: var(--text-1); }
+    body { font-family: 'Inter', sans-serif; color: var(--text-1); }
 
     .warning-panel {
         max-width: 560px; margin: 40px auto; background: #fff; border: 1px solid var(--danger);
@@ -32,6 +29,11 @@
         font-size: 0.85rem; font-weight: 600; text-decoration: none;
     }
     .btn-cancel:hover { background: #f7f8fc; }
+
+    /* ===== DARK MODE ===== */
+    [data-theme="dark"] .warning-panel { background: var(--card); box-shadow: none; }
+    [data-theme="dark"] .btn-cancel { background: var(--card); }
+    [data-theme="dark"] .btn-cancel:hover { background: var(--nav-hover-bg); }
 </style>
 
 <div class="warning-panel">

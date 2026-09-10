@@ -1,6 +1,8 @@
 @extends('Admin.home')
 @section('content')
 
+@include('Admin.partials.theme')
+
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 
 <style>
@@ -82,6 +84,13 @@ body { font-family: 'Segoe UI', sans-serif; }
     max-width: 100%;
 }
 .file-meta { font-size: 11px; color: #aaa; margin-top: 2px; }
+
+/* ===== DARK MODE (most classes handled by partials/theme shared block) ===== */
+[data-theme="dark"] .folder-card,
+[data-theme="dark"] .file-card { background: var(--card); border-color: var(--border); }
+[data-theme="dark"] .folder-card:hover,
+[data-theme="dark"] .file-card:hover { border-color: var(--text-3); }
+[data-theme="dark"] .file-icon-wrap { background: var(--nav-hover-bg); color: var(--text-2); }
 </style>
 
 {{-- Page Header --}}

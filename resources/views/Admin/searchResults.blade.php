@@ -1,29 +1,11 @@
 @extends('Admin.home')
 @section('content')
 
+@include('Admin.partials.theme')
+
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
-
-    :root {
-        --surface:     #f7f8fc;
-        --card:        #ffffff;
-        --border:      #e8eaf0;
-        --primary:     #2563eb;
-        --primary-dim: #eff4ff;
-        --warning:     #f59e0b;
-        --warning-dim: #fffbeb;
-        --text-1:      #111827;
-        --text-2:      #6b7280;
-        --text-3:      #9ca3af;
-        --shadow-sm:   0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
-        --shadow-md:   0 4px 16px rgba(0,0,0,.08);
-        --shadow-lg:   0 8px 32px rgba(0,0,0,.14);
-        --radius:      12px;
-        --radius-sm:   8px;
-    }
-
     * { box-sizing: border-box; }
-    body { background: var(--surface); font-family: 'DM Sans', sans-serif; color: var(--text-1); }
+    body { background: var(--surface); font-family: 'Inter', sans-serif; color: var(--text-1); }
 
     /* ── Page header ─────────────────────────────── */
     .page-header { margin-bottom: 6px; }
@@ -140,7 +122,7 @@
     .card-icon.archive { background: var(--surface); color: var(--text-3); }
     .card-icon.pdf    { background: #fef2f2; color: #ef4444; }
     .card-icon.docx   { background: #eff6ff; color: #3b82f6; }
-    .card-icon.xlsx   { background: #f0fdf4; color: #22c55e; }
+    .card-icon.xlsx   { background: #e9f5ee; color: #22c55e; }
     .card-icon.img    { background: #fdf4ff; color: #a855f7; }
     .card-icon.file   { background: var(--primary-dim); color: var(--primary); }
 
@@ -220,14 +202,18 @@
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 
 @php
+    $documents = $documents ?? collect();
+
     $results = collect()
         ->merge($folders->map(fn($f) => ['type' => 'folder', 'data' => $f]))
         ->merge($files->map(fn($f)   => ['type' => 'file',   'data' => $f]))
-        ->merge($archives->map(fn($a) => ['type' => 'archive', 'data' => $a]));
+        ->merge($archives->map(fn($a) => ['type' => 'archive', 'data' => $a]))
+        ->merge($documents->map(fn($d) => ['type' => 'document', 'data' => $d]));
 
-    $folderItems  = $results->where('type', 'folder');
-    $fileItems    = $results->where('type', 'file');
-    $archiveItems = $results->where('type', 'archive');
+    $folderItems   = $results->where('type', 'folder');
+    $fileItems     = $results->where('type', 'file');
+    $archiveItems  = $results->where('type', 'archive');
+    $documentItems = $results->where('type', 'document');
 @endphp
 {{-- ── Back Button ─────────────────────────────────── --}}
 
@@ -256,6 +242,9 @@
     @endif
     @if($archiveItems->count())
     <span class="stat-chip"><i class="fas fa-box-archive"></i>{{ $archiveItems->count() }} archived {{ Str::plural('folder', $archiveItems->count()) }}</span>
+    @endif
+    @if($documentItems->count())
+    <span class="stat-chip"><i class="fas fa-file-lines"></i>{{ $documentItems->count() }} {{ Str::plural('document', $documentItems->count()) }}</span>
     @endif
 </div>
 
@@ -382,6 +371,25 @@
             @endif
         </a>
 
+        @endforeach
+    </div>
+    @endif
+
+    {{-- ── Documents section ────────────────────────────── --}}
+    @if($documentItems->count())
+    <div class="section-label"><i class="fas fa-file-lines"></i> Documents</div>
+    <div class="results-grid">
+        @foreach($documentItems as $item)
+        @php $document = $item['data']; @endphp
+        <a href="{{ route('documents.show', $document->id) }}" class="result-card file">
+            <div class="card-icon file"><i class="fas fa-file-lines"></i></div>
+            <span class="card-name">{{ $document->title }}</span>
+            @if($document->document_type)<span class="card-ext">{{ $document->document_type }}</span>@endif
+            <small style="color:#888; display:block; margin-top:4px;">
+                @if($document->reference_no) {{ $document->reference_no }} &middot; @endif
+                {{ $document->folder->name ?? '—' }}
+            </small>
+        </a>
         @endforeach
     </div>
     @endif

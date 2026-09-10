@@ -3,10 +3,13 @@ namespace App\Models;
 
 use App\Models\File;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 
 class Folder extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = ['name', 'school_year', 'is_archived', 'is_restricted', 'created_by', 'last_accessed_at'];
 
     protected $casts = [
@@ -94,5 +97,37 @@ class Folder extends Model
     public function touchAccessed(): void
     {
         $this->forceFill(['last_accessed_at' => now()])->save();
+    }
+
+    /**
+     * Soft-delete this folder together with everything inside it (files and
+     * their document records), so the whole thing moves to Trash as one
+     * unit. Before soft deletes, this cleanup was left to the files table's
+     * ON DELETE CASCADE - which no longer fires on a soft delete.
+     */
+    public function moveToTrash(): void
+    {
+        $fileIds = $this->file()->pluck('id');
+
+        Document::whereIn('file_id', $fileIds)->update(['deleted_at' => now()]);
+        File::whereIn('id', $fileIds)->update(['deleted_at' => now()]);
+
+        $this->delete();
+    }
+
+    /**
+     * Restore this folder and every trashed file (plus document records)
+     * inside it. Deliberately simple: files that were trashed individually
+     * before the folder was deleted come back too - erring on the side of
+     * restoring more, since anything unwanted can just be deleted again.
+     */
+    public function restoreFromTrash(): void
+    {
+        $this->restore();
+
+        $fileIds = File::withTrashed()->where('folder_id', $this->id)->pluck('id');
+
+        File::withTrashed()->whereIn('id', $fileIds)->update(['deleted_at' => null]);
+        Document::withTrashed()->whereIn('file_id', $fileIds)->update(['deleted_at' => null]);
     }
 }

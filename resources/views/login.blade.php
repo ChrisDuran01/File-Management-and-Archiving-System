@@ -435,6 +435,12 @@
           </div>
         @endif
 
+        @if (session('success'))
+          <div class="alert alert-success py-2 px-3 mb-3" style="font-size:0.85rem;" role="alert">
+            {{ session('success') }}
+          </div>
+        @endif
+
         <!-- Email input with icon + floating label -->
         <div class="input-group-custom">
           <i class="fas fa-envelope input-icon"></i>

@@ -282,15 +282,19 @@ class FolderController extends Controller
         }
 
         $folderName = $folder->name;
-        $folder->delete();
+
+        // Soft delete the folder and everything inside it as one unit -
+        // restorable from the Trash screen. Before soft deletes this relied
+        // on the files table's ON DELETE CASCADE, which no longer fires.
+        $folder->moveToTrash();
 
         ActivityLog::create([
             'user_name'  => Auth::user()->name,
-            'activity'   => 'Deleted folder: ' . $folderName,
+            'activity'   => 'Moved folder to Trash: ' . $folderName,
             'ip_address' => request()->ip()
         ]);
 
-        return redirect()->back()->with('success', 'Folder and all its contents deleted successfully.');
+        return redirect()->back()->with('success', 'Folder and its contents moved to Trash. They can be restored from there within ' . config('trash.retention_days') . ' days.');
 
 
 

@@ -193,17 +193,40 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        // Log logout activity
+        // The idle-timeout screen (partials.idle-timeout) submits this same
+        // form with idle=1 when nobody responded to the countdown warning -
+        // flagged here so the audit log and the login page both say why the
+        // session ended, rather than looking like a manual logout.
+        $isIdle = $request->boolean('idle');
+
         ActivityLog::create([
             'user_name' => Auth::user()->name,
-            'activity' => 'Logged out'
+            'activity' => $isIdle ? 'Logged out (inactivity)' : 'Logged out'
         ]);
 
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
+        if ($isIdle) {
+            session()->flash('success', 'You were logged out after a period of inactivity.');
+        }
+
         return redirect('/login');
+    }
+
+    /**
+     * Pinged by the idle-timeout warning's "Stay logged in" button. Doing
+     * nothing but responding 200 is the point - any authenticated request
+     * already refreshes the session cookie's expiry (see config/session.php),
+     * so this just gives the front end something to call that (a) resets its
+     * own countdown and (b) confirms the session is still actually valid
+     * (the `auth` middleware itself returns 401 for an expectsJson() request
+     * if it isn't, which the widget treats as "already logged out").
+     */
+    public function keepAlive()
+    {
+        return response()->json(['ok' => true]);
     }
 
     public function showForgotPassword()

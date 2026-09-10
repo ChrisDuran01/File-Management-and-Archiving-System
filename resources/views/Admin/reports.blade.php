@@ -1,27 +1,23 @@
 @extends($layout ?? 'Admin.home')
 @section('content')
 
+@include('Admin.partials.theme')
+
 <style>
+    /* Page-local aliases + a restrained categorical set for the charts,
+       all anchored to the shared green accent. */
     :root {
-        --surface-1:      #fcfcfb;
-        --page-plane:     #f9f9f7;
-        --text-primary:   #0b0b0b;
-        --text-secondary: #52514e;
-        --text-muted:     #898781;
-        --gridline:       #e1e0d9;
-        --border:         rgba(11,11,11,0.10);
-        --success-text:   #006300;
-
-        --seq-blue:       #2a78d6;
-        --seq-blue-soft:  #b7d3f6;
-
-        --cat-blue:       #2a78d6;
-        --cat-green:      #008300;
-        --cat-magenta:    #e87ba4;
-        --cat-yellow:     #eda100;
-
-        --status-warning:  #fab219;
-        --status-critical: #d03b3b;
+        --page-plane: var(--surface);
+        --surface-1: var(--card);
+        --text-primary: var(--text-1);
+        --text-secondary: var(--text-2);
+        --text-muted: var(--text-3);
+        --gridline: var(--border);
+        --seq-blue: var(--primary);
+        --cat-blue: #058028;
+        --cat-green: #4ca86a;
+        --cat-magenta: #7a8a99;
+        --cat-yellow: #b08900;
     }
 
     body { background: var(--page-plane); color: var(--text-primary); }
@@ -290,11 +286,11 @@ new Chart(document.getElementById('storageChart'), {
             {
                 label: 'Actual',
                 data: actualData,
-                borderColor: '#2a78d6',
-                backgroundColor: 'rgba(42,120,214,0.08)',
+                borderColor: '#058028',
+                backgroundColor: 'rgba(5,128,40,0.08)',
                 borderWidth: 2,
                 pointRadius: 3,
-                pointBackgroundColor: '#2a78d6',
+                pointBackgroundColor: '#058028',
                 fill: true,
                 tension: 0.25,
                 spanGaps: false,
@@ -302,13 +298,13 @@ new Chart(document.getElementById('storageChart'), {
             {
                 label: 'Projected',
                 data: projectedData,
-                borderColor: '#2a78d6',
+                borderColor: '#058028',
                 borderDash: [6, 5],
                 borderWidth: 2,
                 pointRadius: 3,
                 pointStyle: 'circle',
                 pointBackgroundColor: '#fcfcfb',
-                pointBorderColor: '#2a78d6',
+                pointBorderColor: '#058028',
                 fill: false,
                 tension: 0.25,
                 spanGaps: true,
