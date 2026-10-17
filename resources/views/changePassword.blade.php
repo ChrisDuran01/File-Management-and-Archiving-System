@@ -10,7 +10,6 @@
   <style>
     body {
       font-family: 'Inter', sans-serif;
-      background: linear-gradient(135deg, #0B4128 0%, #1C6E4A 50%, #0F5C3E 100%);
       min-height: 100vh;
       display: flex;
       align-items: center;

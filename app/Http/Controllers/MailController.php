@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\EngagementEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 
@@ -29,6 +30,9 @@ public function sendMessage(Request $request)
              ->subject($request->subject)
              ->replyTo($request->email, $request->name);
     });
+
+    // Only the fact that a message was sent, for Reports - never who or what.
+    EngagementEvent::recordFor($request, 'message_sent');
 
     return back()->with('success', 'Message sent to QSU Student Government');
 }

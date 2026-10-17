@@ -50,6 +50,9 @@ return [
 
     'backup' => [
         'mysqldump_path' => env('BACKUP_MYSQLDUMP_PATH', 'mysqldump'),
+        // Counterpart to mysqldump_path, used by the restore side to pipe
+        // database_backup.sql back into MySQL.
+        'mysql_path' => env('BACKUP_MYSQL_PATH', 'mysql'),
         // AES-256 password backups are encrypted with (DPA/RA 10173 - the ZIP
         // holds a full DB dump plus every file). No key = no backup: losing
         // this key means every existing backup is unreadable, so it needs to

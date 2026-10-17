@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Archive;
+use App\Models\ArchiveFile;
 use App\Models\Document;
 use App\Models\Folder;
 use App\Models\File;
@@ -39,9 +40,9 @@ class SearchController extends Controller
     {
         $query = $request->input('query');
 
-        [$folders, $files, $archives, $documents] = $this->performSearch($query);
+        [$folders, $files, $archives, $documents, $archivedFiles] = $this->performSearch($query);
 
-        return view('Admin.searchResults', compact('folders', 'files', 'archives', 'documents', 'query'));
+        return view('Admin.searchResults', compact('folders', 'files', 'archives', 'documents', 'archivedFiles', 'query'));
     }
 
     /**
@@ -57,9 +58,22 @@ class SearchController extends Controller
             return response('');
         }
 
-        [$folders, $files, $archives, $documents] = $this->performSearch($query, limit: 5);
+        // When searching from inside a folder (the topbar passes its id),
+        // that folder's own files/documents are surfaced first - still a
+        // system-wide search, just sorted by relevance to where you are.
+        $currentFolderId = $request->filled('folder_id') ? (int) $request->input('folder_id') : null;
 
-        return view('Admin.searchLive', compact('folders', 'files', 'archives', 'documents', 'query'));
+        // Same idea at the section level: which result TYPE leads the
+        // dropdown, set by the page via window.searchContext (e.g. the
+        // Archives page). Whitelisted - an unrecognized value just falls
+        // back to the default section order in the view.
+        $context = in_array($request->input('context'), ['archives'], true)
+            ? $request->input('context')
+            : null;
+
+        [$folders, $files, $archives, $documents, $archivedFiles] = $this->performSearch($query, limit: 5, currentFolderId: $currentFolderId);
+
+        return view('Admin.searchLive', compact('folders', 'files', 'archives', 'documents', 'archivedFiles', 'query', 'context'));
     }
 
     /**
@@ -67,7 +81,7 @@ class SearchController extends Controller
      * live dropdown, so the matching and snippet-building logic only lives
      * in one place.
      */
-    private function performSearch(string $query, ?int $limit = null): array
+    public function performSearch(string $query, ?int $limit = null, ?int $currentFolderId = null): array
     {
         $user = Auth::user();
 
@@ -102,9 +116,12 @@ class SearchController extends Controller
         // matched against the file_checksums map snapshotted at archive time
         // instead of a files table. Restored archives are excluded since the
         // folder they came from is live again and already covered above.
-        $archives = Archive::whereNull('restored_at')
+        $accessibleArchives = Archive::whereNull('restored_at')
             ->get()
             ->filter(fn (Archive $archive) => $archive->isAccessibleBy($user))
+            ->values();
+
+        $archives = $accessibleArchives
             ->filter(function (Archive $archive) use ($query) {
                 if (stripos($archive->folder_name, $query) !== false) {
                     return true;
@@ -119,6 +136,25 @@ class SearchController extends Controller
                 return false;
             })
             ->values();
+
+        // The files inside those archives, one result each - matched on the
+        // text/details FolderArchiver kept for them (archive_files) since the
+        // ZIP itself can't be searched. Same fields a live file or document
+        // matches on. Archives from before that table existed have no rows
+        // here and stay findable by filename only, through $archives above.
+        $archivedFiles = ArchiveFile::whereIn('archive_id', $accessibleArchives->pluck('id'))
+            ->where(function ($fileQuery) use ($query) {
+                $fileQuery->where('filename', 'like', "%{$query}%")
+                    ->orWhere('ocr_text', 'like', "%{$query}%")
+                    ->orWhere('school_year', 'like', "%{$query}%")
+                    ->orWhere('document_title', 'like', "%{$query}%")
+                    ->orWhere('reference_no', 'like', "%{$query}%")
+                    ->orWhere('sender', 'like', "%{$query}%")
+                    ->orWhere('recipient', 'like', "%{$query}%")
+                    ->orWhere('notes', 'like', "%{$query}%");
+            })
+            ->with('archive')
+            ->get();
 
         // Structured document records - matched on the human-entered metadata
         // (the split PDF's OCR text is already covered by the File search
@@ -136,10 +172,22 @@ class SearchController extends Controller
             ->filter(fn (Document $document) => $document->isAccessibleBy($user))
             ->values();
 
+        // Still a system-wide search - just sorted so results from the
+        // folder you're currently browsing surface before everything else,
+        // instead of being interleaved (or pushed out by the $limit below)
+        // among unrelated matches. Folders and archives aren't "inside" a
+        // live folder (folders are flat, archives are already gone), so
+        // only files/documents have a meaningful folder_id to prioritize.
+        if ($currentFolderId) {
+            $files = $this->prioritizeFolder($files, $currentFolderId);
+            $documents = $this->prioritizeFolder($documents, $currentFolderId);
+        }
+
         if ($limit) {
             $folders = $folders->take($limit)->values();
             $files = $files->take($limit)->values();
             $archives = $archives->take($limit)->values();
+            $archivedFiles = $archivedFiles->take($limit)->values();
             $documents = $documents->take($limit)->values();
         }
 
@@ -184,7 +232,39 @@ class SearchController extends Controller
             $archive->matched_filenames = $matchedFiles;
         });
 
-        return [$folders, $files, $archives, $documents];
+        // Same "why did this show up" flags as live files get above.
+        $archivedFiles->each(function (ArchiveFile $file) use ($query) {
+            $matchedFilename = stripos($file->filename, $query) !== false;
+
+            $file->matched_in_content = ! $matchedFilename
+                && $file->ocr_text
+                && stripos($file->ocr_text, $query) !== false;
+
+            if ($file->matched_in_content) {
+                $file->ocr_snippet = $this->buildSnippet($file->ocr_text, $query);
+            }
+
+            $file->matched_in_document = ! $matchedFilename
+                && collect([$file->document_title, $file->reference_no, $file->sender, $file->recipient, $file->notes])
+                    ->contains(fn ($value) => $value && stripos($value, $query) !== false);
+
+            $file->matched_in_school_year = ! $matchedFilename
+                && $file->school_year
+                && stripos((string) $file->school_year, $query) !== false;
+        });
+
+        return [$folders, $files, $archives, $documents, $archivedFiles];
+    }
+
+    /**
+     * Stable partition: items whose folder_id matches the folder being
+     * browsed move to the front, everything else keeps its existing
+     * relative order behind them. Collection::sortByDesc uses PHP's sort
+     * functions, stable since PHP 8.0, so ties never get reshuffled.
+     */
+    private function prioritizeFolder($items, int $currentFolderId)
+    {
+        return $items->sortByDesc(fn ($item) => $item->folder_id === $currentFolderId)->values();
     }
 
     /**

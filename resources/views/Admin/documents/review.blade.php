@@ -9,10 +9,6 @@
     * { box-sizing:border-box; }
     body { background:var(--surface); font-family:'Inter',sans-serif; color:var(--text-1); }
 
-    .rv-header { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:16px; }
-    .rv-header h2 { font-size:1.3rem; font-weight:600; margin:0 0 3px; }
-    .rv-header .sub { font-size:.83rem; color:var(--text-2); margin:0; }
-
     .rv-topbar {
         background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
         box-shadow:var(--shadow-sm); padding:14px 18px; margin-bottom:18px;
@@ -102,11 +98,53 @@
     [data-theme="dark"] .fail-panel code { background:var(--surface); }
 </style>
 
-@if ($errors->any())
-    <div class="rv-alert err">{{ $errors->first() }}</div>
-@endif
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div class="page-header">
+        <div>
+            <div class="skel skel-text" style="width:260px; height:22px; margin-bottom:8px;"></div>
+            <div class="skel skel-text" style="width:220px;"></div>
+        </div>
+        <div class="skel" style="width:110px; height:36px; border-radius:8px;"></div>
+    </div>
 
-<div class="rv-header">
+    <div class="rv-topbar">
+        <div>
+            <div class="skel skel-text" style="width:110px; margin-bottom:6px;"></div>
+            <div class="skel" style="width:280px; height:38px; border-radius:6px;"></div>
+        </div>
+        <div class="rv-spacer"></div>
+        <div class="skel" style="width:90px; height:40px; border-radius:6px;"></div>
+        <div class="skel" style="width:110px; height:40px; border-radius:6px;"></div>
+    </div>
+
+    <div class="rv-grid">
+        <div class="rv-pages">
+            @for ($i = 0; $i < 4; $i++)
+            <div class="skel" style="width:100%; height:140px; border-radius:8px; margin-bottom:10px;"></div>
+            @endfor
+        </div>
+        <div>
+            @for ($i = 0; $i < 2; $i++)
+            <div class="seg-card">
+                <div class="skel skel-text" style="width:110px; margin-bottom:6px;"></div>
+                <div class="skel skel-text" style="width:80px; margin-bottom:12px;"></div>
+                <div class="seg-fields">
+                    @for ($j = 0; $j < 6; $j++)
+                    <div>
+                        <div class="skel skel-text" style="width:90px; margin-bottom:5px;"></div>
+                        <div class="skel" style="width:100%; height:36px; border-radius:6px;"></div>
+                    </div>
+                    @endfor
+                </div>
+            </div>
+            @endfor
+        </div>
+    </div>
+</div>
+
+<div class="skel-real">
+<div class="page-header">
     <div>
         <h2><i class="fas fa-scissors me-2" style="color:var(--brand);"></i>Review &amp; File — batch #{{ $batch->id }}</h2>
         <p class="sub">{{ $batch->original_filename }} &middot; {{ $batch->page_count ?? '?' }} page(s)
@@ -127,6 +165,7 @@
             <button type="submit" class="btn-save"><i class="fas fa-rotate-right me-1"></i> Try again</button>
         </form>
     </div>
+</div>
 @else
 
 <form id="reviewForm" onsubmit="return false;">
@@ -152,8 +191,9 @@
         <div id="segmentsCol"></div>
     </div>
 </form>
+</div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ asset('vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
 <script>
 (function () {
     const CSRF = "{{ csrf_token() }}";

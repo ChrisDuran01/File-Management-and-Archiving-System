@@ -9,9 +9,6 @@
     * { box-sizing: border-box; }
     body { background: var(--surface); font-family: 'Inter', sans-serif; color: var(--text-1); }
 
-    .page-header h2 { font-size: 1.35rem; font-weight: 600; letter-spacing: -.3px; margin: 0 0 4px; }
-    .page-header .sub { font-size: .85rem; color: var(--text-2); margin: 0 0 20px; }
-
     .card-panel {
         background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
         box-shadow: var(--shadow-sm); padding: 6px 4px; margin-bottom: 20px;
@@ -57,26 +54,37 @@
     }
 </style>
 
-@if (session('success'))
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        {{ session('success') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div class="page-header">
+        <div>
+            <div class="skel skel-text" style="width:130px; height:22px; margin-bottom:8px;"></div>
+            <div class="skel skel-text" style="width:340px;"></div>
+        </div>
+        <div class="skel" style="width:150px; height:36px; border-radius:20px;"></div>
     </div>
-@endif
-@if (session('error'))
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        {{ session('error') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-@endif
-@if ($errors->any())
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        {{ $errors->first() }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-@endif
 
-<div class="page-header" style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+    <div class="hint-box">
+        <div class="skel skel-text" style="width:90%;"></div>
+    </div>
+
+    <div class="card-panel" style="padding:16px;">
+        @for ($i = 0; $i < 5; $i++)
+        <div style="display:flex; gap:16px; align-items:center; padding:10px 0; border-bottom:1px solid var(--border);">
+            <div class="skel skel-text" style="width:25%;"></div>
+            <div class="skel" style="width:90px; height:22px; border-radius:20px;"></div>
+            <div class="skel skel-text" style="width:8%;"></div>
+            <div class="skel skel-text" style="width:15%;"></div>
+            <div class="skel skel-text" style="width:15%;"></div>
+            <div class="skel" style="width:70px; height:28px; border-radius:20px; margin-left:auto;"></div>
+        </div>
+        @endfor
+    </div>
+</div>
+
+<div class="skel-real">
+
+<div class="page-header">
     <div>
         <h2><i class="fas fa-inbox me-2" style="color:var(--brand);font-size:1.1rem;"></i>Scan Inbox</h2>
         <p class="sub">Files scanned into the watched folder land here. Review the proposed split, fill in the details, and file each document.</p>
@@ -89,12 +97,12 @@
     </div>
 </div>
 
-<div class="hint-box">
+<!--<div class="hint-box">
     <i class="fas fa-circle-info me-1"></i>
     Drop scanned PDFs into <code>{{ config('scan.inbox_path') }}</code>. They are picked up automatically every few minutes
     (or run <code>php&nbsp;artisan&nbsp;documents:scan-inbox</code>), or click "Check inbox now" above to pick them up
     immediately. A background worker must be running for processing to finish.
-</div>
+</div>-->
 
 <div class="card-panel">
     <table class="scan-table">
@@ -143,7 +151,9 @@
                             @endif
 
                             <form method="POST" action="{{ route('documents.scans.destroy', $batch) }}" style="display:inline;"
-                                  onsubmit="return confirm('Discard this scan batch? Filed documents are not affected.');">
+                                  data-confirm-title="Discard this scan batch?"
+                                  data-confirm="Filed documents are not affected. This cannot be undone."
+                                  data-confirm-ok="Discard">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="btn-sm-flat danger"><i class="fas fa-trash"></i></button>
@@ -158,7 +168,9 @@
     </table>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</div>
+
+<script src="{{ asset('vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
 <script>
 (function () {
     const statusUrl = "{{ route('documents.scans.status') }}";

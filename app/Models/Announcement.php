@@ -14,6 +14,11 @@ class Announcement extends Model
         'created_by',
     ];
 
+    public function images()
+    {
+        return $this->hasMany(AnnouncementImage::class)->orderBy('sort_order')->orderBy('id');
+    }
+
     public function author()
     {
         return $this->belongsTo(User::class, 'created_by');

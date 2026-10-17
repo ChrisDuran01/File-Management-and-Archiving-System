@@ -24,6 +24,9 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ScanReviewController;
 use App\Http\Controllers\TrashController;
 use App\Http\Controllers\HelpBotController;
+use App\Http\Controllers\PrivacyController;
+use App\Http\Controllers\OfficerAppController;
+use App\Http\Controllers\ShareLinkController;
 
 /*
 |--------------------------------------------------------------------------
@@ -43,6 +46,8 @@ Route::get('/landingPage', [PageController::class, 'landingPage']);
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
+Route::get('/privacy', [PrivacyController::class, 'notice'])->name('privacy.notice');
+
 Route::get('/forgot-password', [AuthController::class, 'showForgotPassword'])->name('password.request');
 Route::post('/forgot-password', [AuthController::class, 'sendResetLink'])->name('password.email')->middleware('throttle:5,1');
 Route::get('/reset-password/{token}', [AuthController::class, 'showResetPassword'])->name('password.reset');
@@ -54,9 +59,31 @@ Route::post('/reset-password', [AuthController::class, 'resetPassword'])->name('
 Route::get('stuDashboard', [StudentController::class, 'dashboard'])->name('student.dashboard');
 Route::get('/files/{id}/previewStudentDashboard', [StudentController::class, 'previewStudentDashboard'])->name('files.previewStudentDashboard');
 Route::get('/announcements/{announcement}/download', [AnnouncementController::class, 'download'])->name('announcements.download');
+Route::get('/announcements/images/{image}', [AnnouncementController::class, 'image'])->name('announcements.image');
+
+// Browser push opt-in from the student page. Anonymous by design (no account),
+// so it's throttled and the controller only accepts known push-service hosts.
+Route::post('/push/subscribe', [\App\Http\Controllers\PushSubscriptionController::class, 'subscribe'])->name('push.subscribe')->middleware('throttle:20,1');
+Route::post('/push/unsubscribe', [\App\Http\Controllers\PushSubscriptionController::class, 'unsubscribe'])->name('push.unsubscribe')->middleware('throttle:20,1');
+
+// Anonymous usage events from the student page, for Reports & Analytics.
+// CSRF-exempt (see bootstrap/app.php): sendBeacon can't send the token, and
+// a tab left open past the session lifetime would otherwise lose events.
+// The limit is generous because a whole campus can share one Wi-Fi IP.
+Route::post('/engagement', [\App\Http\Controllers\EngagementController::class, 'store'])->name('engagement.track')->middleware('throttle:240,1');
 
 // Contact form on the student page - throttled since it sends real email.
-Route::post('/send-message', [MailController::class, 'sendMessage'])->name('send.message')->middleware('throttle:5,1');
+// Posts to the page's own address so the installed app (whose scope is
+// stuDashboard) never hands the send off to a browser window.
+Route::post('stuDashboard', [MailController::class, 'sendMessage'])->name('send.message')->middleware('throttle:5,1');
+
+// Share links: one file, for anyone holding the link, until it expires or an
+// officer turns it off. The controller checks the link on every request
+// (FileShareLink::opensFile); a 40-character random token can't be guessed.
+Route::middleware('throttle:60,1')->group(function () {
+    Route::get('/s/{token}', [ShareLinkController::class, 'show'])->where('token', '[A-Za-z0-9]{40}')->name('share.show');
+    Route::get('/s/{token}/file', [ShareLinkController::class, 'file'])->where('token', '[A-Za-z0-9]{40}')->name('share.file');
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -64,19 +91,19 @@ Route::post('/send-message', [MailController::class, 'sendMessage'])->name('send
 |--------------------------------------------------------------------------
 */
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'nocache'])->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
     Route::post('/session/keep-alive', [AuthController::class, 'keepAlive'])->name('session.keepAlive');
 
+    Route::get('/privacy/acknowledge', [PrivacyController::class, 'acknowledge'])->name('privacy.acknowledge');
+    Route::post('/privacy/acknowledge', [PrivacyController::class, 'submitAcknowledge'])->name('privacy.acknowledge.submit');
+
     Route::get('/change-password', [AuthController::class, 'showChangePassword'])->name('password.change');
     Route::post('/change-password', [AuthController::class, 'changePassword'])->name('password.change.submit');
 
-    // Dashboards
+    // Dashboards (the SuperAdmin one is in the superadmin group below)
     Route::get('/adminDashboard', [FolderController::class, 'adminDashboard'])->name('Admin.adminDashboard');
-    Route::get('/superAdminDashboard', [DashboardController::class, 'superAdminDashboard']);
-
-    Route::get('/activityLogs', [SuperAdminController::class, 'activityLogs'])->name('activity.logs');
 
     // Folders
     Route::resource('folders', FolderController::class);
@@ -85,7 +112,6 @@ Route::middleware('auth')->group(function () {
     Route::delete('/folders/{id}', [FolderController::class, 'destroy'])->name('folders.destroy');
     Route::post('/folders/{id}/access', [FolderController::class, 'updateAccess'])->name('folders.updateAccess');
     Route::post('/folders/archive-selected', [FolderController::class, 'archiveSelected'])->name('folders.archive.selected');
-    Route::post('/folders/start-new-year', [FolderController::class, 'startNewSchoolYear'])->name('folders.startNewYear');
     Route::get('/folders/history/{year}', [FolderController::class, 'history'])->name('folders.history');
 
     // Files
@@ -93,22 +119,21 @@ Route::middleware('auth')->group(function () {
     Route::post('/files/prepare-upload', [FileController::class, 'prepareUpload'])->name('files.prepareUpload');
     Route::post('/files/confirm-upload', [FileController::class, 'confirmUpload'])->name('files.confirmUpload');
     Route::get('/files/{id}/preview', [FileController::class, 'preview'])->name('files.preview');
+    Route::get('/files/{id}/raw', [FileController::class, 'raw'])->name('files.raw');
     Route::get('/files/{id}/download', [FileController::class, 'download'])->name('files.download');
     Route::delete('/files/{id}', [FileController::class, 'destroy'])->name('files.destroy');
     Route::post('/files/{id}/rename', [FileController::class, 'rename'])->name('files.rename');
     Route::post('/file/{id}/toggle-access', [FileController::class, 'toggleAccess'])->name('file.toggleAccess');
+    Route::post('/file/{id}/approval', [FileController::class, 'setApproval'])->name('file.setApproval');
+
+    // Share links (website Share dialog and the phone app's Share sheet)
+    Route::get('/files/{id}/share-links', [ShareLinkController::class, 'index'])->name('share-links.index');
+    Route::post('/files/{id}/share-links', [ShareLinkController::class, 'store'])->name('share-links.store')->middleware('throttle:30,1');
+    Route::delete('/share-links/{link}', [ShareLinkController::class, 'destroy'])->name('share-links.destroy');
 
     // Search
     Route::get('/search', [SearchController::class, 'index'])->name('search');
     Route::get('/search/live', [SearchController::class, 'live'])->name('search.live');
-
-    // Backup
-    Route::get('/backup', [BackupController::class, 'index'])->name('backup.index');
-    Route::post('/backup/create', [BackupController::class, 'createBackup'])->name('backup.create');
-    Route::get('/backup/progress', [BackupController::class, 'progress'])->name('backup.progress');
-    Route::get('/backup/download/{id}', [BackupController::class, 'download'])->name('backup.download');
-    Route::post('/backup/toggle', [BackupController::class, 'toggle'])->name('backup.toggle');
-    Route::post('/backup/frequency', [BackupController::class, 'setFrequency'])->name('backup.frequency');
 
     // Reports
     Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
@@ -124,11 +149,28 @@ Route::middleware('auth')->group(function () {
     Route::get('/archives/{id}/files/{filename}', [ArchiveController::class, 'previewFile'])->name('archives.previewFile');
     Route::get('/archives/{id}/files/{filename}/raw', [ArchiveController::class, 'streamFile'])->name('archives.streamFile');
 
-    // Officers - management of officer accounts is the single most
-    // sensitive surface in the app (it can hand out SuperAdmin), so unlike
-    // most routes here it's restricted server-side, not just hidden from
-    // the menu. See App\Http\Middleware\EnsureSuperAdmin.
+    // SuperAdmin-only pages - every page that is only in the SuperAdmin
+    // menu belongs here, restricted server-side, not just hidden from the
+    // menu (typing the address used to be enough to open it). See
+    // App\Http\Middleware\EnsureSuperAdmin.
     Route::middleware('superadmin')->group(function () {
+        Route::get('/superAdminDashboard', [DashboardController::class, 'superAdminDashboard']);
+
+        // Every officer's actions, with their IP addresses.
+        Route::get('/activityLogs', [SuperAdminController::class, 'activityLogs'])->name('activity.logs');
+
+        // Backups - a backup holds the whole database and every file, and
+        // turning scheduled backups off (or down to monthly) is a quiet way
+        // to lose data.
+        Route::get('/backup', [BackupController::class, 'index'])->name('backup.index');
+        Route::post('/backup/create', [BackupController::class, 'createBackup'])->name('backup.create');
+        Route::get('/backup/progress', [BackupController::class, 'progress'])->name('backup.progress');
+        Route::get('/backup/download/{id}', [BackupController::class, 'download'])->name('backup.download');
+        Route::post('/backup/toggle', [BackupController::class, 'toggle'])->name('backup.toggle');
+        Route::post('/backup/frequency', [BackupController::class, 'setFrequency'])->name('backup.frequency');
+
+        // Officers - management of officer accounts is the single most
+        // sensitive surface in the app (it can hand out SuperAdmin).
         Route::get('/manageAdmins', [OfficerController::class, 'index'])->name('officers.index');
         Route::get('/addAdmin', [DashboardController::class, 'createOfficer'])->name('officers.create');
         Route::post('/manageAdmins', [OfficerController::class, 'store'])->name('officers.store');
@@ -139,6 +181,11 @@ Route::middleware('auth')->group(function () {
         Route::patch('/officers/reactivate/{id}', [OfficerController::class, 'reactivate'])->name('officers.reactivate');
         Route::delete('/officers/force-delete/{id}', [OfficerController::class, 'forceDelete'])->name('officers.forceDelete');
         Route::patch('/officers/archive/{id}', [OfficerController::class, 'archiveOfficer'])->name('officers.archiveOfficer');
+
+        // System restore - rebuilds the live database AND every cloud file
+        // from a backup ZIP, overwriting current data wholesale.
+        Route::post('/backup/{id}/restore', [BackupController::class, 'restore'])->name('backup.restore');
+        Route::get('/backup/restore/progress', [BackupController::class, 'restoreProgress'])->name('backup.restore.progress');
     });
 
     // In-app notification bell (polled JSON + mark-read)
@@ -199,4 +246,52 @@ Route::middleware('auth')->group(function () {
     // Site settings
     Route::get('/site-settings', [SiteSettingController::class, 'edit'])->name('site-settings.edit');
     Route::post('/site-settings', [SiteSettingController::class, 'update'])->name('site-settings.update');
+    Route::post('/site-settings/display-officers', [SiteSettingController::class, 'storeDisplayOfficer'])->name('site-settings.display-officers.store');
+    Route::delete('/site-settings/display-officers/{displayOfficer}', [SiteSettingController::class, 'destroyDisplayOfficer'])->name('site-settings.display-officers.destroy');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Officer phone app
+|--------------------------------------------------------------------------
+|
+| Phone-sized screens over the same folders and files, for officers only
+| (see OfficerAppController). Everything sits under /app so the installed
+| app and its service worker (public/officer-sw.js) have a scope of their
+| own, separate from the website and from the student app. `phone` keeps it
+| to phones - config('officer_app.phones_only').
+|
+| There is one sign-in page: /app/login shows the website's own, so the
+| lockout, disabled-account and audit rules are the same single copy, and
+| a phone goes on to the app after signing in from either address.
+|
+*/
+
+Route::prefix('app')->name('app.')->middleware('phone')->group(function () {
+
+    Route::get('/login', [OfficerAppController::class, 'showLogin'])->name('login');
+
+    Route::middleware(['auth', 'nocache'])->group(function () {
+        Route::get('/', [OfficerAppController::class, 'home'])->name('home');
+        Route::get('/account', [OfficerAppController::class, 'account'])->name('account');
+
+        Route::get('/folders', [OfficerAppController::class, 'folders'])->name('folders');
+        Route::get('/years/{year}', [OfficerAppController::class, 'year'])->name('year');
+        Route::get('/folders/{id}', [OfficerAppController::class, 'folder'])->whereNumber('id')->name('folder');
+        Route::get('/folders/{id}/add', [OfficerAppController::class, 'addForm'])->whereNumber('id')->name('folder.add');
+        Route::post('/folders/{id}/files', [OfficerAppController::class, 'storeFile'])->whereNumber('id')->name('folder.store');
+
+        Route::get('/files/{id}', [OfficerAppController::class, 'file'])->whereNumber('id')->name('file');
+        Route::get('/files/{id}/raw', [OfficerAppController::class, 'raw'])->whereNumber('id')->name('file.raw');
+
+        Route::get('/search', [OfficerAppController::class, 'search'])->name('search');
+        Route::get('/archives/{id}', [OfficerAppController::class, 'archive'])->whereNumber('id')->name('archive');
+        Route::get('/archives/{id}/files/{filename}', [OfficerAppController::class, 'archivedFile'])->whereNumber('id')->name('archive.file');
+
+        Route::get('/offline', [OfficerAppController::class, 'offline'])->name('offline');
+        Route::get('/notifications', [OfficerAppController::class, 'notifications'])->name('notifications');
+
+        Route::post('/sync', [OfficerAppController::class, 'sync'])->name('sync');
+        Route::post('/sync/saved', [OfficerAppController::class, 'syncSaved'])->name('sync.saved');
+    });
 });

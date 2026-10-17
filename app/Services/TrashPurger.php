@@ -34,7 +34,7 @@ class TrashPurger
         }
 
         if ($file->local_path) {
-            Storage::disk('public')->delete($file->local_path);
+            Storage::disk('local')->delete($file->local_path);
         }
 
         $file->forceDelete();

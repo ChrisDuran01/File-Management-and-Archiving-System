@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
 use App\Models\Announcement;
+use App\Models\AnnouncementImage;
 use App\Models\Folder;
 use App\Models\User;
+use App\Jobs\SendAnnouncementPush;
 use App\Notifications\AnnouncementPosted;
 use App\Services\HtmlSanitizer;
 use Illuminate\Http\Request;
@@ -23,9 +25,17 @@ class AnnouncementController extends Controller
      */
     private const ATTACHMENT_RULES = 'nullable|mimes:pdf,jpg,jpeg,png,doc,docx|max:10240';
 
+    /**
+     * Photos shown inline as a swipeable gallery. Raster formats only (no
+     * SVG - it can carry script) and served through image() with a fixed
+     * content type rather than straight off the public disk.
+     */
+    private const IMAGE_RULES = 'image|mimes:jpg,jpeg,png,webp|max:5120';
+    private const MAX_IMAGES = 10;
+
     public function index()
     {
-        $announcements = Announcement::with('author')->latest()->get();
+        $announcements = Announcement::with(['author', 'images'])->latest()->get();
         $layout = Folder::isSuperAdmin(Auth::user()) ? 'SuperAdmin.homeSuperAdmin' : 'Admin.home';
 
         return view('Admin.announcements', compact('announcements', 'layout'));
@@ -43,6 +53,7 @@ class AnnouncementController extends Controller
         $data['created_by'] = Auth::id();
 
         $announcement = Announcement::create($data);
+        $this->saveImages($request, $announcement);
 
         ActivityLog::create([
             'user_name' => Auth::user()->name,
@@ -55,6 +66,9 @@ class AnnouncementController extends Controller
             User::activeOfficers()->where('id', '!=', Auth::id()),
             new AnnouncementPosted($announcement->title, Auth::user()->name)
         );
+
+        // Browser push to students who opted in on the public page (queued).
+        SendAnnouncementPush::dispatch($announcement);
 
         return back()->with('success', 'Announcement "'.$announcement->title.'" posted.');
     }
@@ -74,6 +88,13 @@ class AnnouncementController extends Controller
 
         $announcement->update($data);
 
+        $remove = $announcement->images()->whereIn('id', (array) $request->input('remove_images', []))->get();
+        foreach ($remove as $img) {
+            Storage::disk('public')->delete($img->path);
+            $img->delete();
+        }
+        $this->saveImages($request, $announcement);
+
         ActivityLog::create([
             'user_name' => Auth::user()->name,
             'activity' => 'Updated announcement: '.$announcement->title,
@@ -85,6 +106,10 @@ class AnnouncementController extends Controller
 
     public function destroy(Announcement $announcement)
     {
+        foreach ($announcement->images as $img) {
+            Storage::disk('public')->delete($img->path);
+        }
+
         if ($announcement->attachment_path) {
             Storage::disk('public')->delete($announcement->attachment_path);
         }
@@ -115,6 +140,38 @@ class AnnouncementController extends Controller
         );
     }
 
+    /** Public (no auth) - serves a gallery photo inline with a fixed image type. */
+    public function image(AnnouncementImage $image)
+    {
+        $path = Storage::disk('public')->path($image->path);
+        abort_unless(is_file($path), 404);
+
+        $type = match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
+            'png' => 'image/png',
+            'webp' => 'image/webp',
+            default => 'image/jpeg',
+        };
+
+        return response()->file($path, [
+            'Content-Type' => $type,
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'public, max-age=86400',
+        ]);
+    }
+
+    private function saveImages(Request $request, Announcement $announcement): void
+    {
+        $order = (int) $announcement->images()->max('sort_order');
+
+        foreach ($request->file('images', []) as $file) {
+            AnnouncementImage::create([
+                'announcement_id' => $announcement->id,
+                'path' => $file->store('announcements/images', 'public'),
+                'sort_order' => ++$order,
+            ]);
+        }
+    }
+
     /**
      * The body comes back from a rich text editor as HTML, and that HTML is
      * rendered unescaped on the public student dashboard - sanitize() is
@@ -129,6 +186,9 @@ class AnnouncementController extends Controller
             'title' => 'required|string|max:255',
             'body' => 'required|string',
             'attachment' => self::ATTACHMENT_RULES,
+            'images' => 'nullable|array|max:'.self::MAX_IMAGES,
+            'images.*' => self::IMAGE_RULES,
+            'remove_images' => 'nullable|array',
         ]);
 
         $data = $request->only(['title', 'body']);

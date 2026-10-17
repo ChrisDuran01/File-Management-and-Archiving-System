@@ -8,6 +8,7 @@ use App\Models\ActivityLog;
 use App\Models\Document;
 use App\Models\File;
 use App\Models\Folder;
+use App\Models\OfficerTerm;
 use App\Models\ScanBatch;
 use App\Services\CloudFileUploader;
 use App\Services\PdfToolkit;
@@ -260,9 +261,9 @@ class ScanReviewController extends Controller
                     $cloudPath = time() . '_' . Str::slug($base) . '_' . $c . '_' . uniqid() . '.pdf';
                     $localPath = 'uploads/' . $folder->id . '/' . Str::random(40) . '.pdf';
 
-                    Storage::disk('public')->put($localPath, file_get_contents($segPdf));
+                    Storage::disk('local')->put($localPath, file_get_contents($segPdf));
 
-                    $uploaded = $uploader->upload($cloudPath, Storage::disk('public')->path($localPath));
+                    $uploaded = $uploader->upload($cloudPath, Storage::disk('local')->path($localPath));
 
                     $prepared[] = [
                         'seg'          => $seg,
@@ -293,19 +294,22 @@ class ScanReviewController extends Controller
         }
 
         $fileIds = [];
+        $term    = OfficerTerm::activeFor(Auth::id());
 
-        DB::transaction(function () use ($prepared, $folder, $batch, &$fileIds) {
+        DB::transaction(function () use ($prepared, $folder, $batch, &$fileIds, $term) {
             foreach ($prepared as $row) {
                 $seg = $row['seg'];
 
                 $file = File::create([
-                    'filename'     => $row['filename'],
-                    'filepath'     => $row['filepath'],
-                    'local_path'   => $row['local_path'],
-                    'folder_id'    => $folder->id,
-                    'size'         => $row['size'],
-                    'storage_type' => $row['storage_type'],
-                    'ocr_status'   => 'pending',
+                    'filename'        => $row['filename'],
+                    'filepath'        => $row['filepath'],
+                    'local_path'      => $row['local_path'],
+                    'folder_id'       => $folder->id,
+                    'size'            => $row['size'],
+                    'storage_type'    => $row['storage_type'],
+                    'ocr_status'      => 'pending',
+                    'officer_term_id' => $term?->id,
+                    'school_year'     => $term?->school_year,
                 ]);
 
                 Document::create([

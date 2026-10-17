@@ -142,8 +142,10 @@ class DocumentController extends Controller
     }
 
     /**
-     * Signed cloud URL for the document's PDF, falling back to the local
-     * public URL. Copied from FileController::resolvePreviewUrl().
+     * Signed cloud URL for the document's PDF, falling back to its local
+     * copy, served through FileController::raw() (which checks access - the
+     * local copy is on the private disk, with no public URL of its own).
+     * Copied from FileController::resolvePreviewUrl().
      */
     private function resolvePreviewUrl(File $file): ?string
     {
@@ -155,8 +157,8 @@ class DocumentController extends Controller
             }
         }
 
-        return $file->local_path && Storage::disk('public')->exists($file->local_path)
-            ? Storage::disk('public')->url($file->local_path)
+        return $file->local_path && Storage::disk('local')->exists($file->local_path)
+            ? route('files.raw', $file->id)
             : null;
     }
 }

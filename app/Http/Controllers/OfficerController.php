@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
+use App\Models\File;
+use App\Models\Folder;
 use App\Models\OfficerTerm;
 use App\Models\Position;
 use App\Models\User;
@@ -57,6 +59,7 @@ class OfficerController extends Controller
     return view('SuperAdmin.manageAdmins', [
         'currentOfficers' => $currentOfficers,
         'formerOfficers'  => $formerOfficers,
+        'positions'       => Position::all(),
     ]);
 }
 
@@ -117,6 +120,13 @@ class OfficerController extends Controller
      * active" would sweep up the brand-new incoming officers along with the
      * outgoing ones the moment they're created - exactly the accident this
      * scoping prevents.
+     *
+     * Also stores away that same school year's folders/files (formerly a
+     * separate "Start New School Year" action on the Folders page). Same
+     * scoping logic applies: only folders/files stamped with this
+     * school_year at creation are swept, via each one's officer_term_id -
+     * so anything the incoming batch already created stays untouched on
+     * the active Folders page.
      */
     public function archiveAll(Request $request)
     {
@@ -137,13 +147,21 @@ class OfficerController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
+        Folder::where('is_archived', false)
+            ->where('school_year', $request->school_year)
+            ->update(['is_archived' => true]);
+
+        File::where('is_archived', false)
+            ->where('school_year', $request->school_year)
+            ->update(['is_archived' => true]);
+
         ActivityLog::create([
             'user_name'  => Auth::user()->name,
-            'activity'   => "Ended {$request->school_year} officer term (moved to former)",
+            'activity'   => "Ended {$request->school_year} officer term (moved to former, folders/files stored)",
             'ip_address' => request()->ip()
         ]);
 
-        return back()->with('success', "Officers for {$request->school_year} moved to former.");
+        return back()->with('success', "Officers for {$request->school_year} moved to former, and their folders/files have been stored under that school year.");
     }
 
     public function archiveOfficer($id)
@@ -170,24 +188,39 @@ class OfficerController extends Controller
         return back()->with('success', 'Officer term archived.');
     }
 
-    // REACTIVATE OFFICER
-    public function reactivate($id)
+    /**
+     * Reactivate a former officer by starting a brand new term for them -
+     * asks for the school year (and lets the position be changed, in case
+     * they won a different seat) instead of silently reusing the year their
+     * old, ended term was under. Without this, a returning officer would
+     * come back mislabeled with a stale school_year: they'd show up as a
+     * phantom "current" year in the End Term picker, and any folders/files
+     * they create would never get archived when the real current year ends.
+     */
+    public function reactivate(Request $request, $id)
     {
+        $request->validate([
+            'school_year' => 'required|string|max:255',
+            'position_id' => 'required|exists:positions,id',
+        ]);
+
         $term = OfficerTerm::with('user')->findOrFail($id);
 
         $term->update([
-            'status'     => 'active',
-            'term_start' => now(),
-            'term_end'   => null,
+            'status'      => 'active',
+            'school_year' => $request->school_year,
+            'position_id' => $request->position_id,
+            'term_start'  => now(),
+            'term_end'    => null,
         ]);
 
         ActivityLog::create([
             'user_name'  => Auth::user()->name,
-            'activity'   => 'Reactivated officer: ' . $term->user->name,
-            'ip_address' => request()->ip()
+            'activity'   => "Reactivated officer: {$term->user->name} for SY {$request->school_year}",
+            'ip_address' => $request->ip()
         ]);
 
-        return back()->with('success', 'Officer reactivated.');
+        return back()->with('success', 'Officer reactivated for the new term.');
     }
 
     // DELETE OFFICER TERM RECORD

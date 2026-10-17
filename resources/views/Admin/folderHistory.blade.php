@@ -1,4 +1,4 @@
-@extends('Admin.home')
+@extends($layout ?? 'Admin.home')
 @section('content')
 
 @include('Admin.partials.theme')
@@ -6,8 +6,6 @@
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 
 <style>
-body { font-family: 'Segoe UI', sans-serif; }
-
 .folder-card {
     border-radius: 14px;
     border: 1px solid #ececec;
@@ -21,8 +19,6 @@ body { font-family: 'Segoe UI', sans-serif; }
     border-color: #d5d5d5;
 }
 
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 10px; }
-.page-title { font-size: 20px; font-weight: 600; color: #1a1a1a; margin: 0; }
 .folder-count {
     font-size: 12px;
     background: #f4f4f4;
@@ -93,11 +89,37 @@ body { font-family: 'Segoe UI', sans-serif; }
 [data-theme="dark"] .file-icon-wrap { background: var(--nav-hover-bg); color: var(--text-2); }
 </style>
 
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div class="page-header">
+        <div>
+            <div class="skel skel-text" style="width:160px; height:22px; margin-bottom:8px;"></div>
+            <div class="skel skel-text" style="width:320px;"></div>
+        </div>
+        <div class="skel" style="width:190px; height:36px; border-radius:8px;"></div>
+    </div>
+
+    <div class="skel skel-text" style="width:80px; margin-bottom:1.5rem;"></div>
+
+    <div class="row g-3">
+        @for ($i = 0; $i < 12; $i++)
+        <div class="col-xl-2 col-lg-2 col-md-3 col-sm-4 col-6">
+            <div class="folder-card p-3 text-center">
+                <div class="skel" style="width:64px; height:64px; border-radius:12px; margin:0 auto 12px;"></div>
+                <div class="skel skel-text" style="width:70%; margin:0 auto;"></div>
+            </div>
+        </div>
+        @endfor
+    </div>
+</div>
+
+<div class="skel-real">
+
 {{-- Page Header --}}
 <div class="page-header">
     <div>
-        <h4 class="page-title">School Year {{ $year }}</h4>
-        <p class="text-muted mb-0" style="font-size:13px;">Read-only view of folders and files stored under this school year</p>
+        <h2>School Year {{ $year }}</h2>
+        <p class="sub">Read-only view of folders and files stored under this school year</p>
     </div>
     <a href="{{ route('folders.index') }}" class="btn btn-light">
         <i class="bi bi-arrow-left me-1"></i> Back to Current Folders
@@ -114,7 +136,7 @@ body { font-family: 'Segoe UI', sans-serif; }
     <div class="col-xl-2 col-lg-2 col-md-3 col-sm-4 col-6">
         <div class="folder-card p-3 text-center">
             <a href="{{ route('folders.show', $folder->id) }}" style="text-decoration:none; color:inherit;">
-                <i class="bi bi-folder-fill text-warning" style="font-size:4rem;"></i>
+                @include('Admin.partials.folder-icon')
                 <div class="mt-2 text-truncate" style="font-size:13px; font-weight:500;">
                     {{ $folder->name }}
                 </div>
@@ -129,5 +151,6 @@ body { font-family: 'Segoe UI', sans-serif; }
     @endforelse
 </div>
 
+</div>
 
 @endsection

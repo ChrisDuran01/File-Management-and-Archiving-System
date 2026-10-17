@@ -6,12 +6,14 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use ZipArchive;
 use App\Jobs\RunBackupJob;
+use App\Jobs\RunRestoreJob;
 use App\Models\ActivityLog;
 use App\Models\Backup;
 use App\Models\File;
 use App\Models\SiteSetting;
 use App\Models\User;
 use App\Notifications\BackupFailed;
+use App\Notifications\RestoreFailed;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -34,6 +36,7 @@ class BackupController extends Controller
     private const UPLOAD_TIMEOUT       = 600;   // seconds allowed for the ZIP -> cloud upload
     private const PROGRESS_KEY         = 'backup_progress'; // cache key polled by the frontend
     private const PROGRESS_TTL_MIN     = 20;    // how long progress stays visible after finishing
+    private const RESTORE_PROGRESS_KEY = 'restore_progress'; // separate key - a restore and a backup could in theory overlap
 
     // Extensions that are already compressed (photos, PDFs, office docs -
     // themselves ZIP containers, video, existing archives). Re-running
@@ -280,6 +283,403 @@ class BackupController extends Controller
             'percent' => 0,
             'message' => '',
         ]));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  RESTORE - rebuilds the live system (database + every file) from a
+    //  backup ZIP. The mirror image of performBackup() above: restore the
+    //  database first (so File/Folder ids exist again), then walk every
+    //  other ZIP entry and re-upload it to the exact cloud path it was
+    //  read from, using the id encoded in buildZipEntryNames() to look
+    //  that path back up. Routed superadmin-only (see routes/web.php) -
+    //  this overwrites live data and cannot be a click any Admin can make.
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * Kicks off a restore from the HTTP request, same dispatch-to-queue
+     * reasoning as createBackup(): re-importing a full database dump and
+     * re-uploading every file can run just as long as building the backup
+     * did, and must not block the SuperAdmin page's own progress polling.
+     */
+    public function restore($id)
+    {
+        Backup::findOrFail($id);
+
+        $this->setRestoreProgress('starting', 1, 'Restore queued…');
+
+        RunRestoreJob::dispatch((int) $id, Auth::user()?->name, request()->ip());
+
+        return back()->with('success', 'Restore queued - this overwrites current data and can take a while for a large archive.');
+    }
+
+    /**
+     * Polled by the frontend while a restore is running, same shape as
+     * progress() above but on its own cache key so a restore and a backup
+     * (however unwise to run at once) don't stomp on each other's bar.
+     */
+    public function restoreProgress()
+    {
+        return response()->json(Cache::get(self::RESTORE_PROGRESS_KEY, [
+            'stage'   => 'idle',
+            'percent' => 0,
+            'message' => '',
+        ]));
+    }
+
+    private function setRestoreProgress(string $stage, int $percent, string $message, array $extra = []): void
+    {
+        Cache::put(self::RESTORE_PROGRESS_KEY, array_merge([
+            'stage'     => $stage,
+            'percent'   => $percent,
+            'message'   => $message,
+            'updatedAt' => now()->timestamp,
+        ], $extra), now()->addMinutes(self::PROGRESS_TTL_MIN));
+    }
+
+    /**
+     * Restore the database and every file from one backup ZIP.
+     *
+     * Order matters: the database is restored first so that File::find($id)
+     * (used to map a ZIP entry back to its real cloud path) has rows to
+     * look up again - restoring files before the DB would have nothing to
+     * resolve those ids against.
+     *
+     * A database restore failure aborts before touching any files, rather
+     * than re-uploading files against whatever (old or empty) File rows
+     * happen to still exist - that would silently scatter content under
+     * wrong or stale paths instead of failing loudly.
+     */
+    public function performRestore(int $id, ?string $initiatedBy = null, ?string $initiatedByIp = null): void
+    {
+        set_time_limit(0);
+        ini_set('memory_limit', '512M');
+
+        $this->setRestoreProgress('starting', 1, 'Starting restore…');
+
+        $backup = Backup::find($id);
+        if (! $backup) {
+            $this->setRestoreProgress('error', 100, 'Backup record not found.');
+            return;
+        }
+
+        $encryptionKey = config('services.backup.encryption_key');
+        if (! $encryptionKey) {
+            $this->setRestoreProgress('error', 100, 'BACKUP_ENCRYPTION_KEY is not configured - cannot decrypt backups.');
+            return;
+        }
+
+        $tempZipPath = null;
+
+        try {
+            $this->setRestoreProgress('fetching', 3, 'Locating backup archive…');
+            [$zipPath, $isTempZip] = $this->resolveBackupZipPath($backup);
+            if (! $zipPath) {
+                $this->setRestoreProgress('error', 100, 'Could not locate the backup file (missing locally and in cloud storage).');
+                return;
+            }
+            if ($isTempZip) {
+                $tempZipPath = $zipPath;
+            }
+
+            // Same defense as the archive/trash download paths - never
+            // decrypt a backup that doesn't match the checksum recorded at
+            // creation time, since a corrupted/tampered dump is the worst
+            // possible thing to blindly import into the live database.
+            if ($backup->checksum) {
+                $this->setRestoreProgress('verifying', 5, 'Verifying backup integrity…');
+                if (! hash_equals($backup->checksum, hash_file('sha256', $zipPath))) {
+                    $this->setRestoreProgress('error', 100, 'Backup checksum mismatch - the archive may be corrupted or tampered with. Restore aborted.');
+                    return;
+                }
+            }
+
+            $zip = new ZipArchive();
+            if ($zip->open($zipPath) !== true) {
+                $this->setRestoreProgress('error', 100, 'Could not open the backup archive.');
+                return;
+            }
+            $zip->setPassword($encryptionKey);
+
+            $includesDatabase = $zip->locateName('database_backup.sql') !== false;
+            $dbRestored = false;
+
+            if ($includesDatabase) {
+                $this->setRestoreProgress('database', 10, 'Restoring database…');
+                $dbRestored = $this->restoreDatabaseFromZip($zip);
+
+                if (! $dbRestored) {
+                    $zip->close();
+                    $this->setRestoreProgress('error', 100, 'Database restore failed - aborting before touching any files. See logs for details.');
+                    return;
+                }
+            } else {
+                Log::warning("Restore of backup #{$backup->id} has no database dump inside it - restoring files only.");
+            }
+
+            $this->setRestoreProgress('files', 30, 'Restoring files…');
+            $stats = $this->restoreFilesFromZip($zip);
+
+            $zip->close();
+
+            ActivityLog::create([
+                'user_name'  => $initiatedBy ?? 'System',
+                'activity'   => "Restored system from backup: {$backup->name} (" . ($dbRestored ? 'database restored' : 'database NOT restored') . ", {$stats['restored']} files restored, {$stats['skipped']} skipped, {$stats['failed']} failed)",
+                'ip_address' => $initiatedByIp,
+            ]);
+
+            $summary = 'Restore complete - ' . ($dbRestored ? 'database restored' : 'database NOT restored')
+                . ", {$stats['restored']} files restored"
+                . ($stats['skipped'] > 0 ? ", {$stats['skipped']} skipped (no matching record)" : '')
+                . ($stats['failed'] > 0 ? ", {$stats['failed']} failed" : '')
+                . '.';
+
+            $this->setRestoreProgress('done', 100, $summary);
+
+        } catch (\Throwable $e) {
+            Log::error('Restore crashed: ' . $e->getMessage());
+            $this->setRestoreProgress('error', 100, 'Restore failed: ' . $e->getMessage());
+
+            try {
+                Notification::send(User::superAdmins(), new RestoreFailed($e->getMessage(), $backup->name ?? ('#' . $id)));
+            } catch (\Throwable $notifyError) {
+                Log::warning('Could not send restore-failure notification: ' . $notifyError->getMessage());
+            }
+        } finally {
+            if ($tempZipPath && file_exists($tempZipPath)) {
+                @unlink($tempZipPath);
+            }
+            foreach ($this->tempFiles as $tmp) {
+                if (file_exists($tmp)) @unlink($tmp);
+            }
+            $this->tempFiles = [];
+        }
+    }
+
+    /**
+     * Get a local filesystem path to the backup ZIP, preferring the local
+     * copy kept alongside the cloud one (same redundancy reasoning as
+     * download() above) and falling back to pulling it from cloud storage
+     * into a temp file when the local copy is gone.
+     *
+     * @return array{0: ?string, 1: bool} [path, wasDownloadedToATempFile]
+     */
+    private function resolveBackupZipPath(Backup $backup): array
+    {
+        if ($backup->local_path && file_exists($backup->local_path)) {
+            return [$backup->local_path, false];
+        }
+
+        $cloudPath = $backup->cloud_path ?? $backup->file_path;
+        if (! $cloudPath) {
+            return [null, false];
+        }
+
+        try {
+            $content = Storage::disk('cloud')->get($cloudPath);
+        } catch (\Throwable $e) {
+            Log::error('Failed to download backup from cloud storage for restore: ' . $e->getMessage());
+            return [null, false];
+        }
+
+        if ($content === null) {
+            return [null, false];
+        }
+
+        $tmp = tempnam(sys_get_temp_dir(), 'restore_zip_');
+        file_put_contents($tmp, $content);
+
+        return [$tmp, true];
+    }
+
+    /**
+     * Extracts database_backup.sql from the (already password-set) ZIP and
+     * pipes it straight into `mysql` against the app's own configured
+     * database - the counterpart to addDatabaseDumpToZip()'s mysqldump.
+     */
+    private function restoreDatabaseFromZip(ZipArchive $zip): bool
+    {
+        $sqlPath = tempnam(sys_get_temp_dir(), 'restoredb_') . '.sql';
+        $this->tempFiles[] = $sqlPath;
+
+        if (! $this->extractZipEntryTo($zip, 'database_backup.sql', $sqlPath)) {
+            Log::error('Could not extract database_backup.sql from the backup archive (wrong password or corrupted entry).');
+            return false;
+        }
+
+        if (filesize($sqlPath) === 0) {
+            Log::error('Extracted database dump is empty.');
+            return false;
+        }
+
+        $process = new Process([
+            config('services.backup.mysql_path'),
+            '--host=' . config('database.connections.mysql.host'),
+            '--port=' . config('database.connections.mysql.port'),
+            '--user=' . config('database.connections.mysql.username'),
+            config('database.connections.mysql.database'),
+        ]);
+
+        $password = config('database.connections.mysql.password');
+        if ($password) {
+            $process->setEnv(['MYSQL_PWD' => $password]);
+        }
+
+        $handle = fopen($sqlPath, 'r');
+        $process->setInput($handle);
+        $process->setTimeout(300);
+
+        try {
+            $process->run();
+        } catch (\Throwable $e) {
+            Log::error('Database restore process failed to run: ' . $e->getMessage());
+            return false;
+        } finally {
+            if (is_resource($handle)) {
+                fclose($handle);
+            }
+        }
+
+        if (! $process->isSuccessful()) {
+            Log::error('Database restore failed: ' . $process->getErrorOutput());
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Walks every ZIP entry except the database dump, maps each one back to
+     * its original live storage path, and re-uploads it there.
+     */
+    private function restoreFilesFromZip(ZipArchive $zip): array
+    {
+        $stats = ['restored' => 0, 'skipped' => 0, 'failed' => 0];
+
+        $numEntries = $zip->numFiles;
+        $processed  = 0;
+        $lastProgAt = 0.0;
+
+        for ($i = 0; $i < $numEntries; $i++) {
+            $entryName = $zip->getNameIndex($i);
+            $processed++;
+
+            if ($entryName === false || $entryName === 'database_backup.sql' || str_ends_with($entryName, '/')) {
+                $this->reportRestoreProgress($processed, $numEntries, $lastProgAt);
+                continue;
+            }
+
+            $cloudPath = $this->resolveOriginalCloudPath($entryName);
+            if ($cloudPath === null) {
+                $stats['skipped']++;
+                Log::warning("Restore: could not map backup entry back to a live file, skipped: {$entryName}");
+                $this->reportRestoreProgress($processed, $numEntries, $lastProgAt);
+                continue;
+            }
+
+            $tmpFile = tempnam(sys_get_temp_dir(), 'restore_f_');
+            $this->tempFiles[] = $tmpFile;
+
+            if (! $this->extractZipEntryTo($zip, $entryName, $tmpFile) || filesize($tmpFile) === 0) {
+                $stats['failed']++;
+                Log::warning("Restore: could not extract entry from archive: {$entryName}");
+                $this->reportRestoreProgress($processed, $numEntries, $lastProgAt);
+                continue;
+            }
+
+            if ($this->uploadZipToCloud($tmpFile, $cloudPath)) {
+                $stats['restored']++;
+            } else {
+                $stats['failed']++;
+                Log::warning("Restore: failed to re-upload {$entryName} to {$cloudPath}");
+            }
+
+            $this->reportRestoreProgress($processed, $numEntries, $lastProgAt);
+        }
+
+        return $stats;
+    }
+
+    /**
+     * Reverses buildZipEntryNames(): given a ZIP entry path, resolves the
+     * real cloud storage path it was originally read from.
+     *
+     * - "archives/…" entries were never renamed going in (FolderArchiver
+     *   already organizes them meaningfully), so the entry name IS the
+     *   cloud path.
+     * - "folders/<year>/<folder>/<id>_<display name>" entries carry the
+     *   file's database id as the prefix before the first underscore -
+     *   the one part of the display name guaranteed not to collide.
+     *   Looking that id up (including soft-deleted rows, same as
+     *   buildZipEntryNames() when it built the name) gives back the real
+     *   filepath column.
+     *
+     * Returns null for anything that can't be mapped (id no longer exists,
+     * unrecognized layout) rather than guessing - a skipped file is
+     * recoverable by hand from the ZIP; a wrongly-placed one is not.
+     */
+    private function resolveOriginalCloudPath(string $entryName): ?string
+    {
+        if (str_starts_with($entryName, 'archives/')) {
+            return $entryName;
+        }
+
+        if (str_starts_with($entryName, 'folders/')) {
+            $basename = basename($entryName);
+            if (preg_match('/^(\d+)_/', $basename, $m)) {
+                $file = File::withTrashed()->find((int) $m[1]);
+                if ($file && $file->filepath) {
+                    return $file->filepath;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Streams one entry out of an (already password-set) ZIP into a local
+     * file. Used for both the database dump and every individual file entry
+     * - streaming rather than ZipArchive::extractTo() keeps this working the
+     * same way regardless of how deep the entry's path is or whether that
+     * path exists as a real directory anywhere.
+     */
+    private function extractZipEntryTo(ZipArchive $zip, string $entryName, string $destPath): bool
+    {
+        $stream = $zip->getStream($entryName);
+        if ($stream === false) {
+            return false;
+        }
+
+        $out = fopen($destPath, 'w');
+        if ($out === false) {
+            fclose($stream);
+            return false;
+        }
+
+        while (! feof($stream)) {
+            fwrite($out, fread($stream, 1024 * 1024));
+        }
+
+        fclose($out);
+        fclose($stream);
+
+        return file_exists($destPath);
+    }
+
+    /**
+     * Reports file-restore progress (30%-95% of the overall bar), throttled
+     * by time the same way reportZipProgress() is.
+     */
+    private function reportRestoreProgress(int $processed, int $totalEntries, float &$lastProgAt): void
+    {
+        $now = microtime(true);
+        if ($now - $lastProgAt < 0.25 && $processed !== $totalEntries) {
+            return;
+        }
+        $lastProgAt = $now;
+
+        $percent = 30 + (int) round(($processed / max(1, $totalEntries)) * 65);
+        $this->setRestoreProgress('files', min(95, $percent), "Restoring files… ({$processed} / {$totalEntries})");
     }
 
     /**
@@ -832,6 +1232,10 @@ class BackupController extends Controller
             'backups'       => $backups,
             'backupEnabled' => $settings->backup_enabled,
             'frequency'     => $settings->backup_frequency,
+            // The whole page is SuperAdmin-only now (routes/web.php), so
+            // this is always true here; the view still checks it before
+            // showing Restore.
+            'isSuperAdmin'  => Auth::user() && \App\Models\Folder::isSuperAdmin(Auth::user()),
         ]);
     }
 

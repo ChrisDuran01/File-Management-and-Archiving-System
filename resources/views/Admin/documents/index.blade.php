@@ -9,9 +9,6 @@
     * { box-sizing:border-box; }
     body { background:var(--surface); font-family:'Inter',sans-serif; color:var(--text-1); }
 
-    .page-header h2 { font-size:1.35rem; font-weight:600; letter-spacing:-.3px; margin:0 0 4px; }
-    .page-header .sub { font-size:.85rem; color:var(--text-2); margin:0 0 20px; }
-
     .card-panel {
         background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
         box-shadow:var(--shadow-sm); padding:16px 18px; margin-bottom:18px;
@@ -42,18 +39,46 @@
     [data-theme="dark"] .arch-chip { background:#26251f; color:var(--text-2); }
 </style>
 
-@if (session('success'))
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        {{ session('success') }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div class="page-header">
+        <div>
+            <div class="skel skel-text" style="width:150px; height:22px; margin-bottom:8px;"></div>
+            <div class="skel skel-text" style="width:220px;"></div>
+        </div>
+        <div class="skel" style="width:120px; height:38px; border-radius:8px;"></div>
     </div>
-@endif
-@if (session('error'))
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        {{ session('error') }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-@endif
 
-<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2">
+    <div class="card-panel">
+        <div class="filter-row">
+            @for ($i = 0; $i < 5; $i++)
+            <div class="fg">
+                <div class="skel skel-text" style="width:70px; margin-bottom:5px;"></div>
+                <div class="skel" style="width:150px; height:38px; border-radius:6px;"></div>
+            </div>
+            @endfor
+            <div class="skel" style="width:80px; height:38px; border-radius:6px;"></div>
+        </div>
+    </div>
+
+    <div class="card-panel" style="padding:16px;">
+        @for ($i = 0; $i < 6; $i++)
+        <div style="display:flex; gap:16px; padding:9px 0; border-bottom:1px solid var(--border);">
+            <div class="skel skel-text" style="width:20%;"></div>
+            <div class="skel skel-text" style="width:10%;"></div>
+            <div class="skel skel-text" style="width:15%;"></div>
+            <div class="skel skel-text" style="width:15%;"></div>
+            <div class="skel skel-text" style="width:10%;"></div>
+            <div class="skel skel-text" style="width:10%;"></div>
+            <div class="skel skel-text" style="width:15%;"></div>
+        </div>
+        @endfor
+    </div>
+</div>
+
+<div class="skel-real">
+
+<div class="page-header">
     <div>
         <h2><i class="fas fa-folder-open me-2" style="color:var(--brand);font-size:1.1rem;"></i>Documents</h2>
         <p class="sub">Digitized hardcopy records. {{ $documents->count() }} shown.</p>
@@ -138,6 +163,8 @@
     </table>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</div>
+
+<script src="{{ asset('vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
 
 @endsection

@@ -5,80 +5,165 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\File;
 use App\Models\Announcement;
+use App\Models\DisplayOfficer;
 use App\Models\OfficerTerm;
 use App\Models\SiteSetting;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class StudentController extends Controller
 {
+    /**
+     * The three branches of the student government, in display order, with
+     * a one-line plain-language description so students know which branch
+     * handles what. "other" catches any position that fits none of them.
+     */
+    private const BRANCHES = [
+        'executive' => ['name' => 'Executive', 'about' => 'Leads the student government and carries out its programs, projects and services.'],
+        'legislative' => ['name' => 'Legislative', 'about' => 'Speaks for the student body and passes the resolutions and policies the government follows.'],
+        'judicial' => ['name' => 'Judicial', 'about' => 'Interprets the student government constitution and settles disputes fairly.'],
+        'other' => ['name' => 'Other officers', 'about' => 'More students serving the student body.'],
+    ];
+
+    /** Document "families" for the type filter, keyed by file extension. */
+    private const DOC_FAMILIES = [
+        'pdf' => ['label' => 'PDF', 'ext' => ['pdf']],
+        'word' => ['label' => 'Word', 'ext' => ['doc', 'docx', 'odt', 'rtf']],
+        'sheet' => ['label' => 'Spreadsheets', 'ext' => ['xls', 'xlsx', 'csv', 'ods']],
+        'slides' => ['label' => 'Slides', 'ext' => ['ppt', 'pptx', 'odp']],
+        'image' => ['label' => 'Images', 'ext' => ['jpg', 'jpeg', 'png', 'gif', 'webp']],
+    ];
+
     public function dashboard()
     {
-        // Only show admin-approved files whose parent folder (if any) isn't restricted
-        $files = $this->publiclyVisibleFiles()->latest()->get();
+        // Only show admin-approved files whose parent folder (if any) isn't restricted.
+        // There is no "type" column - the type always comes from the file extension.
+        $files = File::publiclyVisible()->latest()->get()->each(function ($file) {
+            $file->ext = strtolower(pathinfo($file->filename, PATHINFO_EXTENSION));
+            $file->family = $this->docFamily($file->ext);
+            $file->size_label = $this->humanSize($file->size);
+        });
 
-        $announcements = Announcement::latest()->get();
+        $docFamilies = collect(self::DOC_FAMILIES)
+            ->map(fn ($meta, $key) => ['label' => $meta['label'], 'count' => $files->where('family', $key)->count()])
+            ->put('other', ['label' => 'Other', 'count' => $files->where('family', 'other')->count()])
+            ->filter(fn ($family) => $family['count'] > 0);
+
+        $announcements = Announcement::with('images')->latest()->get();
 
         $officers = OfficerTerm::with(['user', 'position'])
             ->where('status', 'active')
             ->get()
-            ->sortBy(fn ($term) => $this->positionRank($term->position->position_name ?? ''))
+            ->map(fn ($term) => $this->officer($term->user->name, $term->position->position_name ?? '', $term->display_photo))
+            ->concat(DisplayOfficer::all()->map(fn ($o) => $this->officer($o->name, $o->position_name, $o->photo)));
+
+        // Each branch lists its officers top-down: tier 0 is the head (President,
+        // Chief Legislator, Chief Justice), tier 1 their deputy, tier 2 everyone else.
+        $branches = collect(self::BRANCHES)
+            ->map(fn ($meta, $key) => (object) [
+                'key' => $key,
+                'name' => $meta['name'],
+                'about' => $meta['about'],
+                'tiers' => $officers->where('branch', $key)->sortBy('rank')->groupBy('tier')->sortKeys(),
+            ])
+            ->filter(fn ($branch) => $branch->tiers->isNotEmpty())
             ->values();
 
-        $siteSettings = SiteSetting::current();
-
-        return view('Student.stuDashboard', [
+        $response = response()->view('Student.stuDashboard', [
             'files' => $files,
+            'docFamilies' => $docFamilies,
             'announcements' => $announcements,
-            'officers' => $officers,
-            'siteSettings' => $siteSettings,
-
-            // Summary
-            'totalFiles' => $files->count(),
-
-            'recentFiles' => $this->publiclyVisibleFiles()
-                                ->where('created_at', '>=', now()->subDays(7))
-                                ->count(),
-
-            // Chart data
-            'fileTypes' => $files->groupBy('type')->map->count(),
+            'branches' => $branches,
+            'siteSettings' => SiteSetting::current(),
         ]);
+
+        // A page showing this visitor's own contact-form result (a sent
+        // message, or the details they typed after a failed send) must never
+        // become the copy kept for offline use - public/sw.js skips no-store.
+        if (session()->has('success') || session()->has('errors') || session()->hasOldInput()) {
+            $response->headers->set('Cache-Control', 'no-store, private');
+        }
+
+        return $response;
+    }
+
+    private function officer(string $name, string $position, ?string $photo): object
+    {
+        [$branch, $rank] = $this->classifyPosition($position);
+
+        $words = preg_split('/\s+/', trim($name)) ?: [''];
+        $initials = strtoupper(mb_substr($words[0], 0, 1).(count($words) > 1 ? mb_substr(end($words), 0, 1) : ''));
+
+        return (object) [
+            'name' => $name,
+            'position' => $position,
+            'photo' => $photo,
+            'initials' => $initials,
+            'branch' => $branch,
+            'rank' => $rank,
+            'tier' => min($rank, 2),
+        ];
     }
 
     /**
-     * Files eligible for the public student dashboard: marked public AND
-     * (no parent folder, or a parent folder that isn't restricted). Being
-     * public on the file alone isn't enough - a restricted folder still
-     * hides everything inside it from anonymous visitors.
+     * "471 KB", "3.1 MB" - so students on mobile data know what they're
+     * about to download. Done by hand because Laravel's Number::fileSize()
+     * needs the intl extension, which XAMPP's PHP doesn't enable.
      */
-    private function publiclyVisibleFiles()
+    private function humanSize(?int $bytes): ?string
     {
-        return File::where('is_public', 1)
-            ->where(function ($query) {
-                $query->whereNull('folder_id')
-                    ->orWhereHas('folder', function ($folderQuery) {
-                        $folderQuery->where('is_restricted', false);
-                    });
-            });
+        if (! $bytes) {
+            return null;
+        }
+
+        $units = ['B', 'KB', 'MB', 'GB'];
+        $power = min((int) floor(log($bytes, 1024)), count($units) - 1);
+        $value = $bytes / (1024 ** $power);
+
+        return ($power === 0 ? $value : number_format($value, $value < 10 ? 1 : 0)).' '.$units[$power];
+    }
+
+    private function docFamily(string $ext): string
+    {
+        foreach (self::DOC_FAMILIES as $key => $family) {
+            if (in_array($ext, $family['ext'], true)) {
+                return $key;
+            }
+        }
+
+        return 'other';
     }
 
     /**
-     * Ranks a position name by where it falls in the standard student
-     * government hierarchy (President, Vice President, Secretary, ...) so
-     * officers display in that order regardless of how they were entered
-     * or fetched from the database. Matching is by keyword, so labels like
-     * "SSLG - Vice President" still match "Vice President". Anything that
-     * doesn't match a known role sorts after all recognized ones, in the
-     * order it was found.
+     * Places a position in its branch of the student government and ranks
+     * it within that branch, so officers display in hierarchy order however
+     * they were entered. Matching is by keyword, so labels like
+     * "SSLG - Vice President" or "Chief Legislator - BSA Senator" still match.
+     *
+     * The branch is decided first: "Legislative Secretary" is a legislator,
+     * not the executive Secretary, and "Senate President" is not the
+     * President. Returns [branch, rank]; lower rank = higher in the branch.
      */
-    private function positionRank(string $positionName): int
+    private function classifyPosition(string $positionName): array
     {
-        // Rank values in display order. "vice president" is checked before
-        // "president" below since "president" is a substring of it - a
-        // check in display order would otherwise mis-rank Vice President
-        // as President.
-        $rank = [
-            'president' => 0,
+        $name = strtolower($positionName);
+
+        if (Str::contains($name, ['justice', 'judge', 'judicial', 'tribunal', 'court'])) {
+            return ['judicial', Str::contains($name, 'chief') ? 0 : 1];
+        }
+
+        if (Str::contains($name, ['legislat', 'senator', 'senate', 'representative', 'councilor', 'speaker'])) {
+            if (Str::contains($name, ['chief', 'speaker', 'senate president'])) {
+                return ['legislative', 0];
+            }
+
+            return ['legislative', Str::contains($name, 'secretary') ? 1 : 2];
+        }
+
+        // "vice president" before "president", since the latter is a substring of it.
+        $executive = [
             'vice president' => 1,
+            'president' => 0,
             'secretary' => 2,
             'treasurer' => 3,
             'auditor' => 4,
@@ -86,28 +171,22 @@ class StudentController extends Controller
             'pio' => 5,
             'business manager' => 6,
             'peace officer' => 7,
-            'representative' => 8,
         ];
 
-        $checkOrder = ['vice president', 'president', 'secretary', 'treasurer', 'auditor',
-            'public information officer', 'pio', 'business manager', 'peace officer', 'representative'];
-
-        $name = strtolower($positionName);
-
-        foreach ($checkOrder as $keyword) {
+        foreach ($executive as $keyword => $rank) {
             if (str_contains($name, $keyword)) {
-                return $rank[$keyword];
+                return ['executive', $rank];
             }
         }
 
-        return count($rank);
+        return ['other', 99];
     }
 
     public function previewStudentDashboard($id)
     {
         $file = File::with('folder')->findOrFail($id);
 
-        if (! $file->is_public || ($file->folder && $file->folder->is_restricted)) {
+        if (! $file->is_public || $file->is_pending_approval || ($file->folder && $file->folder->is_restricted)) {
             abort(403, 'This file is not available for public preview.');
         }
 
@@ -119,7 +198,7 @@ class StudentController extends Controller
 
         return response()->json([
             'url'  => $signedUrl,
-            'type' => strtolower($file->type),
+            'type' => strtolower(pathinfo($file->filename, PATHINFO_EXTENSION)),
             'name' => $file->filename,
         ]);
     }

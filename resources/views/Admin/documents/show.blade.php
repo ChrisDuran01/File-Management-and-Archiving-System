@@ -9,9 +9,6 @@
     * { box-sizing:border-box; }
     body { background:var(--surface); font-family:'Inter',sans-serif; color:var(--text-1); }
 
-    .d-head { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:16px; }
-    .d-head h2 { font-size:1.3rem; font-weight:600; margin:0 0 3px; }
-    .d-head .sub { font-size:.8rem; color:var(--text-3); margin:0; }
     .btn-flat { background:var(--brand); color:#fff; border:none; border-radius:var(--radius-sm); padding:9px 16px; font-size:.84rem; font-weight:600; text-decoration:none; cursor:pointer; }
     .btn-flat.ghost { background:var(--card); color:var(--text-2); border:1.5px solid var(--border); }
     .btn-flat.danger { background:var(--card); color:#b91c1c; border:1.5px solid #f3c9c9; }
@@ -28,18 +25,36 @@
     .pdf-frame { width:100%; height:80vh; border:1px solid var(--border); border-radius:var(--radius-sm); background:#fff; }
 </style>
 
-@if (session('success'))
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        {{ session('success') }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div class="page-header">
+        <div>
+            <div class="skel skel-text" style="width:220px; height:22px; margin-bottom:8px;"></div>
+            <div class="skel skel-text" style="width:260px;"></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <div class="skel" style="width:70px; height:36px; border-radius:8px;"></div>
+            <div class="skel" style="width:70px; height:36px; border-radius:8px;"></div>
+            <div class="skel" style="width:80px; height:36px; border-radius:8px;"></div>
+        </div>
     </div>
-@endif
-@if (session('error'))
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        {{ session('error') }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-@endif
 
-<div class="d-head">
+    <div class="d-grid">
+        <div class="panel">
+            @for ($i = 0; $i < 7; $i++)
+            <div class="skel skel-text" style="width:60px; height:10px; margin-top:12px;"></div>
+            <div class="skel skel-text" style="width:80%; margin-top:6px;"></div>
+            @endfor
+        </div>
+        <div class="panel" style="padding:12px;">
+            <div class="skel" style="width:100%; height:80vh; border-radius:8px;"></div>
+        </div>
+    </div>
+</div>
+
+<div class="skel-real">
+
+<div class="page-header">
     <div>
         <h2>{{ $document->title }}</h2>
         <p class="sub">Filed {{ optional($document->created_at)->format('M j, Y') }} by {{ $document->createdBy?->name ?? 'System' }}</p>
@@ -49,7 +64,9 @@
         @if (! $document->is_archived && $document->isManageableBy(auth()->user()))
             <a href="{{ route('documents.edit', $document) }}" class="btn-flat"><i class="fas fa-pen me-1"></i> Edit</a>
             <form method="POST" action="{{ route('documents.destroy', $document) }}"
-                  onsubmit="return confirm('Delete this document and its PDF? This cannot be undone.');">
+                  data-confirm-title="Move this document to Trash?"
+                  data-confirm="The document and its PDF can be restored from Trash within {{ config('trash.retention_days') }} days."
+                  data-confirm-ok="Move to Trash">
                 @csrf @method('DELETE')
                 <button type="submit" class="btn-flat danger"><i class="fas fa-trash me-1"></i> Delete</button>
             </form>
@@ -78,6 +95,7 @@
             @endif
             @if ($document->file)
                 <br>File: {{ $document->file->filename }}
+                @include('Admin.partials.approval-badge', ['file' => $document->file])
                 <a href="{{ route('files.download', $document->file_id) }}">download</a>
             @endif
         </div>
@@ -92,6 +110,8 @@
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</div>
+
+<script src="{{ asset('vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
 
 @endsection

@@ -12,12 +12,12 @@ use Illuminate\Support\Facades\Auth;
  * Adviser/President officer term, or a legacy account with no officer_terms
  * row at all.
  *
- * Officer-account management (add/edit/archive/delete/end-term) is the most
- * sensitive surface in the app: anyone who can reach it can hand themselves
- * SuperAdmin by creating a President record, or archive/delete every other
- * officer. Before this middleware, those routes sat behind `auth` only - any
- * logged-in officer could hit them directly even though the menu link was
- * only ever shown to SuperAdmins in the UI.
+ * Guards every page that is only in the SuperAdmin menu: the SuperAdmin
+ * dashboard, activity logs, backups and restore, and officer-account
+ * management (anyone who reaches that can hand themselves SuperAdmin by
+ * creating a President record). Before this middleware those routes sat
+ * behind `auth` only - any logged-in officer could open them by typing the
+ * address, even though the menu link was only ever shown to SuperAdmins.
  */
 class EnsureSuperAdmin
 {
@@ -26,7 +26,7 @@ class EnsureSuperAdmin
         $user = Auth::user();
 
         if (! $user || ! Folder::isSuperAdmin($user)) {
-            abort(403, 'Only a SuperAdmin can manage officer accounts.');
+            abort(403, 'Only a SuperAdmin can open this page.');
         }
 
         return $next($request);

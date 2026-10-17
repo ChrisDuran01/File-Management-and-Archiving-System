@@ -9,9 +9,6 @@
     * { box-sizing: border-box; }
     body { background: var(--surface); font-family: 'Inter', sans-serif; color: var(--text-1); }
 
-    .page-header h2 { font-size: 1.35rem; font-weight: 600; letter-spacing: -.3px; margin: 0 0 4px; }
-    .page-header .sub { font-size: .85rem; color: var(--text-2); margin: 0 0 20px; }
-
     .card-panel {
         background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
         box-shadow: var(--shadow-sm); padding: 20px 22px; margin-bottom: 20px;
@@ -21,6 +18,12 @@
         color: var(--text-3); margin-bottom: 14px; display: flex; align-items: center; gap: 6px;
     }
     .panel-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    /* Two-column layout: panels flow top-to-bottom, left then right, and are never split across columns */
+    .sc-cols { column-count: 2; column-gap: 20px; }
+    .sc-cols > form { display: contents; }
+    .sc-cols .card-panel { break-inside: avoid; }
+    @media (max-width: 991px) { .sc-cols { column-count: 1; } }
 
     .field-group { margin-bottom: 14px; }
     .field-group label { display: block; font-size: .78rem; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
@@ -60,18 +63,49 @@
     .btn-primary-flat:hover { background: #145029; }
 </style>
 
-<div class="page-header">
-    <h2><i class="fas fa-file-alt me-2" style="color:var(--primary);font-size:1.1rem;"></i>Site Content</h2>
-    <p class="sub">The SG logo, QSU Hymn, Vision, and Mission shown on the public student dashboard. Any Admin or Officer can update these.</p>
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div class="page-header">
+        <div>
+            <div class="skel skel-text" style="width:200px; height:22px; margin-bottom:8px;"></div>
+            <div class="skel skel-text" style="width:460px;"></div>
+        </div>
+    </div>
+
+    <div class="card-panel">
+        <div class="skel skel-text" style="width:100px; margin-bottom:14px;"></div>
+        <div class="skel skel-circle" style="width:72px; height:72px; margin-bottom:10px;"></div>
+        <div class="skel skel-text" style="width:140px;"></div>
+    </div>
+
+    <div class="card-panel">
+        <div class="skel skel-text" style="width:160px; margin-bottom:14px;"></div>
+        <div class="skel skel-text" style="width:80%; margin-bottom:10px;"></div>
+        <div class="skel" style="width:100%; max-width:420px; height:110px; border-radius:8px; margin-bottom:10px;"></div>
+        <div class="skel skel-text" style="width:140px;"></div>
+    </div>
+
+    @for ($i = 0; $i < 3; $i++)
+    <div class="card-panel">
+        <div class="skel skel-text" style="width:110px; margin-bottom:14px;"></div>
+        <div class="skel" style="width:100%; height:80px; border-radius:8px; margin-bottom:10px;"></div>
+        <div class="skel skel-text" style="width:220px;"></div>
+    </div>
+    @endfor
+
+    <div class="skel" style="width:160px; height:40px; border-radius:8px;"></div>
 </div>
 
-@if(session('success'))
-    <div class="alert alert-success">{{ session('success') }}</div>
-@endif
-@if($errors->any())
-    <div class="alert alert-danger">{{ $errors->first() }}</div>
-@endif
+<div class="skel-real">
 
+<div class="page-header">
+    <div>
+        <h2><i class="fas fa-file-alt me-2" style="color:var(--primary);font-size:1.1rem;"></i>Site Content</h2>
+        <p class="sub">The SG logo, QSU Hymn, Vision, and Mission shown on the public student dashboard. Any Admin or Officer can update these.</p>
+    </div>
+</div>
+
+<div class="sc-cols">
 <form action="{{ route('site-settings.update') }}" method="POST" enctype="multipart/form-data">
     @csrf
 
@@ -155,7 +189,77 @@
         </div>
     </div>
 
-    <button type="submit" class="btn-primary-flat"><i class="fas fa-save me-1"></i> Save changes</button>
+    <div class="card-panel">
+        <div class="panel-label"><i class="fas fa-users"></i> Officer Photos</div>
+        <p class="sub" style="margin-top:-8px;">Photos shown in the Officers section of the student dashboard. If you don't upload one for an officer, their profile picture is used.</p>
+
+        @forelse($officers as $term)
+            <div class="field-group" style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+                @if($term->display_photo)
+                    <img src="{{ asset('storage/'.$term->display_photo) }}" alt="{{ $term->user->name }}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
+                @else
+                    <div style="width:56px;height:56px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;">{{ strtoupper(substr($term->user->name, 0, 1)) }}</div>
+                @endif
+                <div style="flex:1; min-width:220px;">
+                    <label>{{ $term->user->name }} <span class="hint">- {{ $term->position->position_name ?? '' }}{{ $term->site_photo ? ' (custom photo)' : '' }}</span></label>
+                    <input type="file" name="officer_photos[{{ $term->id }}]" class="form-control" accept="image/*">
+                    @if($term->site_photo)
+                        <label class="hint"><input type="checkbox" name="remove_officer_photo[]" value="{{ $term->id }}"> Remove custom photo (use profile picture)</label>
+                    @endif
+                </div>
+            </div>
+        @empty
+            <p class="hint">No active officers.</p>
+        @endforelse
+    </div>
+
+    <div class="card-panel">
+        <button type="submit" class="btn-primary-flat"><i class="fas fa-save me-1"></i> Save changes</button>
+    </div>
 </form>
+
+<div class="card-panel">
+    <div class="panel-label"><i class="fas fa-user-plus"></i> Officers Without an Account</div>
+    <p class="sub" style="margin-top:-8px;">People who only need to appear in the Officers section of the student dashboard - no login is created. They're ordered by position along with the other officers.</p>
+
+    @foreach($displayOfficers as $person)
+        <div class="field-group" style="display:flex; align-items:center; gap:14px;">
+            @if($person->photo)
+                <img src="{{ asset('storage/'.$person->photo) }}" alt="{{ $person->name }}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
+            @else
+                <div style="width:56px;height:56px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;">{{ strtoupper(substr($person->name, 0, 1)) }}</div>
+            @endif
+            <div style="flex:1;"><strong>{{ $person->name }}</strong> <span class="hint">- {{ $person->position_name }}</span></div>
+            <form action="{{ route('site-settings.display-officers.destroy', $person) }}" method="POST"
+                  data-confirm-title="Remove {{ $person->name }}?"
+                  data-confirm="They will no longer appear on the student dashboard."
+                  data-confirm-ok="Remove">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i> Remove</button>
+            </form>
+        </div>
+    @endforeach
+
+    <form action="{{ route('site-settings.display-officers.store') }}" method="POST" enctype="multipart/form-data" style="margin-top:12px;">
+        @csrf
+        <div class="field-group">
+            <label>Name</label>
+            <input type="text" name="name" class="form-control" required maxlength="255">
+        </div>
+        <div class="field-group">
+            <label>Position</label>
+            <input type="text" name="position_name" class="form-control" required maxlength="255" placeholder="e.g. Auditor">
+        </div>
+        <div class="field-group">
+            <label>Photo (optional)</label>
+            <input type="file" name="photo" class="form-control" accept="image/*">
+        </div>
+        <button type="submit" class="btn-primary-flat"><i class="fas fa-plus me-1"></i> Add officer</button>
+    </form>
+</div>
+</div>{{-- /.sc-cols --}}
+
+</div>
 
 @endsection

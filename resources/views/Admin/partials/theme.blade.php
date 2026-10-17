@@ -53,9 +53,75 @@
         color: var(--text-1);
     }
 
-    /* ===== Page header ===== */
-    .page-header h2 { font-size: 1.35rem; font-weight: 600; letter-spacing: -.3px; margin: 0 0 4px; }
-    .page-header .sub { font-size: .85rem; color: var(--text-2); margin: 0 0 20px; }
+    /* Reserve room at the bottom of every page so content never scrolls
+       underneath the floating help-chat bubble (bottom-right, every page)
+       or - on pages that also have the green floating-action button
+       (Folders, folder view) - the FAB stacked above it. Without this the
+       last row of a long file/folder list can render directly under
+       those fixed-position buttons. */
+    body { padding-bottom: 5.5rem; }
+    body:has(.fab-container) { padding-bottom: 10rem; }
+
+    /* ===== Page header =====
+       One shared contract for every Admin/SuperAdmin page's title block:
+       <div class="page-header">
+           <div><h2>Title</h2><p class="sub">Optional one-line description</p></div>
+           {{-- optional action buttons/links --}}
+       </div>
+       Previously every page redeclared this with its own values (some as
+       an h2, some h4, some a bare .page-title span, spacing anywhere from
+       -15px to 24px) - centralizing it here is what makes every page's
+       header look and space the same without each one hand-maintaining it. */
+    .page-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    .page-header h2 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 1.35rem;
+        font-weight: 600;
+        letter-spacing: -.3px;
+        margin: 0 0 4px;
+        color: var(--text-1);
+    }
+    .page-header .sub { font-size: .85rem; color: var(--text-2); margin: 0; }
+
+    /* Optional icon chip inside a page-header h2, e.g.
+       <h2><div class="page-title-icon"><svg>...</svg></div> Dashboard</h2> */
+    .page-title-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: var(--radius-sm);
+        background: var(--primary-dim);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .page-title-icon svg { width: 16px; height: 16px; }
+    .page-header .as-of { font-size: 13px; color: var(--text-2); font-family: 'DM Mono', monospace; }
+
+    /* ===== Back link =====
+       First thing in a page's content, above the .page-header - see
+       Admin/partials/back-link.blade.php. */
+    .page-back {
+        display: inline-flex;
+        align-items: center;
+        align-self: flex-start;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--text-2);
+        text-decoration: none;
+        margin-bottom: 1rem;
+        transition: color .15s;
+    }
+    .page-back:hover { color: var(--primary); }
 
     /* ===== Cards ===== */
     .card-panel {
@@ -113,6 +179,41 @@
     /* ===== Empty state ===== */
     .empty-state { text-align: center; color: var(--text-3); padding: 48px 16px; }
     .empty-state i { font-size: 2.2rem; display: block; margin-bottom: 10px; opacity: .5; }
+
+    /* =====================================================================
+       SKELETON LOADING
+       Per-page pattern: put placeholder markup shaped like the real page in
+       a .skel-shell block, and wrap the page's actual content in a sibling
+       .skel-real block (hidden by default). The script at the bottom of
+       this partial swaps them shortly after the page paints. Content here
+       is already server-rendered - this delay is purely perceptual, to
+       soften the flash of a fully-built page appearing instantly and give
+       every page a consistent loading feel.
+       ===================================================================== */
+    .skel-real { display: none; }
+
+    .skel {
+        position: relative;
+        display: block;
+        overflow: hidden;
+        background: var(--border);
+        border-radius: 6px;
+    }
+    .skel::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        transform: translateX(-100%);
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,.6), transparent);
+        animation: skel-shimmer 1.4s ease-in-out infinite;
+    }
+    [data-theme="dark"] .skel::after {
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,.07), transparent);
+    }
+    @keyframes skel-shimmer { to { transform: translateX(100%); } }
+
+    .skel-text { height: 13px; border-radius: 4px; margin: 0; }
+    .skel-circle { border-radius: 50%; }
 
     /* Bootstrap accents that should follow the theme */
     .btn-primary { background-color: var(--primary); border-color: var(--primary); }
@@ -282,7 +383,6 @@
     [data-theme="dark"] .back-link,
     [data-theme="dark"] .text-viewer,
     [data-theme="dark"] .card-title,
-    [data-theme="dark"] .page-title,
     [data-theme="dark"] .file-name,
     [data-theme="dark"] .file-name-text,
     [data-theme="dark"] .modal-body,
@@ -373,3 +473,16 @@
     :root.theme-flip-lock,
     :root.theme-flip-lock * { transition: none !important; }
 </style>
+
+<script>
+    // Swap every .skel-shell/.skel-real pair on the page once it's painted.
+    // A short fixed delay rather than 0ms so the skeleton is actually
+    // visible instead of flashing for a frame - content is already
+    // server-rendered, so there's nothing to actually wait for.
+    document.addEventListener('DOMContentLoaded', function () {
+        setTimeout(function () {
+            document.querySelectorAll('.skel-shell').forEach(function (el) { el.remove(); });
+            document.querySelectorAll('.skel-real').forEach(function (el) { el.classList.remove('skel-real'); });
+        }, 400);
+    });
+</script>

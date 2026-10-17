@@ -8,18 +8,6 @@
     body { background: var(--surface); font-family: 'Inter', sans-serif; color: var(--text-1); }
 
     /* ── Page header ─────────────────────────────── */
-    .page-header { margin-bottom: 6px; }
-    .page-header h2 {
-        font-size: 1.35rem;
-        font-weight: 600;
-        letter-spacing: -.3px;
-        margin: 0 0 4px;
-    }
-    .page-header .sub {
-        font-size: .85rem;
-        color: var(--text-2);
-        margin: 0;
-    }
     .page-header .sub strong { color: var(--text-1); font-weight: 600; }
 
     /* ── Stats chips ─────────────────────────────── */
@@ -203,18 +191,50 @@
 
 @php
     $documents = $documents ?? collect();
+    $archivedFiles = $archivedFiles ?? collect();
 
     $results = collect()
         ->merge($folders->map(fn($f) => ['type' => 'folder', 'data' => $f]))
         ->merge($files->map(fn($f)   => ['type' => 'file',   'data' => $f]))
         ->merge($archives->map(fn($a) => ['type' => 'archive', 'data' => $a]))
+        ->merge($archivedFiles->map(fn($f) => ['type' => 'archived_file', 'data' => $f]))
         ->merge($documents->map(fn($d) => ['type' => 'document', 'data' => $d]));
 
     $folderItems   = $results->where('type', 'folder');
     $fileItems     = $results->where('type', 'file');
     $archiveItems  = $results->where('type', 'archive');
+    $archivedFileItems = $results->where('type', 'archived_file');
     $documentItems = $results->where('type', 'document');
 @endphp
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div class="skel skel-text" style="width:70px; margin-bottom:20px;"></div>
+
+    <div class="page-header">
+        <div>
+            <div class="skel skel-text" style="width:180px; height:20px; margin-bottom:8px;"></div>
+            <div class="skel skel-text" style="width:220px;"></div>
+        </div>
+    </div>
+
+    <div class="stats-bar">
+        <div class="skel" style="width:80px; height:26px; border-radius:50px;"></div>
+        <div class="skel" style="width:90px; height:26px; border-radius:50px;"></div>
+        <div class="skel" style="width:70px; height:26px; border-radius:50px;"></div>
+    </div>
+
+    <div class="skel skel-text" style="width:90px; margin-bottom:12px;"></div>
+    <div class="results-grid">
+        @for ($i = 0; $i < 6; $i++)
+        <div class="result-card">
+            <div class="skel" style="width:56px; height:56px; border-radius:12px; margin-bottom:10px;"></div>
+            <div class="skel skel-text" style="width:80%;"></div>
+        </div>
+        @endfor
+    </div>
+</div>
+
+<div class="skel-real">
 {{-- ── Back Button ─────────────────────────────────── --}}
 
     <a href="javascript:history.back()" class="back-link">
@@ -225,8 +245,10 @@
 
 {{-- ── Header ──────────────────────────────────────────── --}}
 <div class="page-header">
-    <h2><i class="fas fa-search me-2" style="color:var(--primary);font-size:1.1rem;"></i>Search Results</h2>
-    <p class="sub">Results for <strong>"{{ $query }}"</strong></p>
+    <div>
+        <h2><i class="fas fa-search me-2" style="color:var(--primary);font-size:1.1rem;"></i>Search Results</h2>
+        <p class="sub">Results for <strong>"{{ $query }}"</strong></p>
+    </div>
 </div>
 
 
@@ -242,6 +264,9 @@
     @endif
     @if($archiveItems->count())
     <span class="stat-chip"><i class="fas fa-box-archive"></i>{{ $archiveItems->count() }} archived {{ Str::plural('folder', $archiveItems->count()) }}</span>
+    @endif
+    @if($archivedFileItems->count())
+    <span class="stat-chip"><i class="fas fa-file-archive"></i>{{ $archivedFileItems->count() }} archived {{ Str::plural('file', $archivedFileItems->count()) }}</span>
     @endif
     @if($documentItems->count())
     <span class="stat-chip"><i class="fas fa-file-lines"></i>{{ $documentItems->count() }} {{ Str::plural('document', $documentItems->count()) }}</span>
@@ -321,6 +346,10 @@
         <span class="card-name">{{ $name }}</span>
         <span class="card-ext">{{ $ext }}</span>
 
+        @if($file->is_pending_approval)
+            <span style="margin-top:6px; position:relative;">@include('Admin.partials.approval-badge', ['file' => $file])</span>
+        @endif
+
         {{-- ✅ Folder display --}}
         <small style="color:#888; display:block; margin-top:4px;">
             📁 {{ $file->folder->name ?? 'Root' }}
@@ -375,6 +404,78 @@
     </div>
     @endif
 
+    {{-- ── Files inside archived folders ────────────────── --}}
+    @if($archivedFileItems->count())
+    <div class="section-label"><i class="fas fa-file-archive"></i> Files in Archived Folders</div>
+    <div class="results-grid">
+        @foreach($archivedFileItems as $item)
+
+        @php
+            $file = $item['data'];
+
+            $ext = strtolower(pathinfo($file->filename, PATHINFO_EXTENSION));
+            $name = pathinfo($file->filename, PATHINFO_FILENAME);
+
+            $iconClass = match(true) {
+                $ext === 'pdf' => 'pdf',
+                in_array($ext, ['doc','docx']) => 'docx',
+                in_array($ext, ['xls','xlsx','csv']) => 'xlsx',
+                in_array($ext, ['jpg','jpeg','png','gif','webp','svg']) => 'img',
+                default => 'file',
+            };
+
+            $iconName = match($iconClass) {
+                'pdf'  => 'fa-file-pdf',
+                'docx' => 'fa-file-word',
+                'xlsx' => 'fa-file-excel',
+                'img'  => 'fa-file-image',
+                default => 'fa-file-alt',
+            };
+
+            // Escape first, then wrap the matched term - never inject raw
+            // extracted document text as HTML.
+            $highlightedSnippet = null;
+            if (!empty($file->ocr_snippet)) {
+                $highlightedSnippet = preg_replace(
+                    '/(' . preg_quote(e($query), '/') . ')/i',
+                    '<mark>$1</mark>',
+                    e($file->ocr_snippet)
+                );
+            }
+        @endphp
+
+        <a href="{{ route('archives.previewFile', ['id' => $file->archive_id, 'filename' => $file->filename]) }}" class="result-card archive">
+
+            <div class="card-icon {{ $iconClass }}">
+                <i class="fas {{ $iconName }}"></i>
+            </div>
+
+            <span class="card-name">{{ $name }}</span>
+            <span class="card-ext">{{ $ext }}</span>
+
+            <small style="color:#888; display:block; margin-top:4px; position:relative; z-index:1;">
+                <i class="fas fa-box-archive"></i> {{ $file->archive->folder_name }}
+            </small>
+
+            @if($file->matched_in_content ?? false)
+                <span class="card-match-badge"><i class="fas fa-file-lines"></i> Found in document text</span>
+                @if($highlightedSnippet)
+                    <span class="card-snippet">{!! $highlightedSnippet !!}</span>
+                @endif
+            @endif
+            @if($file->matched_in_document ?? false)
+                <span class="card-match-badge"><i class="fas fa-file-signature"></i> Matched document details</span>
+            @endif
+            @if($file->matched_in_school_year ?? false)
+                <span class="card-match-badge"><i class="fas fa-calendar"></i> Matched school year</span>
+            @endif
+
+        </a>
+
+        @endforeach
+    </div>
+    @endif
+
     {{-- ── Documents section ────────────────────────────── --}}
     @if($documentItems->count())
     <div class="section-label"><i class="fas fa-file-lines"></i> Documents</div>
@@ -395,5 +496,6 @@
     @endif
 
 @endif
+</div>
 
 @endsection

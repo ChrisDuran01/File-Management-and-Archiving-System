@@ -12,40 +12,6 @@
         color: var(--text-1);
     }
 
-    /* ── Page Header ── */
-    .page-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 20px;
-        flex-wrap: wrap;
-    }
-    .page-header h4 {
-        font-size: 1.25rem;
-        font-weight: 500;
-        letter-spacing: -.3px;
-        margin: 0;
-        color: var(--text-1);
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    .page-title-icon {
-        width: 32px;
-        height: 32px;
-        border-radius: var(--radius-sm);
-        background: var(--green-dim);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-    }
-    .page-title-icon svg {
-        width: 16px;
-        height: 16px;
-    }
-
     .header-actions {
         display: flex;
         gap: 8px;
@@ -411,9 +377,56 @@
 
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div class="page-header">
+        <div class="skel skel-text" style="width:120px; height:22px;"></div>
+        <div style="display:flex; gap:8px;">
+            <div class="skel" style="width:150px; height:34px; border-radius:6px;"></div>
+            <div class="skel" style="width:120px; height:34px; border-radius:6px;"></div>
+        </div>
+    </div>
+
+    <div class="al-card">
+        <div class="al-card-header">
+            <div class="skel skel-text" style="width:140px;"></div>
+            <div class="skel" style="width:90px; height:22px; border-radius:50px;"></div>
+        </div>
+        <div class="al-body">
+            @for ($i = 0; $i < 4; $i++)
+            <div style="display:flex; gap:16px; padding:0.875rem 1.25rem; border-bottom:1px solid var(--border);">
+                <div class="skel skel-text" style="width:25%;"></div>
+                <div class="skel skel-text" style="width:15%;"></div>
+                <div class="skel skel-text" style="width:15%;"></div>
+                <div class="skel skel-text" style="width:20%;"></div>
+            </div>
+            @endfor
+        </div>
+    </div>
+
+    <div class="al-card">
+        <div class="al-card-header">
+            <div class="skel skel-text" style="width:140px;"></div>
+            <div class="skel" style="width:90px; height:22px; border-radius:50px;"></div>
+        </div>
+        <div class="al-body">
+            @for ($i = 0; $i < 3; $i++)
+            <div style="display:flex; gap:16px; padding:0.875rem 1.25rem; border-bottom:1px solid var(--border);">
+                <div class="skel skel-text" style="width:25%;"></div>
+                <div class="skel skel-text" style="width:15%;"></div>
+                <div class="skel skel-text" style="width:15%;"></div>
+                <div class="skel skel-text" style="width:15%;"></div>
+            </div>
+            @endfor
+        </div>
+    </div>
+</div>
+
+<div class="skel-real">
+
 {{-- ── Page Header ── --}}
 <div class="page-header">
-    <h4>
+    <h2>
         <div class="page-title-icon">
             <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="6" cy="5" r="2.5" stroke="#058028" stroke-width="1.2"/>
@@ -422,7 +435,7 @@
             </svg>
         </div>
         SG Officers
-    </h4>
+    </h2>
 
     <div class="header-actions">
         <button type="button" class="btn-warning-custom" onclick="showArchiveModal()">
@@ -556,7 +569,8 @@
                                 <form action="{{ route('officers.reactivate', $term->id) }}" method="POST" style="margin:0;">
                                     @csrf
                                     @method('PATCH')
-                                    <button type="submit" class="tbl-btn reactivate">
+                                    <button type="button" class="tbl-btn reactivate"
+                                        onclick="confirmReactivate(this.form, '{{ addslashes($term->user->name) }}', {{ $term->position_id }})">
                                         <i class="fas fa-rotate-left"></i> Reactivate
                                     </button>
                                 </form>
@@ -582,6 +596,8 @@
             </div>
         @endif
     </div>
+
+</div>
 
 </div>
 
@@ -649,6 +665,46 @@
     </div>
 </div>
 
+{{-- ── REACTIVATE (NEW TERM) MODAL ── --}}
+<div id="reactivateModal" class="modal-overlay" onclick="handleOverlayClick(event, 'reactivateModal')">
+    <div class="modal-box">
+        <div class="modal-icon" style="background:var(--green-dim);">
+            <i class="fas fa-rotate-left" style="color:var(--green);"></i>
+        </div>
+        <h5>Reactivate Officer</h5>
+        <p>Start a new term for <b id="reactivateName"></b>.</p>
+
+        <label for="reactivateSchoolYear" style="display:block; font-size:.78rem; font-weight:600; color:var(--text-2); margin:14px 0 6px;">
+            School year for this new term
+        </label>
+        <input type="text" id="reactivateSchoolYear" placeholder="e.g. 2026-2027" autofocus
+            style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--card); color:var(--text-1); font-size:.88rem;">
+
+        <label for="reactivatePosition" style="display:block; font-size:.78rem; font-weight:600; color:var(--text-2); margin:14px 0 6px;">
+            Position
+        </label>
+        <select id="reactivatePosition"
+            style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--card); color:var(--text-1); font-size:.88rem;">
+            @foreach($positions as $position)
+                <option value="{{ $position->id }}">{{ $position->position_name }}</option>
+            @endforeach
+        </select>
+
+        <div class="modal-warning" style="margin-top:14px;">
+            <i class="fas fa-triangle-exclamation"></i>
+            This starts a brand new term under the school year you enter - any folders/files
+            they create afterward belong to this new year, separate from their old term.
+        </div>
+
+        <div class="modal-actions">
+            <button type="button" onclick="closeModal('reactivateModal')" class="modal-cancel">Cancel</button>
+            <button type="button" class="modal-confirm" onclick="submitReactivate()">
+                <i class="fas fa-check"></i> Reactivate
+            </button>
+        </div>
+    </div>
+</div>
+
 {{-- ── DELETE MODAL ── --}}
 <div id="deleteModal" class="modal-overlay" onclick="handleOverlayClick(event, 'deleteModal')">
     <div class="modal-box">
@@ -675,6 +731,7 @@
 <script>
     let _endTermForm = null;
     let _deleteForm  = null;
+    let _reactivateForm = null;
 
     function showArchiveModal() {
         document.getElementById('archiveModal').classList.add('active');
@@ -688,6 +745,40 @@
 
     function submitEndTerm() {
         if (_endTermForm) _endTermForm.submit();
+    }
+
+    function confirmReactivate(form, name, currentPositionId) {
+        _reactivateForm = form;
+        document.getElementById('reactivateName').textContent = name;
+        document.getElementById('reactivateSchoolYear').value = '';
+        document.getElementById('reactivatePosition').value = currentPositionId;
+        document.getElementById('reactivateModal').classList.add('active');
+    }
+
+    function submitReactivate() {
+        const year = document.getElementById('reactivateSchoolYear').value.trim();
+        const positionId = document.getElementById('reactivatePosition').value;
+
+        if (!year) {
+            alert('Enter the school year for this new term.');
+            return;
+        }
+
+        if (_reactivateForm) {
+            const yearInput = document.createElement('input');
+            yearInput.type = 'hidden';
+            yearInput.name = 'school_year';
+            yearInput.value = year;
+            _reactivateForm.appendChild(yearInput);
+
+            const posInput = document.createElement('input');
+            posInput.type = 'hidden';
+            posInput.name = 'position_id';
+            posInput.value = positionId;
+            _reactivateForm.appendChild(posInput);
+
+            _reactivateForm.submit();
+        }
     }
 
     function confirmDelete(form, name) {

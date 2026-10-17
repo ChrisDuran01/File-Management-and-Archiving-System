@@ -3,15 +3,18 @@ namespace App\Http\Controllers;
 
 use App\Jobs\CacheFileLocally;
 use App\Jobs\ExtractFileOcrText;
+use App\Jobs\SendDocumentPush;
 use App\Models\ActivityLog;
 use App\Models\File;
 use App\Models\Folder;
+use App\Models\OfficerTerm;
 use App\Models\User;
 use App\Notifications\FileUploadedToYourFolder;
 use App\Services\CloudFileUploader;
 use App\Services\SupabaseSignedUpload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -86,13 +89,13 @@ class FileController extends Controller
             $existingNames[$newFileName] = true;
 
             $filePath  = time() . '_' . Str::slug($name) . '_' . $count . '_' . uniqid() . '.' . $extension;
-            $localPath = $uploadedFile->store('uploads/' . ($request->folder_id ?? 'root'), 'public');
+            $localPath = $uploadedFile->store('uploads/' . ($request->folder_id ?? 'root'), 'local');
 
             $prepared[] = [
                 'newFileName' => $newFileName,
                 'filePath'    => $filePath,
                 'localPath'   => $localPath,
-                'fullPath'    => Storage::disk('public')->path($localPath),
+                'fullPath'    => Storage::disk('local')->path($localPath),
                 'size'        => $uploadedFile->getSize(),
             ];
         }
@@ -107,6 +110,8 @@ class FileController extends Controller
         $rows           = [];
         $localOnlyNames = [];
         $now            = now();
+        $term           = OfficerTerm::activeFor(Auth::id());
+        $pendingApproval = $request->boolean('pending_approval');
 
         foreach ($prepared as $item) {
             $uploadedToCloud = $uploader->upload($item['filePath'], $item['fullPath']);
@@ -116,14 +121,17 @@ class FileController extends Controller
             }
 
             $rows[] = [
-                'filename'     => $item['newFileName'],
-                'filepath'     => $item['filePath'],
-                'local_path'   => $item['localPath'],
-                'folder_id'    => $request->folder_id ?? null,
-                'size'         => $item['size'],
-                'storage_type' => $uploadedToCloud ? 'both' : 'local',
-                'created_at'   => $now,
-                'updated_at'   => $now,
+                'filename'        => $item['newFileName'],
+                'filepath'        => $item['filePath'],
+                'local_path'      => $item['localPath'],
+                'folder_id'       => $request->folder_id ?? null,
+                'size'            => $item['size'],
+                'storage_type'    => $uploadedToCloud ? 'both' : 'local',
+                'officer_term_id' => $term?->id,
+                'school_year'     => $term?->school_year,
+                'is_pending_approval' => $pendingApproval,
+                'created_at'      => $now,
+                'updated_at'      => $now,
             ];
         }
 
@@ -144,7 +152,7 @@ class FileController extends Controller
 
             ActivityLog::create([
                 'user_name'  => Auth::user()->name,
-                'activity'   => 'Uploaded ' . count($rows) . ' file(s): ' . collect($rows)->pluck('filename')->implode(', '),
+                'activity'   => 'Uploaded ' . count($rows) . ' file(s)' . ($pendingApproval ? ' (subject for approval)' : '') . ': ' . collect($rows)->pluck('filename')->implode(', '),
                 'ip_address' => $request->ip(),
             ]);
 
@@ -214,6 +222,16 @@ class FileController extends Controller
             $cloudPath = time() . '_' . Str::slug($name) . '_' . $count . '_' . uniqid() . '.' . $extension;
             $uploadUrl = $signer->createUrl($cloudPath);
 
+            if ($uploadUrl) {
+                // Binds this cloudPath to the requesting user so confirmUpload()
+                // can't be called with a cloudPath the client merely guessed or
+                // copied from somewhere else (e.g. another user's file, an
+                // archive, a backup) - it must be one this session was actually
+                // issued a signed PUT URL for. Single-use: confirmUpload()
+                // pulls (and removes) it.
+                Cache::put('pending_upload:' . $cloudPath, Auth::id(), now()->addHours(2));
+            }
+
             $results[] = [
                 'originalName' => $originalName,
                 'newFileName'  => $uploadUrl ? $newFileName : null,
@@ -240,16 +258,31 @@ class FileController extends Controller
             'size'      => 'required|integer',
         ]);
 
+        // The cloudPath must be one this session was actually issued by
+        // prepareUpload() - otherwise a client could claim any object path it
+        // knows or can compute (another user's file, a backup, an archive)
+        // as its own File record. Cache::pull is single-use.
+        $issuedTo = Cache::pull('pending_upload:' . $request->cloudPath);
+
+        if ($issuedTo === null || $issuedTo !== Auth::id()) {
+            abort(403, 'This upload was not issued to your session.');
+        }
+
+        $term = OfficerTerm::activeFor(Auth::id());
+
         // 'cloud' (not 'both') until CacheFileLocally actually lands a local
         // copy - marking it 'both' immediately would claim a redundant local
         // copy that doesn't exist yet.
         $file = File::create([
-            'filename'     => $request->filename,
-            'filepath'     => $request->cloudPath,
-            'local_path'   => null,
-            'folder_id'    => $request->folder_id,
-            'size'         => $request->size,
-            'storage_type' => 'cloud',
+            'filename'        => $request->filename,
+            'filepath'        => $request->cloudPath,
+            'local_path'      => null,
+            'folder_id'       => $request->folder_id,
+            'size'            => $request->size,
+            'storage_type'    => 'cloud',
+            'officer_term_id' => $term?->id,
+            'school_year'     => $term?->school_year,
+            'is_pending_approval' => $request->boolean('pending_approval'),
         ]);
 
         ExtractFileOcrText::dispatch($file->id, $request->boolean('scan_as_document'));
@@ -257,7 +290,7 @@ class FileController extends Controller
 
         ActivityLog::create([
             'user_name'  => Auth::user()->name,
-            'activity'   => 'Uploaded file: ' . $file->filename,
+            'activity'   => 'Uploaded file' . ($file->is_pending_approval ? ' (subject for approval)' : '') . ': ' . $file->filename,
             'ip_address' => $request->ip(),
         ]);
 
@@ -290,10 +323,15 @@ class FileController extends Controller
 
     /**
      * A local-only file (its cloud upload never completed) has no cloud
-     * object to sign a URL for - serve straight from the local disk's
-     * public URL instead. Also falls back to local for a 'both' file if the
-     * cloud call itself fails, so a temporary Supabase outage doesn't take
+     * object to sign a URL for - serve its local copy instead, through
+     * raw() below. Also falls back to local for a 'both' file if the cloud
+     * call itself fails, so a temporary Supabase outage doesn't take
      * previews down for files that already have a perfectly good local copy.
+     *
+     * Local copies are kept on the private `local` disk on purpose: on the
+     * `public` disk a plain /storage/... link opens the file for anyone
+     * holding it, with no login and no restricted-folder check. So the only
+     * way to those bytes is a route that checks access first.
      */
     private function resolvePreviewUrl(File $file): ?string
     {
@@ -305,9 +343,31 @@ class FileController extends Controller
             }
         }
 
-        return $file->local_path && Storage::disk('public')->exists($file->local_path)
-            ? Storage::disk('public')->url($file->local_path)
+        return $file->local_path && Storage::disk('local')->exists($file->local_path)
+            ? route('files.raw', $file->id)
             : null;
+    }
+
+    /**
+     * Streams a file's local copy inline, for the preview page's
+     * img/iframe/video/audio when resolvePreviewUrl() had to fall back to
+     * it (also used by DocumentController). Same access rule as preview().
+     */
+    public function raw($id)
+    {
+        $file = File::findOrFail($id);
+
+        if (! $file->isAccessibleBy(Auth::user())) {
+            abort(403, 'This file is in a restricted folder you don\'t have access to.');
+        }
+
+        if (! $file->local_path || ! Storage::disk('local')->exists($file->local_path)) {
+            abort(404);
+        }
+
+        return response()->file(Storage::disk('local')->path($file->local_path), [
+            'Content-Disposition' => 'inline; filename="' . addslashes($file->filename) . '"',
+        ]);
     }
 
     /**
@@ -324,8 +384,8 @@ class FileController extends Controller
             }
         }
 
-        if ($file->local_path && Storage::disk('public')->exists($file->local_path)) {
-            return Storage::disk('public')->get($file->local_path);
+        if ($file->local_path && Storage::disk('local')->exists($file->local_path)) {
+            return Storage::disk('local')->get($file->local_path);
         }
 
         return null;
@@ -416,6 +476,12 @@ class FileController extends Controller
         return back()->with('error', 'This file is stored under a past school year and cannot be modified.');
     }
 
+    // An unofficial file can still be taken off the student page, but
+    // never put on it.
+    if (! $file->is_public && $file->is_pending_approval) {
+        return back()->with('error', 'This file is still subject for approval. Mark it as approved before making it public.');
+    }
+
     $file->is_public = $file->is_public == 1 ? 0 : 1;
     $file->save();
 
@@ -426,7 +492,72 @@ class FileController extends Controller
             'ip_address' => $request->ip()
         ]);
 
+    // Browser push to students who opted in on the public page (queued).
+    // The job itself skips a file students can't see (restricted folder).
+    if ($file->is_public) {
+        SendDocumentPush::dispatch($file->id);
+    }
+
     return back()->with('success', 'File access updated successfully.');
+}
+
+/**
+ * Label a file as "subject for approval" (not yet official), or clear the
+ * label once it has been approved. Anyone who can open the file may add
+ * the label - flagging something as unofficial is the cautious direction.
+ * Declaring it approved is held to the same rule as toggleAccess(): the
+ * folder's creator or a SuperAdmin. So is labelling a file that is already
+ * public, because that takes it off the student page.
+ */
+public function setApproval($id, Request $request)
+{
+    $file = File::findOrFail($id);
+    $user = Auth::user();
+
+    if (! $file->isAccessibleBy($user)) {
+        abort(403, 'This file is in a restricted folder you don\'t have access to.');
+    }
+
+    if ($file->is_archived) {
+        return back()->with('error', 'This file is stored under a past school year and cannot be modified.');
+    }
+
+    $pending = $request->boolean('pending');
+
+    if ($file->is_pending_approval === $pending) {
+        return back();
+    }
+
+    if (! $pending && ! $file->isManageableBy($user)) {
+        return back()->with('error', 'Only this file\'s folder creator or a SuperAdmin can mark it as approved.');
+    }
+
+    $unpublish = $pending && $file->is_public;
+
+    if ($unpublish && ! $file->isManageableBy($user)) {
+        return back()->with('error', 'This file is public. Only its folder creator or a SuperAdmin can mark it as subject for approval.');
+    }
+
+    $file->is_pending_approval = $pending;
+
+    if ($unpublish) {
+        $file->is_public = 0;
+    }
+
+    $file->save();
+
+    ActivityLog::create([
+        'user_name'  => $user->name,
+        'activity'   => ($pending ? 'Marked file as subject for approval: ' : 'Marked file as approved: ') . $file->filename
+            . ($unpublish ? ' (taken off the student page)' : ''),
+        'ip_address' => $request->ip(),
+    ]);
+
+    if (! $pending) {
+        return back()->with('success', 'File marked as approved.');
+    }
+
+    return back()->with('success', 'File marked as subject for approval.' . ($unpublish ? ' It was taken off the student page.' : ''));
 }
 
 public function destroy($id)

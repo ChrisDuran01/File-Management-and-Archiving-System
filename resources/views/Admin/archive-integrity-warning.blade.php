@@ -36,14 +36,35 @@
     [data-theme="dark"] .btn-cancel:hover { background: var(--nav-hover-bg); }
 </style>
 
-<div class="warning-panel">
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div class="warning-panel">
+        <div class="skel skel-circle" style="width:40px; height:40px; margin-bottom:14px;"></div>
+        <div class="skel skel-text" style="width:200px; height:20px; margin-bottom:10px;"></div>
+        <div class="skel skel-text" style="width:100%; margin-bottom:8px;"></div>
+        <div class="skel skel-text" style="width:90%; margin-bottom:8px;"></div>
+        <div class="skel skel-text" style="width:95%; margin-bottom:8px;"></div>
+        <div class="btn-row">
+            <div class="skel" style="width:160px; height:38px; border-radius:8px;"></div>
+            <div class="skel" style="width:90px; height:38px; border-radius:8px;"></div>
+        </div>
+    </div>
+</div>
+
+<div class="warning-panel skel-real">
     <div class="warning-icon"><i class="fas fa-triangle-exclamation"></i></div>
     <h2>Integrity check failed</h2>
     <p>
-        <span class="archive-name">{{ $archive->folder_name }}</span> ({{ $archive->zip_name }}) does not match
-        the checksum recorded when it was archived. This means the stored file has changed since then - either
-        through corruption or an unexpected modification - and can no longer be trusted as an exact copy of
-        what was originally archived.
+        @if ($archive->checksum)
+            <span class="archive-name">{{ $archive->folder_name }}</span> ({{ $archive->zip_name }}) does not match
+            the checksum recorded when it was archived. This means the stored file has changed since then - either
+            through corruption or an unexpected modification - and can no longer be trusted as an exact copy of
+            what was originally archived.
+        @else
+            <span class="archive-name">{{ $archive->folder_name }}</span> ({{ $archive->zip_name }}) has no checksum
+            on record, so there is nothing to verify it against. It may be an older archive, or its checksum may
+            have been removed. It cannot be confirmed as an exact copy of what was originally archived.
+        @endif
     </p>
     <p>
         This attempt has been recorded in the activity log. You can still download the file as-is if you need to

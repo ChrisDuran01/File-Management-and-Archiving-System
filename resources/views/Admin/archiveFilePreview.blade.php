@@ -96,7 +96,29 @@
 [data-theme="dark"] .preview-none h5 { color: var(--text-1); }
 </style>
 
-<div class="preview-wrapper">
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div class="preview-wrapper">
+        <div class="skel skel-text" style="width:160px; margin-bottom:1.25rem;"></div>
+
+        <div class="file-header">
+            <div class="skel" style="width:52px; height:52px; border-radius:12px;"></div>
+            <div style="flex:1;">
+                <div class="skel skel-text" style="width:220px; margin-bottom:8px;"></div>
+                <div class="skel skel-text" style="width:150px;"></div>
+            </div>
+            <div class="skel" style="width:150px; height:26px; border-radius:20px;"></div>
+        </div>
+
+        <div class="preview-container">
+            <div class="preview-image-wrap">
+                <div class="skel" style="width:100%; max-width:480px; height:420px; border-radius:8px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="preview-wrapper skel-real">
 
     <a href="{{ route('archives.show', $archive->id) }}" class="back-link">
         <i class="fas fa-arrow-left"></i> Back to {{ $archive->folder_name }}

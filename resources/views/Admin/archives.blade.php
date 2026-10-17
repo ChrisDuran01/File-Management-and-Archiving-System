@@ -2,6 +2,12 @@
 @section('content')
 
 @include('Admin.partials.theme')
+
+{{-- Read by the topbar search (partials/header-search.blade.php) so the
+     Archives section leads the dropdown here, without narrowing the
+     search itself to only archives. --}}
+<script>window.searchContext = 'archives';</script>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -14,24 +20,6 @@
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 
 <style>
-    body { font-family: 'Segoe UI', sans-serif; }
-
-    /* ── Page Header ── */
-    .page-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1.5rem;
-    }
-    .page-title {
-        font-size: 20px;
-        font-weight: 600;
-        color: #1a1a1a;
-        margin: 0;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
     .archive-count {
         font-size: 12px;
         background: #f4f4f4;
@@ -60,70 +48,6 @@
         border-color: #ccc;
         color: #333;
     }
-
-    /* ── Alerts ── */
-    .alert-custom {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 10px 16px;
-        border-radius: 10px;
-        font-size: 13px;
-        margin-bottom: 1rem;
-        border: 1px solid;
-    }
-    .alert-custom.success {
-        background: #eaf3de;
-        color: #27500a;
-        border-color: #c0dd97;
-    }
-    .alert-custom.danger {
-        background: #fcebeb;
-        color: #791f1f;
-        border-color: #f7c1c1;
-    }
-    .alert-custom .alert-close {
-        margin-left: auto;
-        cursor: pointer;
-        opacity: 0.5;
-        font-size: 16px;
-        line-height: 1;
-        background: none;
-        border: none;
-        color: inherit;
-    }
-    .alert-custom .alert-close:hover { opacity: 1; }
-
-    /* ── Search Bar ── */
-    .search-wrap { max-width: 460px; margin-bottom: 1.5rem; }
-    .search-box {
-        display: flex;
-        align-items: center;
-        border-radius: 30px;
-        border: 1px solid #e0e0e0;
-        background: #fff;
-        overflow: hidden;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    }
-    .search-box input {
-        flex: 1;
-        border: none;
-        background: transparent;
-        padding: 10px 18px;
-        font-size: 14px;
-        color: #333;
-        outline: none;
-    }
-    .search-box button {
-        border: none;
-        background: transparent;
-        padding: 10px 16px;
-        cursor: pointer;
-        color: #888;
-        display: flex;
-        align-items: center;
-    }
-    .search-box button:hover { color: #444; }
 
     /* ── Archive Card Grid ── */
     .archive-grid {
@@ -284,6 +208,29 @@
         gap: 4px;
     }
 
+    /* ── Fixity indicator ──
+       Set by the weekly archives:verify-fixity check (see routes/console.php)
+       against the SHA-256 recorded when the archive was created. */
+    .fixity-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 500;
+        padding-top: 8px;
+        margin-top: 8px;
+        border-top: 1px solid #f5f5f5;
+    }
+    .fixity-row svg { flex-shrink: 0; }
+    .fixity-row .fx-label {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .fixity-ok { color: #27500a; }
+    .fixity-failed { color: #791f1f; }
+    .fixity-none { color: #aaa; }
+
     /* ── Empty State ── */
     .empty-state {
         grid-column: 1 / -1;
@@ -348,13 +295,11 @@
 
     @media (max-width: 576px) {
         .archive-grid { grid-template-columns: 1fr; }
-        .page-header { flex-wrap: wrap; gap: 10px; }
     }
 
     /* ===== DARK MODE (page-unique classes; shared ones live in partials/theme) ===== */
     [data-theme="dark"] .archive-count { background: var(--nav-hover-bg); border-color: var(--border); color: var(--text-2); }
     [data-theme="dark"] .back-btn:hover { background: var(--nav-hover-bg); border-color: var(--text-3); color: var(--text-1); }
-    [data-theme="dark"] .search-box button:hover { color: var(--text-1); }
     [data-theme="dark"] .archive-card { background: var(--card); border-color: var(--border); }
     [data-theme="dark"] .archive-card:hover { border-color: var(--text-3); }
     [data-theme="dark"] .folder-icon-wrap { background: var(--primary-dim); color: var(--primary); }
@@ -363,9 +308,11 @@
     [data-theme="dark"] .card-zip-name,
     [data-theme="dark"] .card-date { color: var(--text-3); }
     [data-theme="dark"] .card-footer-row { border-top-color: var(--border); }
+    [data-theme="dark"] .fixity-row { border-top-color: var(--border); }
+    [data-theme="dark"] .fixity-ok { color: var(--success-text); }
+    [data-theme="dark"] .fixity-failed { color: #fca5a5; }
+    [data-theme="dark"] .fixity-none { color: var(--text-3); }
     [data-theme="dark"] .empty-state { color: var(--text-3); }
-    [data-theme="dark"] .alert-custom.success { background: var(--success-dim); color: var(--success-text); border-color: #2f5d1e; }
-    [data-theme="dark"] .alert-custom.danger  { background: var(--danger-dim); color: #fca5a5; border-color: #7f2a2a; }
     [data-theme="dark"] .badge-archived { background: var(--success-dim); color: var(--success-text); }
     [data-theme="dark"] .badge-pending  { background: var(--warning-dim); color: #e3b877; }
     [data-theme="dark"] .btn-action.secondary { background: var(--nav-hover-bg); border-color: var(--border); color: var(--text-1); }
@@ -374,16 +321,45 @@
 </style>
 
 <body>
-<div class="container-fluid">
+
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div class="page-header">
+        <div class="skel skel-text" style="width:120px; height:22px;"></div>
+        <div style="display:flex; gap:8px;">
+            <div class="skel" style="width:220px; height:36px; border-radius:10px;"></div>
+            <div class="skel" style="width:160px; height:36px; border-radius:10px;"></div>
+        </div>
+    </div>
+
+    <div class="archive-grid">
+        @for ($i = 0; $i < 8; $i++)
+        <div class="archive-card">
+            <div class="card-top">
+                <div class="skel" style="width:42px; height:42px; border-radius:10px;"></div>
+                <div class="skel" style="width:30px; height:30px; border-radius:7px;"></div>
+            </div>
+            <div class="skel skel-text" style="width:75%; margin-bottom:8px;"></div>
+            <div class="skel skel-text" style="width:55%; margin-bottom:14px;"></div>
+            <div class="card-footer-row">
+                <div class="skel" style="width:70px; height:18px; border-radius:20px;"></div>
+                <div class="skel skel-text" style="width:80px;"></div>
+            </div>
+        </div>
+        @endfor
+    </div>
+</div>
+
+<div class="container-fluid skel-real">
 
     {{-- Page Header --}}
     <div class="page-header">
-        <h4 class="page-title">
-            Archives
-            <span class="archive-count" id="archiveCount">{{ $archives->count() }} archives</span>
-        </h4>
+        <h2>Archives</h2>
         <div class="d-flex align-items-center gap-2">
-            <form action="{{ route('archives.runAutoArchive') }}" method="POST" class="d-flex align-items-center gap-2">
+            <form action="{{ route('archives.runAutoArchive') }}" method="POST" class="d-flex align-items-center gap-2"
+                  data-confirm-title="Run the auto-archive check?"
+                  data-confirm="Every folder stored under a past school year that has not been opened for the number of years entered (3 if left blank) is packed into Archives and leaves the Folders page. They can be restored from Archives."
+                  data-confirm-ok="Run check" data-confirm-tone="warning">
                 @csrf
                 <label for="staleYears" class="visually-hidden">Years of inactivity before auto-archiving</label>
                 <input type="number" min="0" name="years" id="staleYears"
@@ -399,30 +375,9 @@
         </div>
     </div>
 
-    {{-- Flash Messages --}}
-    @if(session('success'))
-        <div class="alert-custom success" id="successAlert">
-            <i class="fas fa-check-circle"></i>
-            {{ session('success') }}
-            <button class="alert-close" onclick="this.closest('.alert-custom').remove()">&times;</button>
-        </div>
-    @endif
-
-    @if(session('error'))
-        <div class="alert-custom danger" id="errorAlert">
-            <i class="fas fa-exclamation-circle"></i>
-            {{ session('error') }}
-            <button class="alert-close" onclick="this.closest('.alert-custom').remove()">&times;</button>
-        </div>
-    @endif
-
-    {{-- Search Bar --}}
-    <div class="search-wrap">
-        <div class="search-box">
-            <input type="text" id="searchInput" placeholder="Search archives..." oninput="filterCards()">
-            <button type="button"><i class="fas fa-search"></i></button>
-        </div>
-    </div>
+    {{-- Search now lives in the topbar (partials/header-search.blade.php),
+         which also drives this page's card filtering directly - see
+         filterCards() below and header-search.blade.php's input handler. --}}
 
     {{-- Archive Card Grid --}}
 <div class="archive-grid" id="archiveGrid">
@@ -497,6 +452,13 @@
                 {{ $archive->zip_name }}
             </div>
 
+            @if($archive->school_year)
+            <div class="card-zip-name" style="margin-top:-8px;">
+                <i class="far fa-calendar"></i>
+                SY {{ $archive->school_year }}
+            </div>
+            @endif
+
             {{-- Card Footer --}}
             <div class="card-footer-row">
 
@@ -510,6 +472,27 @@
                 </span>
 
             </div>
+
+            {{-- Fixity indicator - set by the weekly archives:verify-fixity
+                 check against the checksum recorded when this archive was
+                 created (only applies to un-restored archives, which is the
+                 only kind rendered in this loop). --}}
+            @if($archive->fixity_status === 'ok')
+                <div class="fixity-row fixity-ok">
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/><path d="M5.2 8.2l1.8 1.8 3.6-3.8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <span class="fx-label">Verified {{ $archive->fixity_checked_at?->diffForHumans() }}</span>
+                </div>
+            @elseif($archive->fixity_status === 'failed')
+                <div class="fixity-row fixity-failed">
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 1.6l6.9 12a1 1 0 0 1-.87 1.5H1.97a1 1 0 0 1-.87-1.5l6.9-12a1 1 0 0 1 1.74 0z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><line x1="8" y1="6.3" x2="8" y2="9.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="8" cy="11.8" r="0.75" fill="currentColor"/></svg>
+                    <span class="fx-label">Integrity check failed{{ $archive->fixity_checked_at ? ' — checked ' . $archive->fixity_checked_at->diffForHumans() : '' }}</span>
+                </div>
+            @else
+                <div class="fixity-row fixity-none">
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/><line x1="8" y1="5.3" x2="8" y2="8.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="8" cy="10.8" r="0.7" fill="currentColor"/></svg>
+                    <span class="fx-label">Not yet verified</span>
+                </div>
+            @endif
 
         </div>
 
@@ -628,9 +611,12 @@
         });
     });
 
-    /* ── Search / filter ── */
-    function filterCards() {
-        const q = document.getElementById('searchInput').value.toLowerCase().trim();
+    /* ── Search / filter ──
+       Called directly by the topbar search's input handler (see
+       partials/header-search.blade.php), which is now this page's only
+       visible search box - no separate local one to read from. */
+    function filterCards(query) {
+        const q = (query ?? '').toLowerCase().trim();
         const cards = document.querySelectorAll('.archive-card');
         let visible = 0;
 
@@ -646,15 +632,6 @@
         document.getElementById('archiveCount').textContent =
             visible + ' archive' + (visible !== 1 ? 's' : '');
     }
-
-    /* ── Auto-dismiss alerts after 5s ── */
-    setTimeout(() => {
-        document.querySelectorAll('.alert-custom').forEach(el => {
-            el.style.transition = 'opacity 0.4s';
-            el.style.opacity = '0';
-            setTimeout(() => el.remove(), 400);
-        });
-    }, 5000);
 </script>
 </body>
 </html>

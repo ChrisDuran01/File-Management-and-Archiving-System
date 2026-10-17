@@ -88,11 +88,11 @@ class ExtractFileOcrText implements ShouldQueue
      */
     private function replaceWithSearchablePdf(File $file, OcrExtractor $extractor, CloudFileUploader $uploader): void
     {
-        $hasLocalCopy = $file->local_path && Storage::disk('public')->exists($file->local_path);
+        $hasLocalCopy = $file->local_path && Storage::disk('local')->exists($file->local_path);
         $tempSourcePath = null;
 
         if ($hasLocalCopy) {
-            $sourcePath = Storage::disk('public')->path($file->local_path);
+            $sourcePath = Storage::disk('local')->path($file->local_path);
         } else {
             // Direct-to-cloud uploads have no local copy yet at this point
             // (CacheFileLocally is a separate, independently-timed job) -
@@ -119,10 +119,10 @@ class ExtractFileOcrText implements ShouldQueue
             // if the original image never had one - it's already been
             // fetched from the cloud above, so this is effectively free.
             $newLocalPath = 'uploads/' . ($file->folder_id ?? 'root') . '/' . Str::random(40) . '.pdf';
-            Storage::disk('public')->put($newLocalPath, $pdfContents);
+            Storage::disk('local')->put($newLocalPath, $pdfContents);
 
             if ($hasLocalCopy) {
-                Storage::disk('public')->delete($file->local_path);
+                Storage::disk('local')->delete($file->local_path);
             }
 
             $oldFilepath = $file->filepath;

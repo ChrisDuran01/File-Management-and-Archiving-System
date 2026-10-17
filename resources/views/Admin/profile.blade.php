@@ -18,26 +18,43 @@
 }
 </style>
 
-<div class="container-fluid">
-
-    <div class="mb-4">
-        <h4>My Profile</h4>
-        <p class="text-muted">Manage your account information</p>
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div class="page-header">
+        <div>
+            <div class="skel skel-text" style="width:140px; height:22px; margin-bottom:8px;"></div>
+            <div class="skel skel-text" style="width:240px;"></div>
+        </div>
     </div>
 
-    @if (session('success'))
-        <div class="alert alert-success">{{ session('success') }}</div>
-    @endif
-
-    @if ($errors->any())
-        <div class="alert alert-danger">
-            <ul class="mb-0">
-                @foreach ($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
+    <div class="card profile-card p-4" style="max-width: 600px;">
+        <div class="d-flex align-items-center gap-3 mb-4">
+            <div class="skel skel-circle" style="width:110px; height:110px;"></div>
+            <div style="flex:1;">
+                <div class="skel skel-text" style="width:110px; margin-bottom:8px;"></div>
+                <div class="skel" style="width:100%; height:36px; border-radius:6px;"></div>
+            </div>
         </div>
-    @endif
+
+        @for ($i = 0; $i < 6; $i++)
+        <div class="mb-3">
+            <div class="skel skel-text" style="width:90px; margin-bottom:8px;"></div>
+            <div class="skel" style="width:100%; height:36px; border-radius:6px;"></div>
+        </div>
+        @endfor
+
+        <div class="skel" style="width:140px; height:38px; border-radius:6px;"></div>
+    </div>
+</div>
+
+<div class="container-fluid skel-real">
+
+    <div class="page-header">
+        <div>
+            <h2>My Profile</h2>
+            <p class="sub">Manage your account information</p>
+        </div>
+    </div>
 
     <div class="card profile-card p-4" style="max-width: 600px;">
 

@@ -9,9 +9,6 @@
     * { box-sizing: border-box; }
     body { background: var(--surface); font-family: 'Inter', sans-serif; color: var(--text-1); }
 
-    .page-header h2 { font-size: 1.35rem; font-weight: 600; letter-spacing: -.3px; margin: 0 0 4px; }
-    .page-header .sub { font-size: .85rem; color: var(--text-2); margin: 0 0 20px; }
-
     .card-panel {
         background: var(--card);
         border: 1px solid var(--border);
@@ -88,14 +85,62 @@
     [data-theme="dark"] .preview-box { background: var(--surface); color: var(--text-1); }
 </style>
 
-@if(session('success'))
-    <div class="alert alert-success">{{ session('success') }}</div>
-@endif
-@if(session('error'))
-    <div class="alert alert-danger">{{ session('error') }}</div>
-@endif
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div class="page-header">
+        <div>
+            <div class="skel skel-text" style="width:220px; height:22px; margin-bottom:8px;"></div>
+            <div class="skel skel-text" style="width:340px;"></div>
+        </div>
+        <div class="skel" style="width:150px; height:34px; border-radius:30px;"></div>
+    </div>
 
-<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2">
+    <div class="card-panel">
+        <div class="pill-row">
+            @for ($i = 0; $i < 3; $i++)
+            <div class="skel" style="width:120px; height:36px; border-radius:30px;"></div>
+            @endfor
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card-panel">
+                <div class="skel skel-text" style="width:150px; margin-bottom:14px;"></div>
+                @for ($i = 0; $i < 4; $i++)
+                <div class="field-group">
+                    <div class="skel skel-text" style="width:100px; margin-bottom:8px;"></div>
+                    <div class="skel" style="width:100%; height:38px; border-radius:6px;"></div>
+                </div>
+                @endfor
+                <div class="skel" style="width:100%; height:44px; border-radius:6px;"></div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card-panel">
+                <div class="skel skel-text" style="width:140px; margin-bottom:14px;"></div>
+                <div class="skel" style="width:100%; height:160px; border-radius:6px;"></div>
+            </div>
+
+            <div class="card-panel">
+                <div class="skel skel-text" style="width:170px; margin-bottom:14px;"></div>
+                @for ($i = 0; $i < 4; $i++)
+                <div style="display:flex; gap:16px; padding:9px 0; border-bottom:1px solid var(--border);">
+                    <div class="skel skel-text" style="width:20%;"></div>
+                    <div class="skel skel-text" style="width:35%;"></div>
+                    <div class="skel skel-text" style="width:20%;"></div>
+                    <div class="skel skel-text" style="width:15%;"></div>
+                </div>
+                @endfor
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="skel-real">
+
+<div class="page-header">
     <div>
         <h2><i class="fas fa-file-signature me-2" style="color:var(--primary);font-size:1.1rem;"></i>Document Templates</h2>
         <p class="sub">Pick a template, fill the form, and the system generates a formatted document — then saves it into the records list.</p>
@@ -195,6 +240,7 @@
                                         <a href="{{ route('files.preview', $file->id) }}" style="color:var(--text-1); text-decoration:none; font-weight:500;">
                                             {{ $file->filename }}
                                         </a>
+                                        @include('Admin.partials.approval-badge', ['file' => $file])
                                     </td>
                                     <td>{{ $file->folder->name ?? 'Root' }}</td>
                                     <td>{{ $file->created_at->format('M d, Y') }}</td>
@@ -206,6 +252,8 @@
             @endif
         </div>
     </div>
+</div>
+
 </div>
 
 <script>

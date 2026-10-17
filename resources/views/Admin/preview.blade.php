@@ -42,6 +42,18 @@
                     ? round($file->size / 1048576, 1) . ' MB'
                     : round($file->size / 1024, 1) . ' KB')
                 : null;
+
+    // Video/audio have nothing meaningful to put on paper, and the "no
+    // preview available" fallback has no rendered content at all - print
+    // only makes sense for the types that actually show something.
+    //
+    // Office files are shown by Microsoft's online viewer, which fetches the
+    // file itself - possible with a signed cloud URL, not with the app's own
+    // login-protected one (files.raw, used when only the local copy can be
+    // reached). Those get the "download instead" fallback.
+    $isOffice    = in_array($ext, ['doc','docx','xls','xlsx','ppt','pptx'])
+        && $signedUrl !== route('files.raw', $file->id);
+    $isPrintable = $isImage || $isPdf || $isText || $isOffice;
 @endphp
 
 <style>
@@ -128,6 +140,62 @@
 }
 .btn-download:hover { background: #046322; color: #fff; transform: translateY(-1px); }
 .btn-download i { font-size: 12px; }
+
+.file-header-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+.btn-share {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 18px;
+    background: #fff;
+    color: #058028;
+    border: 1.5px solid #058028;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s, transform 0.15s;
+}
+.btn-share:hover { background: #e9f5ee; transform: translateY(-1px); }
+.btn-share i { font-size: 12px; }
+[data-theme="dark"] .btn-share { background: transparent; color: var(--primary); border-color: var(--primary); }
+[data-theme="dark"] .btn-share:hover { background: var(--primary-dim); }
+
+/* ── "Subject for approval" notice ── */
+.approval-notice {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    margin-bottom: 1rem;
+    background: var(--warning-dim);
+    border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
+    border-radius: 12px;
+    color: var(--warning);
+    font-size: 13px;
+}
+.approval-notice > i { font-size: 16px; flex-shrink: 0; }
+.approval-notice-text { flex: 1; min-width: 0; }
+.approval-notice-text strong { display: block; font-weight: 600; }
+.approval-notice-text span { color: var(--text-2); }
+.btn-approve {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 14px;
+    background: var(--card);
+    color: var(--primary);
+    border: 1.5px solid var(--primary);
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s;
+}
+.btn-approve:hover { background: var(--primary-dim); }
 
 /* ── Preview container ── */
 .preview-container {
@@ -292,7 +360,27 @@
 [data-theme="dark"] .tb-btn:hover { background: var(--nav-hover-bg); border-color: var(--text-3); color: var(--text-1); }
 </style>
 
-<div class="preview-wrapper">
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div class="preview-wrapper">
+        <div class="skel skel-text" style="width:70px; margin-bottom:1.25rem;"></div>
+
+        <div class="file-header">
+            <div class="skel" style="width:52px; height:52px; border-radius:12px;"></div>
+            <div class="file-header-info">
+                <div class="skel skel-text" style="width:220px; margin-bottom:8px;"></div>
+                <div class="skel skel-text" style="width:160px;"></div>
+            </div>
+            <div class="skel" style="width:120px; height:36px; border-radius:10px;"></div>
+        </div>
+
+        <div class="preview-container">
+            <div class="skel" style="width:100%; height:420px;"></div>
+        </div>
+    </div>
+</div>
+
+<div class="preview-wrapper skel-real">
 
     {{-- =============================
          BACK BUTTON
@@ -336,11 +424,45 @@
             </div>
         </div>
 
-        {{-- Download button --}}
-        <a href="{{ route('files.download', $file->id) }}" class="btn-download">
-    <i class="fas fa-download"></i> Download
-</a>
+        <div class="file-header-actions">
+            {{-- Same rule as ShareLinkController::store() --}}
+            @if($file->isShareableBy(auth()->user()))
+            <button type="button" class="btn-share" data-share-file
+                    data-share-name="{{ $file->filename }}"
+                    data-share-url="{{ route('share-links.index', $file->id) }}">
+                <i class="fas fa-link"></i> Share
+            </button>
+            @endif
+            <a href="{{ route('files.download', $file->id) }}" class="btn-download">
+                <i class="fas fa-download"></i> Download
+            </a>
+        </div>
     </div>
+
+    {{-- =============================
+         "SUBJECT FOR APPROVAL" NOTICE
+    ============================== --}}
+    @if($file->is_pending_approval)
+    <div class="approval-notice">
+        <i class="fas fa-hourglass-half"></i>
+        <div class="approval-notice-text">
+            <strong>Subject for approval</strong>
+            <span>This file has not been approved yet. Treat it as an unofficial draft.</span>
+        </div>
+
+        {{-- Same rule as FileController::setApproval() --}}
+        @if(! $file->is_archived && $file->isManageableBy(auth()->user()))
+        <form action="{{ route('file.setApproval', $file->id) }}" method="POST"
+              onsubmit="this.querySelector('button[type=submit]').disabled = true;">
+            @csrf
+            <input type="hidden" name="pending" value="0">
+            <button type="submit" class="btn-approve">
+                <i class="fas fa-check"></i> Mark as approved
+            </button>
+        </form>
+        @endif
+    </div>
+    @endif
 
     {{-- =============================
          FILE PREVIEW SECTION
@@ -381,7 +503,7 @@
         </div>
 
     {{-- OFFICE (DOC, XLS, PPT) --}}
-    @elseif(in_array($ext, ['doc','docx','xls','xlsx','ppt','pptx']))
+    @elseif($isOffice)
         <iframe 
             src="https://view.officeapps.live.com/op/embed.aspx?src={{ urlencode($signedUrl) }}">
         </iframe>
@@ -401,5 +523,7 @@
 </div>
 
 </div>
+
+@include('partials.share-link')
 
 @endsection

@@ -38,12 +38,12 @@ class SyncLocalFilesToCloud extends Command
         $synced = 0;
 
         foreach ($files as $file) {
-            if (! $file->local_path || ! Storage::disk('public')->exists($file->local_path)) {
+            if (! $file->local_path || ! Storage::disk('local')->exists($file->local_path)) {
                 $this->warn("   -> skipped {$file->filename}: local copy is missing");
                 continue;
             }
 
-            $fullPath = Storage::disk('public')->path($file->local_path);
+            $fullPath = Storage::disk('local')->path($file->local_path);
 
             if ($uploader->upload($file->filepath, $fullPath)) {
                 $file->forceFill(['storage_type' => 'both'])->save();

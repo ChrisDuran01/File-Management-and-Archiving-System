@@ -10,7 +10,7 @@ class Folder extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['name', 'school_year', 'is_archived', 'is_restricted', 'created_by', 'last_accessed_at'];
+    protected $fillable = ['name', 'school_year', 'is_archived', 'is_restricted', 'created_by', 'officer_term_id', 'last_accessed_at'];
 
     protected $casts = [
         'last_accessed_at' => 'datetime',
@@ -25,6 +25,15 @@ class Folder extends Model
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * The officer term active when this folder was created, if any - used
+     * to scope "end term" archiving to just that school year's folders.
+     */
+    public function officerTerm()
+    {
+        return $this->belongsTo(OfficerTerm::class);
     }
 
     /**

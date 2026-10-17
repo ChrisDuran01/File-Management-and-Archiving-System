@@ -12,37 +12,6 @@
         color: var(--text-1);
     }
 
-    /* ── Page Header ── */
-    .page-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 20px;
-        flex-wrap: wrap;
-    }
-    .page-header h4 {
-        font-size: 1.25rem;
-        font-weight: 500;
-        letter-spacing: -.3px;
-        margin: 0;
-        color: var(--text-1);
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    .page-title-icon {
-        width: 32px;
-        height: 32px;
-        border-radius: var(--radius-sm);
-        background: var(--primary-dim);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-    }
-    .page-title-icon svg { width: 16px; height: 16px; }
-
     /* ── Back link ── */
     .back-link {
         display: inline-flex;
@@ -298,9 +267,41 @@
 
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div class="page-header">
+        <div class="skel skel-text" style="width:130px; height:22px;"></div>
+        <div class="skel" style="width:150px; height:34px; border-radius:6px;"></div>
+    </div>
+
+    <div class="al-card" style="max-width:640px;">
+        <div class="al-card-header">
+            <div class="skel skel-text" style="width:160px;"></div>
+        </div>
+        <div class="form-body">
+            <div class="field-row">
+                <div class="skel" style="height:58px; border-radius:6px;"></div>
+                <div class="skel" style="height:58px; border-radius:6px;"></div>
+            </div>
+            <div class="field-row">
+                <div class="skel" style="height:58px; border-radius:6px;"></div>
+                <div class="skel" style="height:58px; border-radius:6px;"></div>
+            </div>
+            <div class="skel skel-text" style="width:160px;"></div>
+            <div class="skel" style="height:58px; border-radius:6px;"></div>
+        </div>
+        <div class="form-footer">
+            <div class="skel" style="width:70px; height:32px; border-radius:6px;"></div>
+            <div class="skel" style="width:120px; height:32px; border-radius:6px;"></div>
+        </div>
+    </div>
+</div>
+
+<div class="skel-real">
+
 {{-- ── Page Header ── --}}
 <div class="page-header">
-    <h4>
+    <h2>
         <div class="page-title-icon">
             <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="6" cy="5" r="2.5" stroke="#058028" stroke-width="1.2"/>
@@ -309,7 +310,7 @@
             </svg>
         </div>
         Add Officer
-    </h4>
+    </h2>
 
     <a href="{{ route('officers.index') }}" class="back-link">
         <i class="fas fa-arrow-left"></i> Back to Officers
@@ -457,6 +458,8 @@
         </div>
 
     </form>
+
+</div>
 
 </div>
 

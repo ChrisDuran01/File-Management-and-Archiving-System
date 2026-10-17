@@ -4,372 +4,302 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
   <title>QSU Student Government · File Management & Archiving</title>
-  <!-- Bootstrap 5 CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
   <!-- Google Fonts: Inter + Poppins for clean modern typography -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
   <!-- Font Awesome 6 (free icons) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <style>
+    :root {
+      --qsu-green-dark: #0B4128;
+      --qsu-green: #1F6E4A;
+      --qsu-green-bright: #2E8B57;
+      --qsu-gold: #C9A03D;
+      --qsu-gold-light: #E8C468;
+      --ink: #1C3A2F;
+      --muted: #6b7a75;
+      --border: #E4E9E6;
+      --bg: #F3F6F4;
+    }
+
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
     }
 
+    html, body {
+      height: 100%;
+    }
+
     body {
       font-family: 'Inter', sans-serif;
-      background: #F4F7FC;
-      height: 100vh;
-      overflow: hidden;
-    }
-
-    /* Split screen layout — no scroll on body */
-    .split-layout {
-      display: flex;
-      width: 100%;
-      height: 100vh;
-      overflow: hidden;
-    }
-
-    /* LEFT SIDE — BRANDING HERO */
-    .brand-side {
-      flex: 1.1;
-      background: linear-gradient(135deg, #0B4128 0%, #1C6E4A 50%, #0F5C3E 100%);
-      position: relative;
+      color: var(--ink);
+      background: var(--bg);
+      min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
-      overflow: hidden;
-      box-shadow: 8px 0 30px rgba(0, 0, 0, 0.1);
-      z-index: 1;
-    }
-
-    /* abstract organic shapes & orbs (wow factor) */
-    .brand-side::before {
-      content: "";
-      position: absolute;
-      width: 180%;
-      height: 180%;
-      background: radial-gradient(circle at 20% 40%, rgba(255,215,130,0.15) 0%, rgba(46,139,86,0.1) 70%);
-      top: -40%;
-      left: -40%;
-      border-radius: 50%;
-      pointer-events: none;
-    }
-
-    .brand-side::after {
-      content: "";
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" opacity="0.08"><path fill="%23FFE484" d="M47.5,57.5c-4.2,0-8-3-8-7.5s3.8-7.5,8-7.5s8,3,8,7.5S51.7,57.5,47.5,57.5z M152.5,57.5c-4.2,0-8-3-8-7.5s3.8-7.5,8-7.5s8,3,8,7.5S156.7,57.5,152.5,57.5z M100,32.5c-4.2,0-8-3-8-7.5s3.8-7.5,8-7.5s8,3,8,7.5S104.2,32.5,100,32.5z M100,115c-4.2,0-8-3-8-7.5s3.8-7.5,8-7.5s8,3,8,7.5S104.2,115,100,115z M75,71c-4.2,0-8-3-8-7.5s3.8-7.5,8-7.5s8,3,8,7.5S79.2,71,75,71z M125,71c-4.2,0-8-3-8-7.5s3.8-7.5,8-7.5s8,3,8,7.5S129.2,71,125,71z"/></svg>') repeat;
-      background-size: 28px;
-      opacity: 0.1;
-      pointer-events: none;
-    }
-
-    .brand-content {
+      padding: 2rem 1.25rem;
       position: relative;
-      z-index: 2;
-      padding: 2.5rem;
-      max-width: 500px;
-      text-align: center;
-      animation: fadeInUp 0.8s ease-out;
+      overflow-x: hidden;
     }
 
-    /* logo area big and prominent */
-    .logo-master {
+    .page {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 400px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 1.5rem;
-      margin-bottom: 2rem;
+      animation: fadeInUp 0.6s ease-out;
     }
-    .logo-circle-large {
-      background: rgba(255, 255, 245, 0.15);
-      backdrop-filter: blur(6px);
-      width: 130px;
-      height: 130px;
-      border-radius: 50%;
+
+    /* brand header above the card */
+    .brand-header {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: center;
-      border: 2px solid rgba(255, 245, 180, 0.6);
-      box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
-      transition: transform 0.3s ease;
+      text-align: center;
+      margin-bottom: 1.75rem;
     }
-    .logo-circle-large:hover {
-      transform: scale(1.02);
+    .logo-circle {
+      width: 76px;
+      height: 76px;
+      border-radius: 50%;
+      background: var(--qsu-green-dark);
+      overflow: hidden;
+      box-shadow: 0 10px 24px rgba(11, 65, 40, 0.25);
+      margin-bottom: 1rem;
     }
+    /* The logo is a full-color square image, so it fills the circle as-is. */
     .logo-img {
-      max-width: 90px;
-      max-height: 90px;
-      width: auto;
-      height: auto;
-      object-fit: contain;
-      filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
     .brand-title {
       font-family: 'Poppins', sans-serif;
       font-weight: 700;
-      font-size: 2.2rem;
-      letter-spacing: -0.02em;
-      color: white;
-      text-shadow: 0 2px 5px rgba(0,0,0,0.1);
-      margin-bottom: 0.5rem;
+      font-size: 1.3rem;
+      color: var(--qsu-green-dark);
+      letter-spacing: -0.01em;
     }
     .brand-sub {
-      font-size: 1rem;
-      color: rgba(255,255,210,0.9);
-      font-weight: 500;
-      max-width: 350px;
-      margin: 0 auto;
-      line-height: 1.4;
-    }
-    .system-tagline {
-      margin-top: 2rem;
-      background: rgba(0,0,0,0.2);
-      backdrop-filter: blur(4px);
-      border-radius: 60px;
-      padding: 0.6rem 1.2rem;
-      display: inline-block;
       font-size: 0.85rem;
+      color: var(--muted);
       font-weight: 500;
-      color: #FFE9B6;
-      letter-spacing: 0.3px;
-    }
-    .system-tagline i {
-      margin-right: 6px;
-    }
-    .decor-quote {
-      margin-top: 3rem;
-      font-size: 0.9rem;
-      font-style: italic;
-      color: rgba(255,250,210,0.7);
-      border-left: 2px solid #FFE484;
-      padding-left: 1rem;
-      text-align: left;
+      margin-top: 0.2rem;
     }
 
-    /* RIGHT SIDE — LOGIN FORM (modern glass) */
-    .form-side {
-      flex: 0.9;
-      background: #ffffff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-      overflow-y: auto;
-      padding: 2rem;
-    }
-    /* subtle wave overlay */
-    .form-side::before {
-      content: "";
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: radial-gradient(ellipse at 80% 20%, rgba(27, 110, 67, 0.03) 0%, transparent 70%);
-      pointer-events: none;
-    }
-
+    /* the card */
     .login-card {
       width: 100%;
-      max-width: 460px;
-      background: white;
-      border-radius: 2rem;
-      padding: 2rem 2rem 2.2rem;
-      box-shadow: 0 25px 45px -12px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0,0,0,0.02);
-      transition: transform 0.2s ease;
-      border: 1px solid rgba(0,0,0,0.05);
+      background: #ffffff;
+      border-radius: 1.25rem;
+      padding: 2.25rem 2rem;
+      box-shadow: 0 20px 45px -18px rgba(11, 65, 40, 0.22), 0 2px 8px rgba(0,0,0,0.03);
+      border: 1px solid rgba(11, 65, 40, 0.06);
     }
 
+    .welcome-header {
+      margin-bottom: 1.5rem;
+    }
     .welcome-header h3 {
       font-family: 'Poppins', sans-serif;
       font-weight: 700;
-      font-size: 1.8rem;
-      color: #1C3A2F;
-      margin-bottom: 0.25rem;
+      font-size: 1.4rem;
+      color: var(--ink);
+      margin-bottom: 0.2rem;
     }
     .welcome-header p {
-      color: #6c757d;
-      font-size: 0.9rem;
+      color: var(--muted);
+      font-size: 0.88rem;
       font-weight: 400;
     }
-    .divider-light {
-      width: 60px;
-      height: 3px;
-      background: linear-gradient(90deg, #2C8C5A, #C9A03D);
-      border-radius: 4px;
-      margin: 0.75rem 0 1.5rem 0;
+
+    /* alerts */
+    .alert-custom {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      border-radius: 0.75rem;
+      padding: 0.65rem 0.85rem;
+      font-size: 0.82rem;
+      font-weight: 500;
+      margin-bottom: 1.1rem;
+      line-height: 1.4;
+    }
+    .alert-danger-custom {
+      background: #FDEEEE;
+      color: #B3261E;
+      border: 1px solid #F6D2D0;
+    }
+    .alert-success-custom {
+      background: #EAF7EF;
+      color: #1F6E4A;
+      border: 1px solid #CDEBD8;
     }
 
-    /* modern input group style */
-    .input-group-custom {
-      margin-bottom: 1.5rem;
+    /* form fields */
+    .field {
+      margin-bottom: 1.15rem;
+    }
+    .field label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 0.4rem;
+      letter-spacing: 0.01em;
+    }
+    .field-input-wrap {
       position: relative;
     }
-    .input-group-custom .input-icon {
+    .field-input-wrap i {
       position: absolute;
-      left: 18px;
+      left: 1rem;
       top: 50%;
       transform: translateY(-50%);
-      color: #8F9B9A;
-      font-size: 1.1rem;
-      z-index: 2;
+      color: #9AA8A3;
+      font-size: 0.95rem;
       transition: color 0.2s;
-    }
-    .input-group-custom .form-control {
-      height: 56px;
-      padding: 0.5rem 1rem 0.5rem 48px;
-      border-radius: 1.2rem;
-      border: 1.5px solid #E2E8F0;
-      background: #FEFEFE;
-      font-size: 0.95rem;
-      font-weight: 500;
-      transition: all 0.25s;
-      color: #1f2e2a;
-    }
-    .input-group-custom .form-control:focus {
-      border-color: #2C8C5A;
-      box-shadow: 0 0 0 4px rgba(44, 140, 90, 0.15);
-      outline: none;
-    }
-    .input-group-custom .form-control:focus + .input-icon {
-      color: #2C8C5A;
-    }
-    .form-label-floating {
-      position: absolute;
-      left: 48px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: white;
-      padding: 0 6px;
-      font-size: 0.95rem;
-      color: #95a5a6;
       pointer-events: none;
-      transition: 0.2s ease all;
     }
-    .input-group-custom .form-control:focus ~ .form-label-floating,
-    .input-group-custom .form-control:not(:placeholder-shown) ~ .form-label-floating {
-      top: -0px;
-      transform: translateY(-50%);
-      font-size: 0.7rem;
-      left: 45px;
-      color: #2C8C5A;
-      background: white;
-      font-weight: 600;
+    .field-input-wrap input {
+      width: 100%;
+      height: 48px;
+      padding: 0 0.9rem 0 2.6rem;
+      border-radius: 0.7rem;
+      border: 1.5px solid var(--border);
+      background: #FBFCFB;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.92rem;
+      font-weight: 500;
+      color: var(--ink);
+      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    }
+    .field-input-wrap input::placeholder {
+      color: #B7C0BC;
+      font-weight: 400;
+    }
+    .field-input-wrap input:focus {
+      outline: none;
+      border-color: var(--qsu-green-bright);
+      background: #ffffff;
+      box-shadow: 0 0 0 4px rgba(46, 139, 87, 0.12);
+    }
+    .field-input-wrap input:focus ~ i {
+      color: var(--qsu-green);
     }
 
-    /* forgot & button */
-    .forgot-link {
-      color: #58856E;
-      text-decoration: none;
-      font-size: 0.8rem;
-      font-weight: 500;
-      transition: 0.2s;
-    }
-    .forgot-link:hover {
-      color: #C9A03D;
-      text-decoration: underline;
-    }
-    .btn-login {
-      background: linear-gradient(95deg, #1F6E4A 0%, #2E8B57 100%);
-      border: none;
-      border-radius: 2rem;
-      padding: 0.8rem;
-      font-weight: 700;
-      font-size: 1rem;
-      color: white;
-      box-shadow: 0 6px 14px rgba(31, 110, 74, 0.25);
-      transition: all 0.25s;
-      width: 100%;
+    /* show/hide password button - the icon rule above targets every <i> in the wrap, so it is overridden here */
+    .field-input-wrap .pw-toggle {
+      position: absolute;
+      right: 0.35rem;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 38px;
+      height: 38px;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 0.5rem;
+      background: none;
+      border: none;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      color: #9AA8A3;
+    }
+    .field-input-wrap .pw-toggle:hover,
+    .field-input-wrap .pw-toggle:focus-visible { color: var(--qsu-green); outline: none; }
+    .field-input-wrap .pw-toggle i {
+      position: static;
+      transform: none;
+      pointer-events: none;
+      color: inherit;
+    }
+
+    .row-between {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      margin-bottom: 1.4rem;
+    }
+    .forgot-link {
+      color: var(--qsu-green);
+      text-decoration: none;
+      font-size: 0.8rem;
+      font-weight: 600;
+      transition: color 0.2s;
+    }
+    .forgot-link:hover {
+      color: var(--qsu-gold);
+    }
+
+    .btn-login {
+      width: 100%;
+      background: var(--qsu-green);
+      border: none;
+      border-radius: 0.75rem;
+      padding: 0.85rem;
+      font-family: 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: white;
+      cursor: pointer;
+      box-shadow: 0 8px 18px rgba(31, 110, 74, 0.28);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.55rem;
     }
     .btn-login:hover {
-      transform: translateY(-2px);
-      background: linear-gradient(95deg, #2A7F56 0%, #3D9B6E 100%);
+      background: var(--qsu-green-dark);
+      transform: translateY(-1px);
       box-shadow: 0 12px 22px rgba(31, 110, 74, 0.35);
     }
     .btn-login:active {
-      transform: translateY(1px);
+      transform: translateY(0);
     }
     .btn-login:disabled {
-      background: #9ca3af;
+      background: #A9B3AF;
       box-shadow: none;
       cursor: not-allowed;
       transform: none;
     }
 
-    /* extra footer */
     .signup-text {
-      font-size: 0.85rem;
-      color: #5b6e6a;
+      margin-top: 1.5rem;
+      text-align: center;
+      font-size: 0.83rem;
+      color: var(--muted);
     }
     .signup-text a {
-      color: #1F6E4A;
+      color: var(--qsu-green);
       font-weight: 600;
       text-decoration: none;
-      border-bottom: 1px solid #cbdcd2;
+      border-bottom: 1px solid rgba(31, 110, 74, 0.3);
     }
     .signup-text a:hover {
-      color: #C9A03D;
-      border-bottom-color: #C9A03D;
+      color: var(--qsu-gold);
+      border-bottom-color: var(--qsu-gold);
     }
 
-    /* responsive behavior: if screen becomes too narrow, adjust ratio */
-    @media (max-width: 992px) {
-      .brand-title {
-        font-size: 1.7rem;
-      }
-      .logo-circle-large {
-        width: 100px;
-        height: 100px;
-      }
-      .logo-img {
-        max-width: 68px;
-      }
-      .brand-content {
-        padding: 1rem;
-      }
-    }
-    @media (max-width: 768px) {
-      .split-layout {
-        flex-direction: column;
-      }
-      .brand-side {
-        flex: 0.6;
-        min-height: 38vh;
-      }
-      .form-side {
-        flex: 1;
-        padding: 1.5rem;
-      }
-      body {
-        overflow: auto;
-        height: auto;
-      }
-      .split-layout {
-        height: auto;
-        min-height: 100vh;
-      }
-      .brand-content {
-        padding: 1.5rem;
-      }
-      .decor-quote {
-        display: none;
-      }
+    .page-footer {
+      margin-top: 1.75rem;
+      text-align: center;
+      font-size: 0.75rem;
+      color: #9AA8A3;
+      font-weight: 500;
     }
 
     @keyframes fadeInUp {
       from {
         opacity: 0;
-        transform: translateY(20px);
+        transform: translateY(16px);
       }
       to {
         opacity: 1;
@@ -377,127 +307,152 @@
       }
     }
 
-    /* show placeholder style */
-    input::-webkit-input-placeholder {
-      color: transparent;
-    }
-    input:-moz-placeholder {
-      color: transparent;
-    }
-    /* ensure autofill background matches */
-    input:-webkit-autofill,
-    input:-webkit-autofill:focus {
-      transition: background-color 600000s 0s, color 600000s 0s;
-      -webkit-text-fill-color: #1f2e2a;
+    @media (max-width: 420px) {
+      .login-card {
+        padding: 1.75rem 1.4rem;
+      }
+      body {
+        padding: 1.5rem 1rem;
+      }
     }
   </style>
 </head>
 <body>
-<div class="split-layout">
-  <!-- LEFT SIDE: BRANDING + LOGO + QSU Student Government and file system info -->
-  <div class="brand-side">
-    <div class="brand-content">
-      <div class="logo-master">
-        <div class="logo-circle-large">
-          <!-- SG-logo.png inside images folder -->
-          <img src="images/SG-logo.png" alt="SG Logo" class="logo-img" onerror="this.onerror=null; this.src='https://placehold.co/130x130?text=SG';">
-        </div>
-        <div>
-          <h1 class="brand-title">QSU Student Government</h1>
-          <div class="brand-sub">Empowering Leaders, Preserving Legacy</div>
-        </div>
+  <div class="page">
+    <div class="brand-header">
+      <div class="logo-circle">
+        <img src="{{ asset('images/SG-logo.png') }}" alt="SG Logo" class="logo-img" onerror="this.onerror=null; this.src='https://placehold.co/46x46/ffffff/1F6E4A?text=SG';">
       </div>
-      <div class="system-tagline">
-        <i class="fas fa-folder-open"></i> File Management & Archiving System
-        <i class="fas fa-archive ms-2"></i>
-      </div>
-      <div class="decor-quote">
-        <i class="fas fa-quote-left me-1" style="opacity:0.8;"></i> Digitizing governance, one record at a time.
-      </div>
+      <div class="brand-title">QSU Student Government</div>
+      <div class="brand-sub">File Management &amp; Archiving System</div>
     </div>
-  </div>
 
-  <!-- RIGHT SIDE: LOGIN FORM -->
-  <div class="form-side">
     <div class="login-card">
       <div class="welcome-header">
         <h3>Welcome back</h3>
-        <p>Sign in to access the System</p>
-        <div class="divider-light"></div>
+        <p>Sign in to access your account</p>
       </div>
 
-      <form method="POST" action="/login">
+      {{-- Also shown at the officer phone app's address (/app/login) - see
+           OfficerAppController::showLogin(). A phone goes on to the app
+           after signing in either way (AuthController::login()). --}}
+      <form method="POST" action="{{ url('/login') }}">
         @csrf
+        @if (! empty($fromApp))
+          <input type="hidden" name="from_app" value="1">
+        @endif
 
         @if ($errors->any())
-          <div class="alert alert-danger py-2 px-3 mb-3" style="font-size:0.85rem;" role="alert" id="loginAlert">
+          <div class="alert-custom alert-danger-custom" role="alert" id="loginAlert">
+            <i class="fas fa-circle-exclamation mt-1"></i>
             <span id="loginAlertText">{{ $errors->first() }}</span>
           </div>
         @endif
 
         @if (session('success'))
-          <div class="alert alert-success py-2 px-3 mb-3" style="font-size:0.85rem;" role="alert">
-            {{ session('success') }}
+          <div class="alert-custom alert-success-custom" role="alert">
+            <i class="fas fa-circle-check mt-1"></i>
+            <span>{{ session('success') }}</span>
           </div>
         @endif
 
-        <!-- Email input with icon + floating label -->
-        <div class="input-group-custom">
-          <i class="fas fa-envelope input-icon"></i>
-          <input type="email" name="email" id="loginEmail" class="form-control" placeholder=" " required autocomplete="email">
-          <label for="loginEmail" class="form-label-floating">Email address</label>
+        <div class="field">
+          <label for="loginEmail">Email address</label>
+          <div class="field-input-wrap">
+            <i class="fas fa-envelope"></i>
+            <input type="email" name="email" id="loginEmail" placeholder="you@example.com" required autocomplete="email">
+          </div>
         </div>
 
-        <!-- Password input with icon + floating label -->
-        <div class="input-group-custom">
-          <i class="fas fa-lock input-icon"></i>
-          <input type="password" name="password" id="loginPassword" class="form-control" placeholder=" " required autocomplete="current-password">
-          <label for="loginPassword" class="form-label-floating">Password</label>
+        <div class="field">
+          <label for="loginPassword">Password</label>
+          <div class="field-input-wrap">
+            <i class="fas fa-lock"></i>
+            <input type="password" name="password" id="loginPassword" placeholder="••••••••" required autocomplete="current-password" style="padding-right:2.8rem;">
+            <button type="button" class="pw-toggle" id="togglePassword" aria-label="Show password" aria-pressed="false" tabindex="0">
+              <i class="fas fa-eye" id="togglePasswordIcon"></i>
+            </button>
+          </div>
         </div>
 
-        <!-- Forgot password row -->
-        <div class="d-flex justify-content-end mb-4">
-          <a href="{{ route('password.request') }}" class="forgot-link"><i class="fas fa-key me-1"></i> Forgot password?</a>
+        <div class="row-between">
+          <a href="{{ route('password.request') }}" class="forgot-link">Forgot password?</a>
         </div>
 
-        <!-- Login Button with arrow icon -->
         <button type="submit" class="btn-login" id="loginSubmitBtn">
           <i class="fas fa-sign-in-alt"></i> <span id="loginSubmitBtnText">Log in</span>
         </button>
 
-        <!-- Additional help text -->
-        <div class="mt-4 text-center signup-text">
-          Don't have an account? <a href="#">Request access</a>
+        <div class="signup-text">
+          By signing in you acknowledge our
+          <a href="{{ route('privacy.notice') }}" id="openPrivacy">Privacy Notice</a>.
         </div>
       </form>
     </div>
-  </div>
-</div>
 
-<!-- small script to handle floating label behavior if autofill exists -->
+    <div class="page-footer">
+      &copy; {{ date('Y') }} QSU Student Government &middot; Digitizing governance, one record at a time.
+    </div>
+  </div>
+
 <script>
-  (function() {
-    const inputs = document.querySelectorAll('.input-group-custom input');
-    inputs.forEach(input => {
-      if (input.value.trim() !== '') {
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.setAttribute('data-filled', 'true');
-      }
-      input.addEventListener('input', function() {
-        if (this.value.length > 0) {
-          this.setAttribute('data-filled', 'true');
-        } else {
-          this.removeAttribute('data-filled');
-        }
-      });
-      // handle browser autofill detection
-      const observer = new MutationObserver(function(mutations) {
-        if (input.value && input.value.length > 0) {
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-      });
-      observer.observe(input, { attributes: true, attributeFilter: ['value'] });
+  (function () {
+    var input = document.getElementById('loginPassword');
+    var btn   = document.getElementById('togglePassword');
+    var icon  = document.getElementById('togglePasswordIcon');
+    btn.addEventListener('click', function () {
+      var show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      icon.className = show ? 'fas fa-eye-slash' : 'fas fa-eye';
+      btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+      btn.setAttribute('aria-pressed', show ? 'true' : 'false');
+      input.focus();
     });
+  })();
+</script>
+
+{{-- Privacy notice popup. The link above still works without JavaScript (it goes to /privacy). --}}
+<style>
+  #privacyDialog { border:1px solid #e5e5e5; border-radius:12px; padding:0; width:min(560px, calc(100% - 32px)); max-height:calc(100vh - 32px); background:#fff; color:#111; margin:auto; overflow:hidden; }
+  #privacyDialog::backdrop { background:rgba(0,0,0,.45); }
+  #privacyDialog .pd-body { display:flex; flex-direction:column; max-height:calc(100vh - 34px); }
+  /* only the text area scrolls; freeze the page behind while the popup is open */
+  html:has(#privacyDialog[open]) { overflow:hidden; }
+  #privacyDialog h2.pd-title { font-size:1.1rem; font-weight:600; padding:22px 24px 4px; }
+  #privacyDialog .pd-sub { color:#6b6b6b; font-size:.8rem; padding:0 24px 12px; }
+  #privacyDialog .pd-scroll { flex:1 1 auto; min-height:0; overflow-y:auto; padding:14px 24px; border-top:1px solid #e5e5e5; border-bottom:1px solid #e5e5e5; }
+  #privacyDialog .pd-actions { padding:14px 24px; text-align:right; }
+  #privacyDialog .pd-close { background:#1F6E4A; color:#fff; border:1px solid #1F6E4A; border-radius:8px; padding:8px 18px; font:inherit; font-size:.86rem; font-weight:500; cursor:pointer; }
+  #privacyDialog, #privacyDialog .pd-scroll { color-scheme:light; }
+  #privacyDialog, #privacyDialog button { font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','SF Pro Display','Helvetica Neue',Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased; }
+  /* simple thin scrollbar */
+  #privacyDialog .pd-scroll { scrollbar-width:thin; scrollbar-color:#c8c8c8 transparent; }
+  #privacyDialog .pd-scroll::-webkit-scrollbar { width:6px; }
+  #privacyDialog .pd-scroll::-webkit-scrollbar-track { background:transparent; }
+  #privacyDialog .pd-scroll::-webkit-scrollbar-thumb { background:#c8c8c8; border-radius:3px; }
+  #privacyDialog .pd-scroll::-webkit-scrollbar-thumb:hover { background:#a8a8a8; }
+</style>
+<dialog id="privacyDialog" aria-labelledby="pdTitle">
+  <div class="pd-body">
+    <h2 class="pd-title" id="pdTitle">Privacy Notice</h2>
+    <p class="pd-sub">Version {{ config('privacy.version') }} &middot; Data Privacy Act of 2012 (RA 10173)</p>
+    <div class="pd-scroll">
+      @include('partials.privacy-content')
+    </div>
+    <div class="pd-actions">
+      <button type="button" class="pd-close" id="closePrivacy">Close</button>
+    </div>
+  </div>
+</dialog>
+<script>
+  (function () {
+    var dlg = document.getElementById('privacyDialog');
+    var link = document.getElementById('openPrivacy');
+    if (!dlg || !link || typeof dlg.showModal !== 'function') return;
+    link.addEventListener('click', function (e) { e.preventDefault(); dlg.showModal(); });
+    document.getElementById('closePrivacy').addEventListener('click', function () { dlg.close(); });
+    // click on the dimmed backdrop closes it too
+    dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
   })();
 </script>
 
@@ -531,8 +486,5 @@
   })();
 </script>
 @endif
-
-<!-- optional bootstrap bundle (for proper interactions) -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
 </body>
 </html>

@@ -42,10 +42,52 @@
 }
 </style>
 
-<div class="container-fluid py-3">
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="container-fluid py-3 skel-shell" aria-hidden="true">
+    <div class="page-header">
+        <div>
+            <div class="skel skel-text" style="width:180px; height:22px; margin-bottom:8px;"></div>
+            <div class="skel skel-text" style="width:280px;"></div>
+        </div>
+    </div>
 
-    <h5 class="fw-bold mb-1">Admin Dashboard</h5>
-    <p class="text-muted mb-4" style="font-size:13px;">Overview of your folders, files, and storage</p>
+    <section class="metric-grid">
+        @for ($i = 0; $i < 3; $i++)
+        <div class="metric-card">
+            <div class="skel skel-text" style="width:70%; margin-bottom:10px;"></div>
+            <div class="skel skel-text" style="width:45%; height:26px;"></div>
+        </div>
+        @endfor
+    </section>
+
+    <div class="card-panel">
+        <div class="skel skel-text" style="width:110px; margin-bottom:14px;"></div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <div class="skel" style="width:140px; height:36px; border-radius:8px;"></div>
+            <div class="skel" style="width:120px; height:36px; border-radius:8px;"></div>
+            <div class="skel" style="width:130px; height:36px; border-radius:8px;"></div>
+        </div>
+    </div>
+
+    <div class="card-panel">
+        <div class="skel skel-text" style="width:130px; margin-bottom:16px;"></div>
+        @for ($i = 0; $i < 4; $i++)
+        <div style="display:flex; gap:16px; padding:9px 0; border-bottom:1px solid var(--border);">
+            <div class="skel skel-text" style="width:45%;"></div>
+            <div class="skel skel-text" style="width:30%;"></div>
+        </div>
+        @endfor
+    </div>
+</div>
+
+<div class="container-fluid py-3 skel-real">
+
+    <div class="page-header">
+        <div>
+            <h2>Admin Dashboard</h2>
+            <p class="sub">Overview of your folders, files, and storage</p>
+        </div>
+    </div>
 
     {{-- METRIC CARDS --}}
     <section aria-label="Summary metrics" class="metric-grid">

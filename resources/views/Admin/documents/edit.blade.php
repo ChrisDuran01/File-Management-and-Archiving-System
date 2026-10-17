@@ -9,7 +9,6 @@
     * { box-sizing:border-box; }
     body { background:var(--surface); font-family:'Inter',sans-serif; color:var(--text-1); }
 
-    .page-header h2 { font-size:1.3rem; font-weight:600; margin:0 0 16px; }
     .panel { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow-sm); padding:20px 22px; max-width:720px; }
     .fields { display:grid; grid-template-columns:1fr 1fr; gap:14px 16px; }
     .fields .full { grid-column:1 / -1; }
@@ -24,11 +23,39 @@
     .btn-flat.ghost { background:var(--card); color:var(--text-2); border:1.5px solid var(--border); }
 </style>
 
-@if ($errors->any())
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        {{ $errors->first() }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div class="skel skel-text" style="width:150px; margin-bottom:1rem;"></div>
+
+    <div class="page-header"><div class="skel skel-text" style="width:200px; height:22px;"></div></div>
+
+    <div class="panel">
+        <div class="fields">
+            <div class="full">
+                <div class="skel skel-text" style="width:120px; margin-bottom:5px;"></div>
+                <div class="skel" style="width:100%; height:38px; border-radius:6px;"></div>
+            </div>
+            @for ($i = 0; $i < 6; $i++)
+            <div>
+                <div class="skel skel-text" style="width:100px; margin-bottom:5px;"></div>
+                <div class="skel" style="width:100%; height:38px; border-radius:6px;"></div>
+            </div>
+            @endfor
+            <div class="full">
+                <div class="skel skel-text" style="width:70px; margin-bottom:5px;"></div>
+                <div class="skel" style="width:100%; height:70px; border-radius:6px;"></div>
+            </div>
+        </div>
+        <div style="margin-top:18px; display:flex; gap:10px;">
+            <div class="skel" style="width:130px; height:40px; border-radius:6px;"></div>
+            <div class="skel" style="width:90px; height:40px; border-radius:6px;"></div>
+        </div>
     </div>
-@endif
+</div>
+
+<div class="skel-real">
+
+@include('Admin.partials.back-link', ['backTo' => route('documents.show', $document), 'backLabel' => 'Document'])
 
 <div class="page-header"><h2><i class="fas fa-pen me-2" style="color:var(--brand);"></i>Edit document</h2></div>
 
@@ -66,6 +93,8 @@
     </form>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</div>
+
+<script src="{{ asset('vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
 
 @endsection

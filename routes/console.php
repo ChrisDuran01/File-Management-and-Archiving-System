@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Schedule;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use App\Jobs\RunBackupJob;
@@ -10,6 +11,10 @@ use App\Models\SiteSetting;
 Schedule::call(function () {
     Log::info('TEST: Scheduler is running every minute');
 })->everyMinute();
+
+// Heartbeat for the SuperAdmin dashboard's System health card: if this stops
+// updating, schedule:work / schedule:run isn't running.
+Schedule::call(fn () => Cache::forever('scheduler:heartbeat', now()->timestamp))->everyMinute();
 
 // Retention policy: move folders stored under a past school year into the
 // ZIP archive once they haven't been opened in a long time
@@ -32,6 +37,12 @@ Schedule::command('documents:prune-scan-batches')->dailyAt('03:30');
 // than trash.retention_days.
 Schedule::command('trash:purge-expired')->dailyAt('03:45');
 
+// Fixity: re-check every un-restored archive's ZIP against its recorded
+// checksum, so silent corruption surfaces on its own instead of only being
+// discovered the day someone actually needs to restore it. Weekly, not
+// daily - each run reads every archive's full bytes to hash them.
+Schedule::command('archives:verify-fixity')->weeklyOn(0, '04:15');
+
 // Notifications: drop read bell entries older than 60 days so the table
 // doesn't grow forever. Unread ones are kept regardless of age.
 Schedule::call(function () {
@@ -40,6 +51,10 @@ Schedule::call(function () {
         ->where('created_at', '<', now()->subDays(60))
         ->delete();
 })->dailyAt('04:00');
+
+// Retention: personal data in activity_logs / help_bot_logs is only kept
+// for retention.activity_log_days / retention.help_bot_log_days.
+Schedule::command('logs:prune')->dailyAt('04:30');
 
 // Your actual backup schedule
 //

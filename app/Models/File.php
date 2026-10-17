@@ -20,20 +20,49 @@ class File extends Model
     'generated_from_template_id',
     'school_year',
     'is_archived',
+    'officer_term_id',
     'last_accessed_at',
     'ocr_text',
     'ocr_status',
     'ocr_processed_at',
+    'is_pending_approval',
 ];
 
     protected $casts = [
         'last_accessed_at' => 'datetime',
         'ocr_processed_at' => 'datetime',
+        'is_pending_approval' => 'boolean',
     ];
 
     public function folder()
     {
         return $this->belongsTo(Folder::class);
+    }
+
+    /**
+     * Files the anonymous student page may show: marked public AND (no
+     * parent folder, or a parent folder that isn't restricted). Being public
+     * on the file alone isn't enough - a restricted folder still hides
+     * everything inside it from anonymous visitors. A file still subject
+     * for approval is never shown either: it isn't official yet.
+     */
+    public function scopePubliclyVisible($query)
+    {
+        return $query->where('is_public', 1)
+            ->where('is_pending_approval', false)
+            ->where(function ($q) {
+                $q->whereNull('folder_id')
+                    ->orWhereHas('folder', fn ($folder) => $folder->where('is_restricted', false));
+            });
+    }
+
+    /**
+     * The officer term active when this file was created, if any - used
+     * to scope "end term" archiving to just that school year's files.
+     */
+    public function officerTerm()
+    {
+        return $this->belongsTo(OfficerTerm::class);
     }
 
     public function template()
@@ -94,6 +123,26 @@ class File extends Model
     public function isManageableBy(User $user): bool
     {
         return ! $this->folder || $this->folder->isManageableBy($user);
+    }
+
+    /**
+     * Whether $user may make a link that opens this file for someone without
+     * an account (FileShareLink). Anyone who can open the file - except in a
+     * restricted folder, where only the folder's creator or a SuperAdmin
+     * decides who outside the system sees it.
+     */
+    public function isShareableBy(User $user): bool
+    {
+        if (! $this->isAccessibleBy($user)) {
+            return false;
+        }
+
+        return ! $this->folder?->is_restricted || $this->isManageableBy($user);
+    }
+
+    public function shareLinks()
+    {
+        return $this->hasMany(FileShareLink::class);
     }
 
     /**

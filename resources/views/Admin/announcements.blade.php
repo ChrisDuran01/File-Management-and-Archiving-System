@@ -2,6 +2,7 @@
 @section('content')
 
 @include('Admin.partials.theme')
+@include('partials.image-carousel', ['images' => collect()])
 
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
@@ -9,9 +10,6 @@
 <style>
     * { box-sizing: border-box; }
     body { background: var(--surface); font-family: 'Inter', sans-serif; color: var(--text-1); }
-
-    .page-header h2 { font-size: 1.35rem; font-weight: 600; letter-spacing: -.3px; margin: 0 0 4px; }
-    .page-header .sub { font-size: .85rem; color: var(--text-2); margin: 0 0 20px; }
 
     .card-panel {
         background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
@@ -22,6 +20,14 @@
         color: var(--text-3); margin-bottom: 14px; display: flex; align-items: center; gap: 6px;
     }
     .panel-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    .photo-preview { margin-top: 6px; }
+    .photo-status { margin-top: 8px; padding: 8px 12px; border-radius: var(--radius-sm); font-size: .8rem; background: rgba(217,119,6,.12); color: #b45309; }
+    .existing-photo { min-height: 44px; }
+    .existing-photos { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    .existing-photo { width: 96px; font-size: .72rem; color: var(--text-2); cursor: pointer; margin: 0 !important; }
+    .existing-photo img { width: 96px; height: 72px; object-fit: cover; border-radius: 8px; display: block; margin-bottom: 4px; }
+    .existing-photo:has(input:checked) img { opacity: .35; }
 
     .field-group { margin-bottom: 14px; }
     .field-group label { display: block; font-size: .78rem; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
@@ -69,17 +75,53 @@
     .an-body ul, .an-body ol { padding-left: 1.4em; margin-bottom: 0.5em; }
 </style>
 
-<div class="page-header">
-    <h2><i class="fas fa-bullhorn me-2" style="color:var(--primary);font-size:1.1rem;"></i>Announcements</h2>
-    <p class="sub">Post updates for students. These show up on the public student dashboard as soon as you save them.</p>
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div class="page-header">
+        <div>
+            <div class="skel skel-text" style="width:170px; height:22px; margin-bottom:8px;"></div>
+            <div class="skel skel-text" style="width:400px;"></div>
+        </div>
+    </div>
+
+    <div class="card-panel">
+        <div class="skel skel-text" style="width:180px; margin-bottom:14px;"></div>
+        <div class="field-group">
+            <div class="skel skel-text" style="width:60px; margin-bottom:6px;"></div>
+            <div class="skel" style="width:100%; height:36px; border-radius:8px;"></div>
+        </div>
+        <div class="field-group">
+            <div class="skel skel-text" style="width:80px; margin-bottom:6px;"></div>
+            <div class="skel" style="width:100%; height:110px; border-radius:8px;"></div>
+        </div>
+        <div class="field-group">
+            <div class="skel skel-text" style="width:140px; margin-bottom:6px;"></div>
+            <div class="skel" style="width:100%; height:36px; border-radius:8px;"></div>
+        </div>
+        <div class="skel" style="width:170px; height:38px; border-radius:8px;"></div>
+    </div>
+
+    <div class="card-panel">
+        <div class="skel skel-text" style="width:200px; margin-bottom:14px;"></div>
+        @for ($i = 0; $i < 3; $i++)
+        <div class="an-card">
+            <div class="skel skel-text" style="width:220px; margin-bottom:6px;"></div>
+            <div class="skel skel-text" style="width:160px; margin-bottom:10px;"></div>
+            <div class="skel skel-text" style="width:90%; margin-bottom:4px;"></div>
+            <div class="skel skel-text" style="width:70%;"></div>
+        </div>
+        @endfor
+    </div>
 </div>
 
-@if(session('success'))
-    <div class="alert alert-success">{{ session('success') }}</div>
-@endif
-@if($errors->any())
-    <div class="alert alert-danger">{{ $errors->first() }}</div>
-@endif
+<div class="skel-real">
+
+<div class="page-header">
+    <div>
+        <h2><i class="fas fa-bullhorn me-2" style="color:var(--primary);font-size:1.1rem;"></i>Announcements</h2>
+        <p class="sub">Post updates for students. These show up on the public student dashboard as soon as you save them.</p>
+    </div>
+</div>
 
 <div class="card-panel">
     <div class="panel-label"><i class="fas fa-plus"></i> Post a new announcement</div>
@@ -94,6 +136,12 @@
             <label>Message</label>
             <div id="quill-new" class="quill-editor" data-placeholder="Details for students..."></div>
             <input type="hidden" name="body" id="body-new">
+        </div>
+        <div class="field-group">
+            <label>Photos (optional)</label>
+            <input type="file" name="images[]" class="form-control photo-input" accept=".jpg,.jpeg,.png,.webp" multiple>
+            <small style="color:var(--text-3);">Up to 10 photos, 5MB each. Swipe the preview to check them; tap &times; to remove one.</small>
+            <div class="photo-preview"></div>
         </div>
         <div class="field-group">
             <label>Attachment (optional)</label>
@@ -118,6 +166,7 @@
                     Posted {{ $an->created_at->format('M d, Y g:i A') }}
                     @if($an->author) &middot; by {{ $an->author->name }} @endif
                 </div>
+                @include('partials.image-carousel', ['images' => $an->images])
                 <div class="an-body">{!! $an->body !!}</div>
 
                 @if($an->attachment_path)
@@ -131,7 +180,10 @@
                     <button type="button" class="edit" onclick="toggleEditPanel({{ $an->id }})">
                         <i class="fas fa-pen"></i> Edit
                     </button>
-                    <form action="{{ route('announcements.destroy', $an->id) }}" method="POST" onsubmit="return confirm('Delete this announcement?');">
+                    <form action="{{ route('announcements.destroy', $an->id) }}" method="POST"
+                          data-confirm-title="Delete this announcement?"
+                          data-confirm="“{{ $an->title }}” will be removed from the student page. This cannot be undone."
+                          data-confirm-ok="Delete">
                         @csrf @method('DELETE')
                         <button type="submit" class="danger"><i class="fas fa-trash"></i> Delete</button>
                     </form>
@@ -150,6 +202,22 @@
                             <input type="hidden" name="body" id="body-edit-{{ $an->id }}">
                         </div>
                         <div class="field-group">
+                            <label>Photos</label>
+                            @if($an->images->isNotEmpty())
+                                <div class="existing-photos">
+                                    @foreach($an->images as $img)
+                                        <label class="existing-photo">
+                                            <img src="{{ route('announcements.image', $img->id) }}" alt="">
+                                            <span><input type="checkbox" name="remove_images[]" value="{{ $img->id }}"> Remove</span>
+                                        </label>
+                                    @endforeach
+                                </div>
+                            @endif
+                            <input type="file" name="images[]" class="form-control photo-input" accept=".jpg,.jpeg,.png,.webp" multiple>
+                            <small style="color:var(--text-3);">Add more photos (10 max, 5MB each).</small>
+                            <div class="photo-preview"></div>
+                        </div>
+                        <div class="field-group">
                             <label>Replace attachment (optional)</label>
                             <input type="file" name="attachment" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
                         </div>
@@ -159,6 +227,8 @@
             </div>
         @endforeach
     @endif
+</div>
+
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
@@ -188,7 +258,91 @@ function toggleEditPanel(id) {
     }
 }
 
+// Live, swipeable preview of the photos picked in a file input. Keeps its
+// own list so a photo can be dropped before posting; the input's FileList
+// is rebuilt from it with DataTransfer.
+function setupPhotoPicker(input) {
+    const box = input.parentElement.querySelector('.photo-preview');
+    const MAX = 10;
+
+    // Polite live region so screen readers hear the same warning.
+    const status = document.createElement('div');
+    status.className = 'photo-status';
+    status.setAttribute('role', 'status');
+    status.hidden = true;
+    box.before(status);
+    let files = [];
+
+    function sync() {
+        const dt = new DataTransfer();
+        files.forEach(f => dt.items.add(f));
+        input.files = dt.files;
+        render();
+    }
+
+    // Same stacked deck the students will see, built from the picked files.
+    function render() {
+        box.innerHTML = '';
+        if (! files.length) return;
+
+        const deck = document.createElement('div');
+        deck.className = 'ps';
+        const stage = document.createElement('div');
+        stage.className = 'ps-stage';
+        files.forEach(function (f, i) {
+            const slide = document.createElement('div');
+            slide.className = 'ps-slide';
+            const img = document.createElement('img');
+            img.src = URL.createObjectURL(f);
+            img.draggable = false;
+            const x = document.createElement('button');
+            x.type = 'button';
+            x.className = 'ps-x';
+            x.innerHTML = '&times;';
+            x.title = 'Remove this photo';
+            x.onclick = () => { files.splice(i, 1); sync(); };
+            slide.append(img, x);
+            stage.append(slide);
+        });
+        deck.append(stage);
+
+        if (files.length > 1) {
+            const nav = document.createElement('div');
+            nav.className = 'ps-nav';
+            nav.innerHTML = '<button type="button" class="ps-prev" aria-label="Previous photo">&#8249;</button>'
+                + '<span class="ps-count"></span>'
+                + '<button type="button" class="ps-next" aria-label="Next photo">&#8250;</button>';
+            deck.append(nav);
+        }
+
+        box.append(deck);
+        window.initPhotoStack(deck);
+    }
+
+    input.addEventListener('change', function () {
+        // Catch problems now, with a plain-language reason, instead of
+        // letting the server reject the whole post after the officer hit Post.
+        const problems = [];
+        const ok = Array.from(input.files).filter(function (f) {
+            if (! /^image\/(jpeg|png|webp)$/.test(f.type)) { problems.push(f.name + ' is not a JPG, PNG or WebP photo'); return false; }
+            if (f.size > 5 * 1024 * 1024) { problems.push(f.name + ' is over 5MB'); return false; }
+            return true;
+        });
+
+        // A new pick adds to the earlier ones (the browser would replace them).
+        const merged = files.concat(ok);
+        if (merged.length > MAX) problems.push('Only ' + MAX + ' photos are allowed, so the extra ones were skipped');
+        files = merged.slice(0, MAX);
+
+        status.textContent = problems.join('. ');
+        status.hidden = problems.length === 0;
+        sync();
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.photo-input').forEach(setupPhotoPicker);
+
     // "Post a new announcement" editor - always present, initialized right away.
     const newEditor = new Quill('#quill-new', {
         theme: 'snow',

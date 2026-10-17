@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Middleware\EnsurePhone;
 use App\Models\ActivityLog;
 use App\Models\Folder;
 use Illuminate\Support\Facades\DB;
@@ -130,6 +131,14 @@ class AuthController extends Controller
             'ip_address' => $request->ip()
         ]);
 
+        // One sign-in page for both: a phone goes on to the officer phone
+        // app (/app), a computer to the website. from_app is sent by the
+        // app's own address (/app/login), which only a computer reaches
+        // when OFFICER_APP_PHONES_ONLY=false.
+        if ($request->boolean('from_app') || EnsurePhone::isPhone($request)) {
+            return redirect()->route('app.home');
+        }
+
         // Adviser/President (or a legacy account with no officer record at
         // all) land on the SuperAdmin dashboard; every other officer gets
         // the regular one.
@@ -210,6 +219,12 @@ class AuthController extends Controller
 
         if ($isIdle) {
             session()->flash('success', 'You were logged out after a period of inactivity.');
+        }
+
+        // Signed out from inside the officer phone app: back to the sign-in
+        // page at the app's own address, so an installed app stays open.
+        if ($request->boolean('from_app')) {
+            return redirect()->route('app.login');
         }
 
         return redirect('/login');

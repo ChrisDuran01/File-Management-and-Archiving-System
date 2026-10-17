@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 use App\Models\ActivityLog;
 use App\Models\File;
 use App\Models\Folder;
+use App\Models\OfficerTerm;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -31,9 +32,13 @@ class FolderController extends Controller
         $counter++;
     }
 
+    $term = OfficerTerm::activeFor(Auth::id());
+
     $folder = Folder::create([
         'name' => $name,
         'created_by' => Auth::id(),
+        'officer_term_id' => $term?->id,
+        'school_year' => $term?->school_year,
     ]);
 
     ActivityLog::create([
@@ -98,40 +103,9 @@ class FolderController extends Controller
             ->where('school_year', $year)
             ->get();
 
-        return view('Admin.folderHistory', compact('folders', 'rootFiles', 'year'));
-    }
+        $layout = Folder::isSuperAdmin(Auth::user()) ? 'SuperAdmin.homeSuperAdmin' : 'Admin.home';
 
-    /**
-     * Start a new school year: tag every current folder and file with the
-     * given school year, hide them from the main page, and leave it empty
-     * again for the new year's uploads.
-     */
-    public function startNewSchoolYear(Request $request)
-    {
-        $request->validate([
-            'school_year' => 'required|string|max:255',
-        ]);
-
-        $year = $request->school_year;
-
-        Folder::where('is_archived', false)->update([
-            'school_year' => $year,
-            'is_archived' => true,
-        ]);
-
-        File::where('is_archived', false)->update([
-            'school_year' => $year,
-            'is_archived' => true,
-        ]);
-
-        ActivityLog::create([
-            'user_name'  => Auth::user()->name,
-            'activity'   => 'Started new school year: stored all folders and files under SY ' . $year,
-            'ip_address' => $request->ip()
-        ]);
-
-        return redirect()->route('folders.index')
-            ->with('success', "All folders and files have been stored under school year {$year}. You can start uploading for the new school year.");
+        return view('Admin.folderHistory', compact('folders', 'rootFiles', 'year', 'layout'));
     }
 
     /**

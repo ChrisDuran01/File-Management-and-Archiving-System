@@ -47,12 +47,40 @@ class OcrExtractor
     {
         $extension = strtolower($extension);
 
-        return $extension === 'pdf' || in_array($extension, self::IMAGE_EXTENSIONS, true);
+        return $extension === 'pdf'
+            || $extension === 'docx'
+            || in_array($extension, self::IMAGE_EXTENSIONS, true);
     }
 
     public function isImage(string $extension): bool
     {
         return in_array(strtolower($extension), self::IMAGE_EXTENSIONS, true);
+    }
+
+    /**
+     * A .docx is a zip of XML parts, so the text is read straight out of
+     * word/document.xml (no OCR needed). Paragraph/tab/line-break tags become
+     * whitespace so words on adjacent lines don't run together.
+     */
+    private function extractFromDocx(string $path): string
+    {
+        $zip = new \ZipArchive();
+
+        if ($zip->open($path) !== true) {
+            throw new \RuntimeException('Could not open .docx file for text extraction.');
+        }
+
+        $xml = $zip->getFromName('word/document.xml');
+        $zip->close();
+
+        if ($xml === false) {
+            throw new \RuntimeException('word/document.xml not found in .docx file.');
+        }
+
+        $xml  = preg_replace('#</w:p>|<w:br\s*/?>|<w:tab\s*/?>#i', "\n", $xml);
+        $text = html_entity_decode(strip_tags($xml), ENT_QUOTES | ENT_XML1, 'UTF-8');
+
+        return trim(preg_replace("/[ \t]+/", ' ', preg_replace("/\n{3,}/", "\n\n", $text)));
     }
 
     /**
@@ -69,9 +97,11 @@ class OcrExtractor
         [$localPath, $isTemp] = $this->resolveLocalPath($file);
 
         try {
-            return $extension === 'pdf'
-                ? $this->extractFromPdf($localPath)
-                : $this->ocrImage($localPath);
+            return match (true) {
+                $extension === 'pdf'  => $this->extractFromPdf($localPath),
+                $extension === 'docx' => $this->extractFromDocx($localPath),
+                default               => $this->ocrImage($localPath),
+            };
         } finally {
             if ($isTemp) {
                 @unlink($localPath);
@@ -427,8 +457,8 @@ class OcrExtractor
      */
     private function resolveLocalPath(File $file): array
     {
-        if ($file->local_path && Storage::disk('public')->exists($file->local_path)) {
-            return [Storage::disk('public')->path($file->local_path), false];
+        if ($file->local_path && Storage::disk('local')->exists($file->local_path)) {
+            return [Storage::disk('local')->path($file->local_path), false];
         }
 
         // Cloud-only file (no local copy) - fetch it from the cloud disk

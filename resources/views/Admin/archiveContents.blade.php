@@ -121,7 +121,31 @@
     [data-theme="dark"] .empty-state { color: var(--text-3); }
 </style>
 
-<div style="max-width:760px; margin:0 auto;">
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div style="max-width:760px; margin:0 auto;">
+        <div class="skel skel-text" style="width:140px; margin-bottom:1.25rem;"></div>
+
+        <div class="archive-header">
+            <div class="skel" style="width:52px; height:52px; border-radius:12px;"></div>
+            <div class="archive-header-info">
+                <div class="skel skel-text" style="width:200px; margin-bottom:8px;"></div>
+                <div class="skel skel-text" style="width:260px;"></div>
+            </div>
+        </div>
+
+        <div class="file-list">
+            @for ($i = 0; $i < 5; $i++)
+            <div class="file-row">
+                <span class="skel" style="width:32px; height:32px; border-radius:8px;"></span>
+                <span class="skel skel-text" style="width:60%;"></span>
+            </div>
+            @endfor
+        </div>
+    </div>
+</div>
+
+<div style="max-width:760px; margin:0 auto;" class="skel-real">
 
     <a href="{{ route('archives.index') }}" class="back-link">
         <i class="fas fa-arrow-left"></i> Back to Archives
@@ -133,6 +157,9 @@
             <p class="archive-header-name">{{ $archive->folder_name }}</p>
             <div class="archive-header-meta">
                 <span><i class="fas fa-file-archive"></i> {{ $archive->zip_name }}</span>
+                @if($archive->school_year)
+                <span><i class="far fa-calendar"></i> SY {{ $archive->school_year }}</span>
+                @endif
                 <span><i class="far fa-clock"></i> {{ $archive->archived_at ? $archive->archived_at->format('Y-m-d H:i') : 'N/A' }}</span>
                 <span><i class="fas fa-files"></i> {{ count($filenames) }} {{ Str::plural('file', count($filenames)) }}</span>
             </div>

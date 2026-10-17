@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Models\Archive;
+use App\Models\Document;
 use App\Models\File;
 use App\Models\Folder;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\File as FileFacade;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -32,6 +34,10 @@ class FolderArchiver
         $createdBy      = $folder->created_by;
         $allowedUserIds = $folder->allowedUsers()->pluck('users.id')->all();
 
+        // And the folder row itself, as it stands - what restore() rebuilds
+        // the folder from (school year, owner, stored-away flag, ...).
+        $folderRecord = $folder->getAttributes();
+
         Log::info('Archive started for folder: ' . $folderName);
 
         $files = File::where('folder_id', $folderId)->get();
@@ -54,13 +60,15 @@ class FolderArchiver
 
         $archivedFilesCount = 0;
         $fileChecksums      = [];
+        $fileIds            = [];
+        $keptFiles          = [];
 
         foreach ($files as $file) {
             $fileAdded   = false;
             $fileContent = null;
 
-            if ($file->local_path && Storage::disk('public')->exists($file->local_path)) {
-                $fileContent = Storage::disk('public')->get($file->local_path);
+            if ($file->local_path && Storage::disk('local')->exists($file->local_path)) {
+                $fileContent = Storage::disk('local')->get($file->local_path);
                 $zip->addFromString($file->filename, $fileContent);
                 $fileAdded = true;
                 $archivedFilesCount++;
@@ -85,8 +93,36 @@ class FolderArchiver
             // the extracted bytes still match.
             $fileChecksums[$file->filename] = hash('sha256', $fileContent);
 
-            if ($file->local_path && Storage::disk('public')->exists($file->local_path)) {
-                Storage::disk('public')->delete($file->local_path);
+            // Restoring recreates this file with this same id when it is
+            // still free (see ArchiveController::restore()).
+            $fileIds[$file->filename] = $file->id;
+
+            // Everything below this point is deleted for good: the file row
+            // here, and with it - through the database's ON DELETE CASCADE -
+            // the documents row of a file that was filed as one. So before
+            // that happens, keep (saved as archive_files once the archive
+            // exists):
+            //  - what search matches on, since it can't read inside the ZIP:
+            //    extracted text, school year, the document's details;
+            //  - both rows as they stand, for restore() to rebuild them from.
+            $document = Document::where('file_id', $file->id)->first();
+
+            $keptFiles[] = [
+                'filename'        => $file->filename,
+                'school_year'     => $file->school_year ?? $folder->school_year,
+                'ocr_text'        => $file->ocr_text,
+                'document_title'  => $document?->title,
+                'document_type'   => $document?->document_type,
+                'reference_no'    => $document?->reference_no,
+                'sender'          => $document?->sender,
+                'recipient'       => $document?->recipient,
+                'notes'           => $document?->notes,
+                'file_record'     => Arr::except($file->getAttributes(), ['ocr_text']),
+                'document_record' => $document?->getAttributes(),
+            ];
+
+            if ($file->local_path && Storage::disk('local')->exists($file->local_path)) {
+                Storage::disk('local')->delete($file->local_path);
             }
 
             if ($file->filepath) {
@@ -95,7 +131,8 @@ class FolderArchiver
 
             // Hard delete, not trash: the ZIP built above already preserves
             // this file's contents, so keeping a trashed row (with its bytes
-            // just removed) would only clutter the recycle bin.
+            // just removed) would only clutter the recycle bin. Its documents
+            // row goes with it (cascade) - hence the copy taken above.
             $file->forceDelete();
         }
 
@@ -110,8 +147,9 @@ class FolderArchiver
         // this recorded value to prove it hasn't been altered or corrupted.
         $checksum = hash_file('sha256', $tempZipPath);
 
+        // The private disk, not `public` - see Archive::localZipPath().
         $localArchivePath = 'archives/' . $zipName;
-        Storage::disk('public')->put($localArchivePath, file_get_contents($tempZipPath));
+        Storage::disk('local')->put($localArchivePath, file_get_contents($tempZipPath));
 
         $zipContent   = file_get_contents($tempZipPath);
         $archivePath  = "archives/$zipName";
@@ -125,9 +163,10 @@ class FolderArchiver
         $folder->forceDelete();
         Log::info('Folder deleted from main folders: ' . $folderName);
 
-        Archive::create([
+        $archive = Archive::create([
             'record_id'        => $folderId,
             'folder_name'      => $folderName,
+            'school_year'      => $folder->school_year,
             'zip_name'         => $zipName,
             'file_path'        => $archivePath,
             'archive_type'     => $archiveType,
@@ -140,7 +179,11 @@ class FolderArchiver
             'allowed_user_ids' => $allowedUserIds,
             'checksum'         => $checksum,
             'file_checksums'   => $fileChecksums,
+            'file_ids'         => $fileIds,
+            'folder_record'    => $folderRecord,
         ]);
+
+        $archive->files()->createMany($keptFiles);
 
         Log::info('Folder archived and removed successfully: ' . $folderName);
 

@@ -5,19 +5,27 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Archive;
 use App\Models\ActivityLog;
+use App\Models\Document;
 use App\Models\File;
 use App\Models\Folder;
+use App\Models\User;
 use App\Services\FolderArchiver;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File as FileFacade;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use ZipArchive;
 
 class ArchiveController extends Controller
 {
+    /** @var array<string, string[]> table => its column names, looked up once per request by reviveRecord() */
+    private array $tableColumns = [];
+
     public function index()
     {
         $archives = Archive::latest()->get()->filter(fn (Archive $archive) => $archive->isAccessibleBy(Auth::user()))->values();
@@ -47,6 +55,11 @@ class ArchiveController extends Controller
     {
         try {
             $folder = Folder::findOrFail($folderId);
+
+            if (! $folder->isManageableBy(Auth::user())) {
+                return back()->with('error', 'Only this folder\'s creator or a SuperAdmin can archive it.');
+            }
+
             $folderName = $folder->name;
 
             $result = $archiver->archive($folder, Auth::user()?->name ?? 'System');
@@ -81,20 +94,37 @@ class ArchiveController extends Controller
                 return back()->with('error', 'You do not have permission to restore this archive.');
             }
 
+            if ($archive->restored_at) {
+                return back()->with('error', 'This archive has already been restored.');
+            }
+
             // Check if folder already exists
             $existingFolder = Folder::find($archive->record_id);
             if ($existingFolder) {
                 return back()->with('error', 'Folder already exists. Please delete the existing folder first or restore to a different location.');
             }
-            
-            // Create the folder back
-            $folder = Folder::create([
-                'id' => $archive->record_id, // Restore with original ID if possible
-                'name' => $archive->folder_name,
-                'parent_id' => null, // Or get from archive remarks if stored
-                'description' => "Restored from archive on " . now()
-            ]);
-            
+
+            // Put the folder back as it was when it was archived - school
+            // year, owner, restriction, stored-away flag - from the copy of
+            // its row FolderArchiver kept. Archives made before that copy
+            // existed (pre 2026-10-11) only recorded the name and the access
+            // rules, so that is all those can get back.
+            $folder = new Folder();
+            $folder->forceFill(array_merge(
+                $this->reviveRecord('folders', $archive->folder_record ?? [
+                    'id'            => $archive->record_id,
+                    'name'          => $archive->folder_name,
+                    'is_restricted' => $archive->is_restricted,
+                    'created_by'    => $archive->created_by,
+                ], ['created_by' => 'users', 'officer_term_id' => 'officer_terms']),
+                // Restoring counts as using it. Otherwise a folder that was
+                // auto-archived for sitting unopened would be swept straight
+                // back into the archive by the next retention run.
+                ['last_accessed_at' => now()]
+            ))->save();
+
+            $folder->allowedUsers()->sync(User::whereIn('id', $archive->allowed_user_ids ?? [])->pluck('id'));
+
             Log::info('Folder restored: ' . $folder->name);
             
             // Create restoration directory path
@@ -104,7 +134,7 @@ class ArchiveController extends Controller
             $zipContent = null;
             
             // Check local archive storage
-            $localArchivePath = storage_path('app/public/archives/' . $archive->zip_name);
+            $localArchivePath = $archive->localZipPath();
             if (file_exists($localArchivePath)) {
                 $zipContent = file_get_contents($localArchivePath);
                 Log::info('Restoring from local archive');
@@ -187,9 +217,10 @@ class ArchiveController extends Controller
                 // Generate unique file path
                 $uniquePath = $folder->id . '_' . time() . '_' . Str::slug($name) . '_' . $count . '.' . $extension;
                 
-                // Save to local storage
-                $localPath = $localRestorePath . $uniquePath;
-                Storage::disk('public')->put($localPath, $fileContent);
+                // Save to local storage - under a random name, like every
+                // other local copy (CacheFileLocally etc.).
+                $localPath = $localRestorePath . Str::random(40) . ($extension ? '.' . $extension : '');
+                Storage::disk('local')->put($localPath, $fileContent);
                 
                 // Upload to the cloud disk
                 try {
@@ -199,20 +230,49 @@ class ArchiveController extends Controller
                     $uploadedToCloud = false;
                 }
 
-                // Save to database
-                $file = File::create([
-                    'filename' => $newFileName,
-                    'filepath' => $uniquePath,
-                    'local_path' => $localPath,
-                    'folder_id' => $folder->id,
-                    'size' => $fileSize,
-                    'storage_type' => $uploadedToCloud ? 'both' : 'local',
-                ]);
-                
-                if ($file) {
-                    $restoredCount++;
-                    Log::info('Restored file: ' . $newFileName);
+                // Start from the file's row as it was when archived (school
+                // year, public / approval flags, upload date, OCR status...)
+                // and point it at the bytes just written. Its extracted text
+                // comes back too, so it stays findable by its contents -
+                // nothing re-runs OCR here. An archive from before those
+                // copies were kept only recorded each file's original id.
+                $kept = $archive->files->firstWhere('filename', $filename);
+
+                $file = new File();
+                $file->forceFill(array_merge(
+                    $this->reviveRecord(
+                        'files',
+                        $kept?->file_record ?? array_filter(['id' => $archive->file_ids[$filename] ?? null]),
+                        ['officer_term_id' => 'officer_terms', 'generated_from_template_id' => 'templates']
+                    ),
+                    [
+                        'filename'     => $newFileName,
+                        'filepath'     => $uniquePath,
+                        'local_path'   => $localPath,
+                        'folder_id'    => $folder->id,
+                        'size'         => $fileSize,
+                        'storage_type' => $uploadedToCloud ? 'both' : 'local',
+                        'ocr_text'     => $kept?->ocr_text,
+                    ]
+                ))->save();
+
+                // A file that was filed as a document lost that record when
+                // it was archived (the database deletes it with the file
+                // row), so it is rebuilt from its copy and linked to the
+                // file and folder just recreated.
+                if ($kept?->document_record) {
+                    $document = new Document();
+                    $document->forceFill(array_merge(
+                        $this->reviveRecord('documents', $kept->document_record, [
+                            'scan_batch_id' => 'scan_batches',
+                            'created_by'    => 'users',
+                        ]),
+                        ['file_id' => $file->id, 'folder_id' => $folder->id]
+                    ))->save();
                 }
+
+                $restoredCount++;
+                Log::info('Restored file: ' . $newFileName);
             }
             
             // Clean up temp files
@@ -241,13 +301,56 @@ class ArchiveController extends Controller
                     ->with('error', "Folder '{$archive->folder_name}' restored with {$restoredCount} files, but failed its integrity check.{$integrityNote} The restored data may be incomplete or altered - please verify it.");
             }
 
+            // Say where it went - a folder that had been stored away under a
+            // past school year goes back there, not onto the Folders page -
+            // and whether anything in it is on the student page again.
+            $restoredTo = $folder->is_archived && $folder->school_year
+                ? "Folder added back under Previous School Years ({$folder->school_year})."
+                : 'Folder added back to main directory.';
+
+            $publicCount = File::publiclyVisible()->where('folder_id', $folder->id)->count();
+            $publicNote  = $publicCount
+                ? " {$publicCount} " . Str::plural('file', $publicCount) . ' in it ' . ($publicCount === 1 ? 'is' : 'are') . ' visible on the student page again.'
+                : '';
+
             return redirect()->route('folders.index')
-                ->with('success', "Folder '{$archive->folder_name}' restored successfully with {$restoredCount} files, integrity verified. Folder added back to main directory.");
-            
+                ->with('success', "Folder '{$archive->folder_name}' restored successfully with {$restoredCount} files, integrity verified. {$restoredTo}{$publicNote}");
+
         } catch (\Exception $e) {
             Log::error('Restore failed: ' . $e->getMessage());
             return back()->with('error', 'Restore failed: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Turns a row copied at archive time back into attributes that can be
+     * inserted today: columns the table no longer has are dropped,
+     * references to rows deleted in the meantime are cleared (the foreign
+     * key would reject them otherwise), and the original id is kept only
+     * while it is still free.
+     *
+     * @param  array<string, string>  $references  column => table it points into
+     */
+    private function reviveRecord(string $table, array $record, array $references = []): array
+    {
+        $this->tableColumns[$table] ??= Schema::getColumnListing($table);
+
+        // updated_at is left for Eloquent to stamp; created_at is kept, so
+        // the row still shows when it was really made.
+        $attributes = Arr::except(Arr::only($record, $this->tableColumns[$table]), ['updated_at', 'deleted_at']);
+
+        foreach ($references as $column => $referencedTable) {
+            if (isset($attributes[$column]) && ! DB::table($referencedTable)->where('id', $attributes[$column])->exists()) {
+                $attributes[$column] = null;
+            }
+        }
+
+        // Checked on the table itself, so a trashed row counts as taken too.
+        if (isset($attributes['id']) && DB::table($table)->where('id', $attributes['id'])->exists()) {
+            unset($attributes['id']);
+        }
+
+        return $attributes;
     }
 
     /**
@@ -270,7 +373,7 @@ class ArchiveController extends Controller
             $confirmed = $request->boolean('confirmed');
 
             // Try local archive storage first
-            $localArchivePath = storage_path('app/public/archives/' . $archive->zip_name);
+            $localArchivePath = $archive->localZipPath();
             if (file_exists($localArchivePath)) {
                 $verified = $archive->matchesChecksum(file_get_contents($localArchivePath));
 
@@ -446,7 +549,7 @@ class ArchiveController extends Controller
      */
     private function readArchiveEntry(Archive $archive, string $filename): ?string
     {
-        $localArchivePath = storage_path('app/public/archives/' . $archive->zip_name);
+        $localArchivePath = $archive->localZipPath();
         $tempPath = null;
 
         if (file_exists($localArchivePath)) {
@@ -493,7 +596,7 @@ class ArchiveController extends Controller
             }
 
             // Delete local archive file
-            $localArchivePath = storage_path('app/public/archives/' . $archive->zip_name);
+            $localArchivePath = $archive->localZipPath();
             if (file_exists($localArchivePath)) {
                 FileFacade::delete($localArchivePath);
                 Log::info('Deleted local archive: ' . $archive->zip_name);

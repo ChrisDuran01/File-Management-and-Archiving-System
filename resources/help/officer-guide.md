@@ -28,6 +28,44 @@ Go to the login page and use the email and password given to you by the Super
 Admin. On first login you may be asked to change your password. Forgot it? Use
 "Forgot password" on the login page to get a reset link by email.
 
+## Phone app (QSU SG Officers)
+
+A simpler version of the system made for a phone. It is for officers only and
+is separate from the students' app.
+
+- **Open it:** there is one login page for the website and the app. Sign in on
+  a phone with your usual account and you go straight to the app; on a computer
+  you go to the website. Going to `/app` on a computer only shows a note to use
+  the website.
+- **Install it:** on the app's Home screen tap "Install". On an iPhone, tap the
+  Share button, then "Add to Home Screen". Installing and offline files need the
+  system to be on a secure (https) address.
+- **What you can do in it:** browse folders, open and read files (PDF, Word,
+  pictures), search (including inside archives), add a file, and see your
+  notifications. Everything else – managing officers, reports, backups,
+  archiving, trash – is done on the website.
+- **Add a file from the phone:** open a folder → "Add file" → "Take a photo" of
+  a paper document or "Choose a file". "Scan as document" turns a photo into a
+  searchable PDF. Uploading needs a connection.
+- **Offline files:** the app keeps copies of files on the phone so they open
+  with no connection, on the "Offline" tab. Files in use this school year are
+  saved automatically while the app is open (on Wi-Fi only where the phone can
+  tell; an iPhone asks once). Files in restricted folders, from previous school
+  years, or larger than 25 MB are not automatic: open the file and tap
+  "Keep offline". With no connection, the app shows only the Offline tab.
+- **Send a file to a nearby phone with no internet:** the file must be saved on
+  the phone. Open it from the Offline tab → "Send or open in another app" → pick
+  **Bluetooth** or **Quick Share** (Android) or **AirDrop** (iPhone, to Apple
+  devices only). The send is written to the activity log once the phone is back
+  online, with the time it happened. Word, Excel and PowerPoint files can't go
+  straight to the share menu on Android: the app saves them to Downloads, then
+  send them from the phone's Files app (press and hold the file → Share).
+- **Download** is still there on every file, and works as on the website.
+- **When copies are removed from the phone:** when you sign out of the app,
+  when you lose access to a file, when another officer signs in on the same
+  phone, or after 30 days without connecting to the system. A phone may also
+  clear saved data by itself, so use Download for a file you must not lose.
+
 ---
 
 ## Dashboard
@@ -57,12 +95,13 @@ Three-dot menu → Manage access → turn on "Restrict this folder to specific
 officers", then tick the officers who should also see it. You and the Super Admin
 always keep access.
 
-### Start New School Year
+### Ending a school year
 
-On the Folders page, "Start New School Year" stores every folder and file
-currently on the page under the school year you enter, then clears the page so
-you start the new term empty. The stored year stays reachable from "Previous
-School Years". This does not delete anything.
+There's no separate "start new year" step on the Folders page. When the Super
+Admin ends a school year's officer term (Manage Admins → End Term), that same
+school year's folders and files are automatically stored away too, clearing
+the Folders page for the new term. The stored year stays reachable from
+"Previous School Years". This does not delete anything.
 
 ## Uploading files
 
@@ -71,6 +110,70 @@ drag files onto the drop zone. Uploads go straight to cloud storage and show
 progress in a small toast in the top-right corner; you can keep working while
 they finish. If a direct upload fails it automatically retries through the
 server. Accepted types include PDF, Word, Excel, PowerPoint, and common images.
+
+## Making a file public (sharing with students)
+
+Every file starts private (officers only). To share one with students, open its
+folder, then the file's three-dot menu → Make Public, and confirm. The file then
+appears under "Public documents" on the student page, and students who turned on
+notifications get an alert on their device. Check you picked the right file
+first: an alert that has gone out cannot be taken back.
+
+- **Take it back off the student page:** same menu → Make Private.
+- **Restricted folders:** a file inside a restricted folder is never shown to
+  students and sends no alert, even when it is marked public.
+- **Who can do this:** the folder's creator or a Super Admin.
+- **Files still subject for approval** cannot be made public. Mark the file as
+  approved first.
+
+## Sharing a file with someone outside the system (share link)
+
+For one person or office that has no account, like the school office or an
+adviser from another department. They get a link that opens just that one file,
+without signing in.
+
+- **On the website:** open the folder, then the file's three-dot menu → Share
+  link. Or open the file and click **Share**. Pick how long the link works (1
+  day, 7 days or 30 days), click "Make link", then Copy and send it. On Chrome
+  or Edge there is also "Send with an app…", which opens the computer's own
+  share panel.
+- **On the phone app:** open the file, tap the Share icon at the top, choose how
+  long the link works, then "Send a link". The phone's share menu opens
+  (Messenger, Gmail...). If it doesn't, tap "Share link" or "Copy".
+- **Turn a link off early:** open Share for the same file. Under "Links that
+  work now", click "Turn off". The officer who made the link, the folder's
+  creator, or a Super Admin can do this.
+- **A link also stops working** when it expires, when the file goes to Trash or
+  is archived, when the folder becomes restricted (unless its creator or a Super
+  Admin made the link), or when the term of the officer who made it ends.
+- **Restricted folders:** only the folder's creator or a Super Admin can make a
+  link for a file inside one.
+- **Files still subject for approval** can be shared this way, for example to
+  ask for a signature. The page the link opens says it is a draft.
+- **Who opened it:** Share shows how many times each link was opened and
+  downloaded. Making and turning off a link go in the activity log.
+- **Send the file itself (phone app):** Share → "Send the file" sends a copy
+  through the phone's share menu. A copy can't be taken back, so a link is
+  safer.
+
+## Files still subject for approval
+
+Sometimes a file is uploaded before it is official, for example a draft
+resolution or a project proposal still waiting for signatures. Label it so
+nobody mistakes it for an approved document.
+
+- **When uploading:** tick "Still subject for approval" in the upload window.
+- **After uploading:** open the folder, then the file's three-dot menu → Mark as
+  subject for approval.
+- **What the label does:** an amber "Subject for approval" tag shows beside the
+  file in its folder, in search results, and as a notice at the top of the file
+  when you open it. The file is kept off the student page while it has the
+  label. If it was already public, labelling it takes it off the student page.
+- **Once it is approved:** three-dot menu → Mark as approved, or open the file
+  and click "Mark as approved" on the notice. The label goes away and the file
+  can then be made public.
+- **Who can do this:** any officer who can open the file can add the label. Only
+  the folder's creator or a Super Admin can mark it as approved.
 
 ## Documents
 
@@ -99,7 +202,17 @@ A finished school year, zipped and stored for the record.
 - **Archive one folder:** on Folders, three-dot menu → Archive.
 - **Browse an archive:** Archives page → open it to see the files inside, and
   preview individual files without downloading.
-- **Restore:** an archive can be restored back into active folders from its menu.
+- **Search inside archives:** the search bar at the top also finds files that
+  are inside an archive – by file name, by the words in the document, by its
+  document details (title, reference number, sender, recipient, notes), or by
+  school year. They appear under "Files in Archived Folders"; click one to
+  preview it. Folders archived before October 2026 are found by file name only.
+- **Restore:** an archive can be restored from its menu. The folder comes back
+  as it was: same school year, same owner, same access restriction, and its
+  files keep their document records and public / approval status. A folder
+  that had been stored under a previous school year returns there, not to the
+  Folders page. Folders archived before October 2026 come back with their
+  files, name, owner and restriction only.
 - **Integrity:** archives are checksummed. If a checksum no longer matches you
   will see an integrity warning – tell the Super Admin.
 
@@ -118,14 +231,22 @@ Letterheads area.
 
 ## Reports & Analytics
 
-Read-only charts and counts: files and folders over time, storage, activity.
-Use it for accomplishment reports at the end of a term.
+Read-only charts and counts in two tabs: **Records & system** (files uploaded,
+documents digitized, the scan pipeline, storage, archives) and **Student
+engagement** (how students use the public page). Use it for accomplishment
+reports at the end of a term.
+
+What you see depends on your role. Officer activity (who did what, the busiest
+hours and days), backup status, and sign-in security appear only for the Super
+Admin, the same as the Activity Logs and Backup pages those numbers come from.
+The CSV export follows the same rule.
 
 ## Announcements
 
 Public notices shown on the student-facing dashboard. Create one with a title,
-body, and optional attachment; it becomes visible to students immediately. Edit
-or delete from the same page.
+body, and optional attachment; it becomes visible to students immediately, and
+students who turned on notifications get an alert on their device (for a new
+announcement only, not for an edit). Edit or delete from the same page.
 
 ## Site Content
 
@@ -156,8 +277,15 @@ system theme is.
 ### Manage Admins
 
 Add a new officer (name, email, position – they get a temporary password to
-change on first login), edit an officer, or archive one who has finished their
-term. Archived officers can be reactivated or permanently removed.
+change on first login), edit an officer, or end one officer's term. Ended
+officers move to Former Officers and can be reactivated.
+
+"End Term" also lets you pick a whole school year and move every officer
+active in it to Former Officers at once - this also stores away that school
+year's folders and files, clearing the Folders page for the new term. Add
+the incoming batch of officers first, confirm they can log in, then end the
+outgoing year - officers and folders/files from other school years are left
+untouched.
 
 ### Activity Logs
 
@@ -179,8 +307,9 @@ backup frequency. Keep automatic backups on.
 - **"A scan came out as one document but it's really three."** Re-scan with a
   separator sheet between each document, or split it during review if the option
   is offered.
-- **"How do I start fresh for the new school year?"** Folders page → Start New
-  School Year. It archives the current page's contents under the old year first.
+- **"How do I start fresh for the new school year?"** Ask the Super Admin to end
+  the outgoing school year's term in Manage Admins → End Term - that stores away
+  that year's folders and files and clears the Folders page automatically.
 - **"Upload is stuck / failed."** It retries through the server automatically;
   if it still fails, check your connection and file type, then try again.
 

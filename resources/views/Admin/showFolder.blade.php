@@ -3,28 +3,17 @@
 
 @include('Admin.partials.theme')
 
+{{-- Read by the topbar search (partials/header-search.blade.php) so
+     results from this folder surface first, without narrowing the search
+     itself to only this folder. --}}
+<script>window.currentFolderId = {{ $folders->id }};</script>
+
 <style>
     * { box-sizing: border-box; }
 
     body { background: var(--surface); font-family: 'Inter', sans-serif; color: var(--text-1); }
 
     /* ── Page header ─────────────────────────────── */
-    .page-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 20px;
-        flex-wrap: wrap;
-    }
-    .page-header h4 {
-        font-size: 1.35rem;
-        font-weight: 600;
-        letter-spacing: -.3px;
-        margin: 0;
-        color: var(--text-1);
-    }
-
     /* ── Breadcrumb ───────────────────────────────── */
     .breadcrumb {
         background: none;
@@ -41,56 +30,6 @@
     .breadcrumb-item a:hover { color: var(--primary); }
     .breadcrumb-item.active { color: var(--text-3); }
     .breadcrumb-item + .breadcrumb-item::before { color: var(--border); }
-
-    /* ── Search ───────────────────────────────────── */
-    .search-wrap {
-        margin-bottom: 24px;
-    }
-    .search-inner {
-        position: relative;
-        max-width: 460px;
-    }
-    .search-inner .search-icon {
-        position: absolute;
-        left: 14px;
-        top: 50%;
-        transform: translateY(-50%);
-        color: var(--text-3);
-        font-size: .9rem;
-        pointer-events: none;
-    }
-    .search-inner input {
-        width: 100%;
-        border: 1.5px solid var(--border);
-        border-radius: 50px;
-        padding: 9px 42px 9px 38px;
-        font-size: .88rem;
-        font-family: 'Inter', sans-serif;
-        background: var(--card);
-        color: var(--text-1);
-        box-shadow: var(--shadow-sm);
-        outline: none;
-        transition: border-color .2s, box-shadow .2s;
-    }
-    .search-inner input:focus {
-        border-color: var(--primary);
-        box-shadow: 0 0 0 3px rgba(5,128,40,.15);
-    }
-    .search-inner button {
-        position: absolute;
-        right: 6px;
-        top: 50%;
-        transform: translateY(-50%);
-        background: var(--primary);
-        border: none;
-        border-radius: 50px;
-        color: #fff;
-        padding: 5px 14px;
-        font-size: .8rem;
-        cursor: pointer;
-        transition: background .15s;
-    }
-    .search-inner button:hover { background: #046322; }
 
     /* ── Stats bar ────────────────────────────────── */
     .stats-bar {
@@ -140,6 +79,27 @@
         color: var(--text-3);
         white-space: nowrap;
     }
+    /* Sortable column headings - the button inherits the heading's look */
+    .sort-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0;
+        border: none;
+        background: none;
+        font: inherit;
+        color: inherit;
+        text-transform: inherit;
+        letter-spacing: inherit;
+        cursor: pointer;
+    }
+    .sort-btn i { font-size: .72rem; opacity: .5; }
+    .sort-btn:hover { color: var(--text-1); }
+    .file-table th[aria-sort="ascending"] .sort-btn,
+    .file-table th[aria-sort="descending"] .sort-btn { color: var(--primary); }
+    .file-table th[aria-sort="ascending"] .sort-btn i,
+    .file-table th[aria-sort="descending"] .sort-btn i { opacity: 1; }
+
     .file-table tbody tr {
         border-bottom: 1px solid var(--border);
         cursor: pointer;
@@ -337,31 +297,65 @@
 
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 
-{{-- ── Header ─────────────────────────────────────────── --}}
-<div class="page-header">
-    <h4><i class="fas fa-folder-open me-2" style="color:var(--primary);"></i>{{ $folders->name }}</h4>
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div class="skel skel-text" style="width:150px; margin-bottom:1rem;"></div>
+
+    <div class="page-header">
+        <h2>
+            <div class="skel skel-circle" style="width:20px; height:20px; display:inline-block; margin-right:8px; vertical-align:middle;"></div>
+            <div class="skel skel-text" style="width:160px; display:inline-block; vertical-align:middle;"></div>
+        </h2>
+    </div>
+
+    <div class="skel skel-text" style="width:70px; margin-bottom:20px;"></div>
+
+    <div class="stats-bar">
+        <div class="skel" style="width:90px; height:26px; border-radius:50px;"></div>
+        <div class="skel" style="width:130px; height:26px; border-radius:50px;"></div>
+    </div>
+
+    <div class="file-card">
+        <table class="file-table">
+            <thead>
+                <tr>
+                    <th><div class="skel skel-text" style="width:80px;"></div></th>
+                    <th><div class="skel skel-text" style="width:70px;"></div></th>
+                    <th><div class="skel skel-text" style="width:50px;"></div></th>
+                </tr>
+            </thead>
+            <tbody>
+                @for ($i = 0; $i < 6; $i++)
+                <tr>
+                    <td>
+                        <div class="file-name-cell">
+                            <div class="skel" style="width:36px; height:36px; border-radius:8px;"></div>
+                            <div class="skel skel-text" style="width:140px;"></div>
+                        </div>
+                    </td>
+                    <td><div class="skel skel-text" style="width:110px;"></div></td>
+                    <td><div class="skel skel-text" style="width:60px;"></div></td>
+                </tr>
+                @endfor
+            </tbody>
+        </table>
+    </div>
 </div>
 
-@if (session('success'))
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        {{ session('success') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-@endif
+<div class="skel-real">
+@php
+    // Folders kept under a past school year are opened from that year's page
+    $fromHistory = $folders->is_archived && $folders->school_year;
+@endphp
+@include('Admin.partials.back-link', [
+    'backTo'    => $fromHistory ? route('folders.history', $folders->school_year) : route('folders.index'),
+    'backLabel' => $fromHistory ? 'School Year '.$folders->school_year : 'Folders',
+])
 
-@if (session('error'))
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        {{ session('error') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-@endif
-
-@if ($errors->any())
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        {{ $errors->first() }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-@endif
+{{-- ── Header ─────────────────────────────────────────── --}}
+<div class="page-header">
+    <h2><i class="fas fa-folder-open me-2" style="color:var(--primary);"></i>{{ $folders->name }}</h2>
+</div>
 
 @if($folders->is_archived)
 <div class="alert alert-warning d-flex align-items-center gap-2" style="border-radius:10px;">
@@ -388,17 +382,6 @@
     </ol>
 </nav>
 
-{{-- ── Search ──────────────────────────────────────────── --}}
-<!--<div class="search-wrap">
-    <div class="search-inner">
-        <form action="{{ route('search') }}" method="GET" style="display:contents;">
-            <i class="fas fa-search search-icon"></i>
-            <input type="text" name="query" placeholder="Search files or folders…" required>
-            <button type="submit">Search</button>
-        </form>
-    </div>
-</div>-->
-
 {{-- ── Stats chips ─────────────────────────────────────── --}}
 <div class="stats-bar">
     <span class="stat-chip">
@@ -411,16 +394,29 @@
         {{ number_format($files->sum('size') / 1024, 1) }} KB total
     </span>
     @endif
+    @if($pendingCount = $files->where('is_pending_approval', true)->count())
+    <span class="stat-chip" style="color:var(--warning);">
+        <i class="bi bi-hourglass-split" style="color:inherit;"></i>
+        {{ $pendingCount }} subject for approval
+    </span>
+    @endif
 </div>
 
 {{-- ── File table ──────────────────────────────────────── --}}
 <div class="file-card">
-    <table class="file-table">
+    <table class="file-table" id="fileTable">
         <thead>
             <tr>
-                <th>File Name</th>
-                <th>Modified</th>
-                <th>Size</th>
+                <th data-sort="name" aria-sort="none">
+                    <button type="button" class="sort-btn">File Name <i class="fas fa-sort" aria-hidden="true"></i></button>
+                </th>
+                <th data-sort="modified" aria-sort="none">
+                    <button type="button" class="sort-btn">Modified <i class="fas fa-sort" aria-hidden="true"></i></button>
+                </th>
+                <th data-sort="size" aria-sort="none">
+                    <button type="button" class="sort-btn">Size <i class="fas fa-sort" aria-hidden="true"></i></button>
+                </th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
@@ -447,7 +443,10 @@
         default => 'fa-file-alt',
     };
 @endphp
-            <tr>
+            {{-- data-* are what the column sorting below reads --}}
+            <tr data-name="{{ $file->filename }}"
+                data-modified="{{ $file->updated_at->timestamp }}"
+                data-size="{{ (int) $file->size }}">
 
                 <td  onclick="window.location='{{ route('files.preview', $file->id) }}'">
                     <div class="file-name-cell">
@@ -456,6 +455,7 @@
                         </div>
                         <span class="file-name-text">{{ $name }}</span>
                         <span class="file-ext-badge">{{ $ext }}</span>
+                        @include('Admin.partials.approval-badge', ['file' => $file])
                     </div>
                 </td>
                 <td  onclick="window.location='{{ route('files.preview', $file->id) }}'" class="file-date">{{ $file->updated_at->format('M d, Y · h:i A') }}</td>
@@ -475,6 +475,16 @@
         <i class="bi bi-folder2-open me-2 text-primary"></i> Download
     </a>
 </li>
+                    {{-- File::isShareableBy() for a file in this folder --}}
+                    @if(! $folders->is_restricted || $folders->manageable)
+                    <li>
+    <button type="button" class="dropdown-item py-2" data-share-file
+            data-share-name="{{ $file->filename }}"
+            data-share-url="{{ route('share-links.index', $file->id) }}">
+        <i class="bi bi-link-45deg me-2 text-success"></i> Share link
+    </button>
+</li>
+                    @endif
                     @if(!$folders->is_archived)
                     <li>
     <button class="dropdown-item py-2"
@@ -499,10 +509,37 @@
 </button>
     </form>
 </li>
+                    {{-- Only the folder's creator or a SuperAdmin may declare a file
+                         approved (FileController::setApproval) - everyone else
+                         just sees the label. --}}
+                    @if(! $file->is_pending_approval || $folders->manageable)
+                    <li>
+    <form action="{{ route('file.setApproval', $file->id) }}" method="POST"
+          @if(! $file->is_pending_approval && $file->is_public)
+          data-confirm-title="Mark this file as subject for approval?"
+          data-confirm="“{{ $file->filename }}” is public. It will be taken off the student page until it is marked as approved."
+          data-confirm-ok="Mark it"
+          data-confirm-tone="warning"
+          @endif>
+        @csrf
+        <input type="hidden" name="pending" value="{{ $file->is_pending_approval ? 0 : 1 }}">
+
+        <button type="submit" class="dropdown-item py-2">
+            @if($file->is_pending_approval)
+                <i class="bi bi-patch-check me-2 text-success"></i> Mark as approved
+            @else
+                <i class="bi bi-hourglass-split me-2 text-secondary"></i> Mark as subject for approval
+            @endif
+        </button>
+    </form>
+</li>
+                    @endif
                     <li><hr class="dropdown-divider my-1"></li>
                     <li>
     <form action="{{ route('files.destroy', $file->id) }}" method="POST"
-          onsubmit="return confirm('Are you sure you want to delete this file?')">
+          data-confirm-title="Move this file to Trash?"
+          data-confirm="“{{ $file->filename }}” can be restored from Trash within {{ config('trash.retention_days') }} days."
+          data-confirm-ok="Move to Trash">
         @csrf
         @method('DELETE')
 
@@ -520,7 +557,7 @@
             </tr>
             @empty
             <tr>
-                <td colspan="3">
+                <td colspan="4">
                     <div class="empty-state">
                         <i class="fas fa-folder-open"></i>
                         <p>This folder is empty. Upload a file to get started.</p>
@@ -530,6 +567,7 @@
             @endforelse
         </tbody>
     </table>
+</div>
 </div>
 
 @forelse($files as $file)
@@ -545,8 +583,13 @@
       <div class="modal-body">
         @if($file->is_public)
             <p>Do you want to make this file <strong>Private</strong>? Only you will have access.</p>
+        @elseif($file->is_pending_approval)
+            <p class="mb-0">This file is still <strong>subject for approval</strong>, so it can't be shared with students yet. Mark it as approved first, then make it public.</p>
         @else
             <p>Do you want to make this file <strong>Public</strong>? Anyone with the link can access it.</p>
+            @unless($folders->is_restricted)
+                <p class="small text-muted mb-0">It will be listed on the student page, and students who turned on notifications will get an alert.</p>
+            @endunless
         @endif
       </div>
 
@@ -559,9 +602,11 @@
                 Cancel
             </button>
 
+            @unless(! $file->is_public && $file->is_pending_approval)
             <button type="submit" class="btn btn-warning">
                 {{ $file->is_public ? 'Make Private' : 'Make Public' }}
             </button>
+            @endunless
         </form>
       </div>
 
@@ -650,6 +695,13 @@
                         <input type="checkbox" class="form-check-input" id="scanAsDocument" name="scan_as_document" value="1">
                         <label class="form-check-label" for="scanAsDocument" style="font-size:13px;">
                             Scan as document <span class="text-muted">(convert a photo of a hardcopy into a searchable PDF)</span>
+                        </label>
+                    </div>
+
+                    <div class="form-check mt-2">
+                        <input type="checkbox" class="form-check-input" id="pendingApproval" name="pending_approval" value="1">
+                        <label class="form-check-label" for="pendingApproval" style="font-size:13px;">
+                            Still subject for approval <span class="text-muted">(label it as not yet official)</span>
                         </label>
                     </div>
 
@@ -762,7 +814,7 @@
 }
 .upload-toast-row .row-cancel-btn:hover { color: #c0392b; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ asset('vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
 <script>
 let fabOpen = false;
 
@@ -783,6 +835,51 @@ document.addEventListener('click', function(e) {
         closeFab();
     }
 });
+
+// Column sorting. Every file in the folder is already on the page, so a
+// click just reorders the rows in place - first click ascending, second
+// descending. The choice is remembered in this browser so it survives the
+// reload after an upload, rename or delete.
+(function setupFileSort() {
+    const table = document.getElementById('fileTable');
+    if (!table) return;
+
+    const tbody = table.tBodies[0];
+    const headers = Array.from(table.querySelectorAll('th[data-sort]'));
+    const STORAGE_KEY = 'folderFileSort';
+
+    const compare = {
+        name: (a, b) => a.dataset.name.localeCompare(b.dataset.name, undefined, { numeric: true, sensitivity: 'base' }),
+        modified: (a, b) => Number(a.dataset.modified) - Number(b.dataset.modified),
+        size: (a, b) => Number(a.dataset.size) - Number(b.dataset.size),
+    };
+
+    function sortBy(key, direction) {
+        const rows = Array.from(tbody.querySelectorAll('tr[data-name]'));
+        const sign = direction === 'descending' ? -1 : 1;
+
+        rows.sort((a, b) => sign * compare[key](a, b)).forEach(row => tbody.appendChild(row));
+
+        headers.forEach(th => {
+            const active = th.dataset.sort === key;
+            th.setAttribute('aria-sort', active ? direction : 'none');
+            th.querySelector('i').className = 'fas ' + (! active ? 'fa-sort' : direction === 'ascending' ? 'fa-sort-up' : 'fa-sort-down');
+        });
+    }
+
+    headers.forEach(th => {
+        th.querySelector('.sort-btn').addEventListener('click', function () {
+            const direction = th.getAttribute('aria-sort') === 'ascending' ? 'descending' : 'ascending';
+            sortBy(th.dataset.sort, direction);
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ key: th.dataset.sort, direction: direction })); } catch (e) {}
+        });
+    });
+
+    try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+        if (saved && compare[saved.key]) sortBy(saved.key, saved.direction === 'descending' ? 'descending' : 'ascending');
+    } catch (e) {}
+})();
 
 function showFileNames(input) {
     const list = document.getElementById('fileNameList');
@@ -848,6 +945,7 @@ window.addEventListener('drop', e => e.preventDefault());
 
     const csrfToken = form.querySelector('[name="_token"]').value;
     const scanCheckbox = form.querySelector('[name="scan_as_document"]');
+    const pendingCheckbox = form.querySelector('[name="pending_approval"]');
 
     if (toastClose) {
         toastClose.addEventListener('click', function () {
@@ -922,6 +1020,7 @@ window.addEventListener('drop', e => e.preventDefault());
             fd.append('files[]', file);
             if (folderId) fd.append('folder_id', folderId);
             if (scanCheckbox && scanCheckbox.checked) fd.append('scan_as_document', '1');
+            if (pendingCheckbox && pendingCheckbox.checked) fd.append('pending_approval', '1');
             fd.append('_token', csrfToken);
 
             const xhr = new XMLHttpRequest();
@@ -998,6 +1097,7 @@ window.addEventListener('drop', e => e.preventDefault());
                                 folder_id: folderId || null,
                                 size: entry.file.size,
                                 scan_as_document: (scanCheckbox && scanCheckbox.checked) ? 1 : 0,
+                                pending_approval: (pendingCheckbox && pendingCheckbox.checked) ? 1 : 0,
                             }),
                         });
                     })
@@ -1034,4 +1134,6 @@ window.addEventListener('drop', e => e.preventDefault());
     });
 })('#uploadModal form', 'uploadModal');
 </script>
+
+@include('partials.share-link')
 @endsection

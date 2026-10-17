@@ -7,35 +7,6 @@
     * { box-sizing: border-box; }
     body { background: var(--surface); font-family: 'Inter', sans-serif; color: var(--text-1); }
 
-    /* ── Page Header ── */
-    .page-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 20px;
-        flex-wrap: wrap;
-    }
-    .page-header h4 {
-        font-size: 1.25rem;
-        font-weight: 500;
-        margin: 0;
-        color: var(--text-1);
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    .page-title-icon {
-        width: 32px;
-        height: 32px;
-        border-radius: var(--radius-sm);
-        background: var(--primary-dim);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    .page-title-icon svg { width: 16px; height: 16px; }
-
     /* ── Stat Cards ── */
     .bm-stats {
         display: grid;
@@ -307,6 +278,25 @@
     .bm-dl-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-dim); }
     .bm-dl-btn svg { width: 12px; height: 12px; }
 
+    .bm-action-cell { display: flex; gap: 6px; justify-content: flex-end; }
+    .bm-restore-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
+        border-radius: var(--radius-sm);
+        border: 1px solid #C0392B;
+        background: none;
+        font-size: 14px;
+        font-family: 'Inter', sans-serif;
+        color: #C0392B;
+        cursor: pointer;
+        transition: all .15s;
+    }
+    .bm-restore-btn:hover { background: #FCEBEB; }
+    .bm-restore-btn svg { width: 12px; height: 12px; }
+    [data-theme="dark"] .bm-restore-btn:hover { background: var(--danger-dim); }
+
     .bm-footer {
         padding: 10px 14px;
         border-top: 1px solid var(--border);
@@ -410,9 +400,58 @@
 
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div class="page-header">
+        <div class="skel skel-text" style="width:180px; height:22px;"></div>
+    </div>
+
+    <div class="bm-stats">
+        @for ($i = 0; $i < 4; $i++)
+        <div class="bm-stat">
+            <div class="skel skel-text" style="width:70%; margin-bottom:8px;"></div>
+            <div class="skel skel-text" style="width:40%; height:22px;"></div>
+        </div>
+        @endfor
+    </div>
+
+    <div class="bm-settings-card">
+        <div class="skel skel-text" style="width:90px;"></div>
+        <div class="skel" style="width:40px; height:22px; border-radius:22px;"></div>
+        <div class="skel" style="width:140px; height:32px; border-radius:6px;"></div>
+        <div class="skel" style="width:120px; height:32px; border-radius:6px;"></div>
+    </div>
+
+    <div class="bm-filters-card">
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <div class="skel" style="flex:2; min-width:160px; height:34px; border-radius:6px;"></div>
+            <div class="skel" style="width:130px; height:34px; border-radius:6px;"></div>
+            <div class="skel" style="width:130px; height:34px; border-radius:6px;"></div>
+            <div class="skel" style="width:80px; height:34px; border-radius:6px;"></div>
+        </div>
+    </div>
+
+    <div class="bm-table-card">
+        <div style="padding:10px 14px; border-bottom:1px solid var(--border);">
+            <div class="skel skel-text" style="width:100%;"></div>
+        </div>
+        @for ($i = 0; $i < 5; $i++)
+        <div style="display:flex; gap:16px; padding:11px 14px; border-bottom:1px solid var(--border); align-items:center;">
+            <div class="skel" style="width:30px; height:30px; border-radius:6px;"></div>
+            <div class="skel skel-text" style="width:30%;"></div>
+            <div class="skel skel-text" style="width:12%;"></div>
+            <div class="skel skel-text" style="width:15%;"></div>
+            <div class="skel skel-text" style="width:12%;"></div>
+        </div>
+        @endfor
+    </div>
+</div>
+
+<div class="skel-real">
+
 {{-- ── Page Header ── --}}
 <div class="page-header">
-    <h4>
+    <h2>
         <div class="page-title-icon">
             <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M8 2C5.24 2 3 4.24 3 7c0 .34.04.67.1.99C2.43 8.4 2 9.15 2 10c0 1.66 1.34 3 3 3h7c1.38 0 2.5-1.12 2.5-2.5 0-1.3-.99-2.37-2.26-2.49C12.08 5.09 10.24 2 8 2z"
@@ -422,7 +461,7 @@
             </svg>
         </div>
         Backup Management
-    </h4>
+    </h2>
 </div>
 
 {{-- ── Stat Cards ── --}}
@@ -461,7 +500,7 @@
                 <input type="checkbox"
                        name="backup_enabled"
                        id="backupToggle"
-                       onchange="document.getElementById('toggleForm').submit()"
+                       onchange="toggleAutoBackup(this)"
                        {{ $backupEnabled ? 'checked' : '' }}>
                 <span class="bm-slider"></span>
             </label>
@@ -497,10 +536,12 @@
 
 <p class="bm-encryption-note" style="font-size:12px;color:var(--text-2);margin:8px 2px 0;">
     <i class="fas fa-lock" style="margin-right:4px;"></i>
-    Backups are AES-256 password-protected (RA 10173 compliance). Windows Explorer can't open them directly —
-    use <a href="https://www.7-zip.org/" target="_blank" rel="noopener">7-Zip</a> and the escrowed backup
-    encryption key to extract one.
+    Backups are AES-256 password-protected. Windows Explorer can't open them directly —
+    use <a href="https://www.7-zip.org/" target="_blank" rel="noopener">7-Zip</a> to extract one.
+
 </p>
+
+</div>
 
 {{-- ── Backup Progress Modal ── --}}
 <div class="bm-progress-overlay" id="backupProgressModal">
@@ -531,6 +572,36 @@
         </button>
     </div>
 </div>
+
+{{-- ── Restore Progress Modal ── --}}
+<div class="bm-progress-overlay" id="restoreProgressModal">
+    <div class="bm-progress-card">
+        <div class="bm-progress-header">
+            <div class="bm-progress-icon">
+                <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2 8a6 6 0 1 1 1.76 4.24" stroke="#C0392B" stroke-width="1.1" stroke-linecap="round"/>
+                    <path d="M2 4v4h4" stroke="#C0392B" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <span>Restoring system</span>
+        </div>
+
+        <div class="bm-progress-track">
+            <div class="bm-progress-bar" id="restoreProgressBar" style="width:0%;background:#C0392B;"></div>
+        </div>
+
+        <div class="bm-progress-meta">
+            <span class="bm-progress-msg" id="restoreProgressMsg">Starting restore…</span>
+            <span class="bm-progress-pct" id="restoreProgressPct">0%</span>
+        </div>
+
+        <button type="button" class="bm-btn-secondary bm-progress-close" id="restoreProgressClose" style="display:none;">
+            Close
+        </button>
+    </div>
+</div>
+
+<div class="skel-real">
 
 {{-- ── Filters Card ── --}}
 <div class="bm-filters-card">
@@ -628,13 +699,31 @@
                     </td>
 
                     <td style="text-align:right">
-                        <a href="{{ route('backup.download', $backup->id) }}" class="bm-dl-btn">
-                            <svg viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M6 1v6M6 7L3.5 4.5M6 7l2.5-2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-                                <path d="M1.5 9.5V10a.5.5 0 00.5.5h8a.5.5 0 00.5-.5v-.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-                            </svg>
-                            Download
-                        </a>
+                        <div class="bm-action-cell">
+                            <a href="{{ route('backup.download', $backup->id) }}" class="bm-dl-btn">
+                                <svg viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M6 1v6M6 7L3.5 4.5M6 7l2.5-2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M1.5 9.5V10a.5.5 0 00.5.5h8a.5.5 0 00.5-.5v-.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                                </svg>
+                                Download
+                            </a>
+
+                            @if ($isSuperAdmin)
+                            <form method="POST" action="{{ route('backup.restore', $backup->id) }}" class="restore-form"
+                                  data-confirm-title="Restore the entire system from this backup?"
+                                  data-confirm="The database and every file are replaced with the contents of “{{ $backup->name }}”.&#10;&#10;This OVERWRITES all current data and cannot be undone."
+                                  data-confirm-ok="Restore system">
+                                @csrf
+                                <button type="submit" class="bm-restore-btn">
+                                    <svg viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M1.5 6a4.5 4.5 0 1 1 1.32 3.18" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                                        <path d="M1.5 3v3h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                    Restore
+                                </button>
+                            </form>
+                            @endif
+                        </div>
                     </td>
                 </tr>
             @empty
@@ -656,6 +745,8 @@
             of {{ $backups->count() }} {{ Str::plural('backup', $backups->count()) }}
         </span>
     </div>
+</div>
+
 </div>
 
 <script>
@@ -819,6 +910,114 @@ document.addEventListener('DOMContentLoaded', function () {
             render({ stage: 'error', percent: 100, message: 'Could not reach the server.' });
             closeBtn.style.display = 'block';
             submitBtn.disabled = false;
+        });
+    });
+
+    closeBtn.addEventListener('click', function () {
+        modal.classList.remove('open');
+    });
+});
+</script>
+
+{{-- Same pattern as the backup-creation script above, but for whichever
+     row's "Restore" form gets submitted - runs the restore via AJAX and
+     polls backup.restore.progress so the (potentially very long) database +
+     file restore shows a real progress bar instead of a blank hang. --}}
+<script>
+// Switching automatic backups off is the risky direction, so it asks first;
+// switching them on just saves.
+function toggleAutoBackup(box) {
+    if (box.checked) {
+        box.form.submit();
+        return;
+    }
+
+    confirmAction({
+        title: 'Turn off automatic backups?',
+        message: 'The system will stop backing itself up on a schedule. You can still run one by hand with "Backup now".',
+        ok: 'Turn off',
+        tone: 'warning',
+    }).then(function (yes) {
+        if (yes) box.form.submit();
+        else box.checked = true;
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    const modal    = document.getElementById('restoreProgressModal');
+    const bar      = document.getElementById('restoreProgressBar');
+    const pct      = document.getElementById('restoreProgressPct');
+    const msg      = document.getElementById('restoreProgressMsg');
+    const closeBtn = document.getElementById('restoreProgressClose');
+
+    const forms = document.querySelectorAll('.restore-form');
+    if (!forms.length) return;
+
+    let pollTimer   = null;
+    let doneHandled = false;
+
+    function render(data) {
+        const percent = Math.max(0, Math.min(100, Math.round(data.percent || 0)));
+        bar.style.width = percent + '%';
+        pct.textContent = percent + '%';
+        msg.textContent = data.message || '';
+        bar.classList.toggle('is-error', data.stage === 'error');
+        bar.classList.toggle('is-done', data.stage === 'done');
+    }
+
+    function stopPolling() {
+        if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+        }
+    }
+
+    function poll() {
+        fetch("{{ route('backup.restore.progress') }}", { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(res => res.json())
+            .then(data => {
+                render(data);
+                if ((data.stage === 'done' || data.stage === 'error') && !doneHandled) {
+                    doneHandled = true;
+                    stopPolling();
+                    closeBtn.style.display = 'block';
+                    if (data.stage === 'done') {
+                        setTimeout(() => window.location.reload(), 1500);
+                    }
+                }
+            })
+            .catch(() => { /* transient network hiccup - next tick retries */ });
+    }
+
+    forms.forEach(function (form) {
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            // The confirmation is the shared dialog (partials/confirm-dialog),
+            // driven by the form's data-confirm attributes. It stops the
+            // submit before any listener runs and only replays it on a
+            // yes, so by the time this runs the officer has confirmed.
+
+            doneHandled = false;
+            render({ stage: 'starting', percent: 0, message: 'Starting restore…' });
+            modal.classList.add('open');
+            closeBtn.style.display = 'none';
+
+            stopPolling();
+            pollTimer = setInterval(poll, 800);
+
+            fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': form.querySelector('input[name="_token"]').value,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: new FormData(form),
+            }).catch(() => {
+                stopPolling();
+                render({ stage: 'error', percent: 100, message: 'Could not reach the server.' });
+                closeBtn.style.display = 'block';
+            });
         });
     });
 

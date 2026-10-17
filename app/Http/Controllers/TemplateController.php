@@ -6,6 +6,7 @@ use App\Models\ActivityLog;
 use App\Models\File;
 use App\Models\Folder;
 use App\Models\Letterhead;
+use App\Models\OfficerTerm;
 use App\Models\Template;
 use App\Support\DocumentFormatter;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -100,7 +101,7 @@ class TemplateController extends Controller
         $folderSegment = $request->folder_id ?? 'root';
         $localPath = 'uploads/'.$folderSegment.'/'.$filename;
 
-        Storage::disk('public')->put($localPath, $pdfContent);
+        Storage::disk('local')->put($localPath, $pdfContent);
 
         $remotePath = time().'_'.Str::slug($title).'_'.uniqid().'.pdf';
 
@@ -112,6 +113,8 @@ class TemplateController extends Controller
             $remotePath = $localPath; // fall back to referencing the local copy
         }
 
+        $term = OfficerTerm::activeFor(Auth::id());
+
         File::create([
             'filename' => $filename,
             'filepath' => $remotePath,
@@ -120,6 +123,8 @@ class TemplateController extends Controller
             'size' => strlen($pdfContent),
             'folder_id' => $request->folder_id ?: null,
             'generated_from_template_id' => $template->id,
+            'officer_term_id' => $term?->id,
+            'school_year' => $term?->school_year,
         ]);
 
         ActivityLog::create([

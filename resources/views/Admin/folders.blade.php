@@ -6,102 +6,6 @@
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 
 <style>
-body { font-family: 'Segoe UI', sans-serif; }
-
-/* Search Bar */
-.search-bar { max-width: 480px; position: relative; }
-.search-bar .input-group {
-    border-radius: 30px;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    border: 1px solid #e0e0e0;
-}
-.search-bar .form-control {
-    border: none;
-    padding: 10px 20px;
-    font-size: 14px;
-    background: #fff;
-}
-.search-bar .form-control:focus { box-shadow: none; }
-.search-bar .btn { border: none; background: #fff; color: #888; padding: 10px 18px; }
-.search-bar .btn:hover { background: #f5f5f5; }
-
-/* Live search dropdown */
-.live-search-dropdown {
-    display: none;
-    position: absolute;
-    top: calc(100% + 8px);
-    left: 0;
-    right: 0;
-    background: #fff;
-    border: 1px solid #e8eaf0;
-    border-radius: 14px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.12);
-    max-height: 420px;
-    overflow-y: auto;
-    z-index: 1050;
-}
-.live-search-dropdown.show { display: block; }
-.live-search-list { padding: 6px; }
-.live-search-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 9px 10px;
-    border-radius: 10px;
-    text-decoration: none;
-    color: #1a1a1a;
-}
-.live-search-row:hover { background: #f5f6fa; }
-.live-search-icon {
-    width: 34px;
-    height: 34px;
-    border-radius: 9px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    flex-shrink: 0;
-}
-.live-search-icon.folder  { background: #fffbeb; color: #f59e0b; }
-.live-search-icon.file    { background: #e9f5ee; color: #058028; }
-.live-search-icon.archive { background: #f4f4f5; color: #71717a; }
-.live-search-text { min-width: 0; display: flex; flex-direction: column; }
-.live-search-name {
-    font-size: 13px;
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.live-search-meta { font-size: 11px; color: #9ca3af; }
-.live-search-snippet {
-    font-size: 11px;
-    color: #6b7280;
-    margin-top: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.live-search-snippet mark { background: #fde68a; border-radius: 2px; padding: 0 1px; }
-.live-search-viewall {
-    display: block;
-    text-align: center;
-    padding: 10px;
-    font-size: 12px;
-    font-weight: 600;
-    color: #058028;
-    text-decoration: none;
-    border-top: 1px solid #f0f0f0;
-}
-.live-search-viewall:hover { background: #f5f6fa; }
-.live-search-empty {
-    padding: 20px 16px;
-    text-align: center;
-    font-size: 12px;
-    color: #9ca3af;
-}
-
 /* School year actions */
 .btn-year {
     display: inline-flex;
@@ -117,17 +21,6 @@ body { font-family: 'Segoe UI', sans-serif; }
     transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 .btn-year i { font-size: 15px; }
-
-.btn-year-new {
-    background: #058028;
-    color: #fff;
-    box-shadow: 0 3px 10px rgba(5,128,40,.25);
-}
-.btn-year-new:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 18px rgba(5,128,40,.3);
-    color: #fff;
-}
 
 .btn-year-prev {
     background: #fff;
@@ -329,8 +222,6 @@ body { font-family: 'Segoe UI', sans-serif; }
 .upload-zone i { font-size: 2rem; color: #058028; margin-bottom: 8px; display: block; }
 
 /* Page header */
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
-.page-title { font-size: 20px; font-weight: 600; color: #1a1a1a; margin: 0; }
 .folder-count {
     font-size: 12px;
     background: #f4f4f4;
@@ -429,20 +320,6 @@ body { font-family: 'Segoe UI', sans-serif; }
 
 /* ===== DARK MODE — re-point this page's hard-coded light colours to tokens.
    Light mode is untouched; these only apply under data-theme="dark". ===== */
-[data-theme="dark"] .search-bar .input-group { border-color: var(--border); box-shadow: none; }
-[data-theme="dark"] .search-bar .form-control { background: var(--card); color: var(--text-1); }
-[data-theme="dark"] .search-bar .btn { background: var(--card); color: var(--text-2); }
-[data-theme="dark"] .search-bar .btn:hover { background: var(--nav-hover-bg); }
-
-[data-theme="dark"] .live-search-dropdown { background: var(--card); border-color: var(--border); }
-[data-theme="dark"] .live-search-row { color: var(--text-1); }
-[data-theme="dark"] .live-search-row:hover { background: var(--nav-hover-bg); }
-[data-theme="dark"] .live-search-icon.folder  { background: var(--warning-dim); color: var(--warning); }
-[data-theme="dark"] .live-search-icon.file    { background: var(--primary-dim); color: var(--primary); }
-[data-theme="dark"] .live-search-icon.archive { background: var(--nav-hover-bg); color: var(--text-2); }
-[data-theme="dark"] .live-search-viewall { color: var(--primary); border-top-color: var(--border); }
-[data-theme="dark"] .live-search-viewall:hover { background: var(--nav-hover-bg); }
-
 [data-theme="dark"] .btn-year-prev { background: var(--card); color: var(--text-1); border-color: var(--border); box-shadow: none; }
 [data-theme="dark"] .btn-year-prev:hover { background: var(--nav-hover-bg); border-color: var(--text-3); color: var(--text-1); }
 [data-theme="dark"] .year-dropdown-menu { border-color: var(--border); }
@@ -468,7 +345,6 @@ body { font-family: 'Segoe UI', sans-serif; }
 [data-theme="dark"] .upload-zone:hover,
 [data-theme="dark"] .upload-zone.drag-over { border-color: var(--primary); background: var(--primary-dim); }
 
-[data-theme="dark"] .page-title { color: var(--text-1); }
 [data-theme="dark"] .folder-count { background: var(--nav-hover-bg); border-color: var(--border); color: var(--text-2); }
 
 [data-theme="dark"] .section-divider { color: var(--text-3); }
@@ -480,106 +356,54 @@ body { font-family: 'Segoe UI', sans-serif; }
 </style>
 
 
-{{-- Page Header --}}
-<div class="page-header">
-    <h4 class="page-title">All Folders</h4>
-    <span class="folder-count">{{ $folders->count() }} folders</span>
-</div>
-
-@if (session('success'))
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        {{ session('success') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div class="page-header">
+        <div class="skel skel-text" style="width:140px; height:22px;"></div>
+        <div class="skel" style="width:190px; height:38px; border-radius:30px;"></div>
     </div>
-@endif
 
-@if (session('error'))
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        {{ session('error') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-@endif
-
-@if ($errors->any())
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        {{ $errors->first() }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-@endif
-
-
-{{-- Add beside Search Bar --}}
-<div class="d-flex gap-2 flex-wrap align-items-center mb-4">
-
-    {{-- Search --}}
-    <div class="search-bar flex-grow-1">
-        <form action="{{ route('search') }}" method="GET" id="searchForm" autocomplete="off">
-            <div class="input-group">
-                <input type="text" name="query" id="searchInput" class="form-control"
-                       placeholder="Search files or folders...">
-                <button class="btn" type="submit">
-                    <i class="fas fa-search"></i>
-                </button>
+    <div class="row g-3">
+        @for ($i = 0; $i < 12; $i++)
+        <div class="col-xl-2 col-lg-2 col-md-3 col-sm-4 col-6">
+            <div class="folder-card p-3 text-center">
+                <div class="skel" style="width:64px; height:64px; border-radius:12px; margin:0 auto 12px;"></div>
+                <div class="skel skel-text" style="width:70%; margin:0 auto;"></div>
             </div>
-        </form>
-        <div id="liveSearchDropdown" class="live-search-dropdown"></div>
+        </div>
+        @endfor
     </div>
-
-    {{-- Start New School Year --}}
-    <button class="btn-year btn-year-new"
-            data-bs-toggle="modal"
-            data-bs-target="#newSchoolYearModal">
-        <i class="bi bi-calendar-plus"></i> Start New School Year
-    </button>
-
-    {{-- Previous School Years --}}
-    @if(isset($pastSchoolYears) && $pastSchoolYears->count())
-    <div class="dropdown">
-        <button class="btn-year btn-year-prev dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-display="static">
-            <i class="bi bi-clock-history"></i> Previous School Years
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end year-dropdown-menu">
-            @foreach($pastSchoolYears as $year)
-            <li>
-                <a class="dropdown-item" href="{{ route('folders.history', $year) }}">
-                    <i class="bi bi-folder2"></i> SY {{ $year }}
-                </a>
-            </li>
-            @endforeach
-        </ul>
-    </div>
-    @endif
-
 </div>
 
-<br>
-<br>
+{{-- Page Header --}}
+<div class="skel-real">
+<div class="page-header">
+    <h2>All Folders</h2>
 
-    {{-- School Year Filter --}}
-    <!--<form action="{{ route('folders.index') }}" method="GET">
-        <select name="term" class="form-select" onchange="this.form.submit()">
-            <option value="">All Terms</option>
-            <option value="2026-2027"
-                {{ request('term') == '2026-2027' ? 'selected' : '' }}>
-                SY 2026-2027
-            </option>
-            <option value="2025-2026"
-                {{ request('term') == '2025-2026' ? 'selected' : '' }}>
-                SY 2025-2026
-            </option>
-        </select>
-    </form>
+    {{-- Search now lives in the topbar (partials/header-search.blade.php),
+         available on every Admin/SuperAdmin page instead of just this one. --}}
+    <div class="d-flex gap-2 flex-wrap align-items-center">
 
-    {{-- Archive Button --}}
-    <button class="btn btn-warning"
-            data-bs-toggle="modal"
-            data-bs-target="#archiveFolderModal">
-        <i class="bi bi-archive me-1"></i> Archive Folders
-    </button>
+        {{-- Previous School Years --}}
+        @if(isset($pastSchoolYears) && $pastSchoolYears->count())
+        <div class="dropdown">
+            <button class="btn-year btn-year-prev dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-display="static">
+                <i class="bi bi-clock-history"></i> Previous School Years
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end year-dropdown-menu">
+                @foreach($pastSchoolYears as $year)
+                <li>
+                    <a class="dropdown-item" href="{{ route('folders.history', $year) }}">
+                        <i class="bi bi-folder2"></i> SY {{ $year }}
+                    </a>
+                </li>
+                @endforeach
+            </ul>
+        </div>
+        @endif
 
-</div>-->
-
-<br>
+    </div>
+</div>
 
 {{-- Folders Grid --}}
 <div class="row g-3">
@@ -609,9 +433,12 @@ body { font-family: 'Segoe UI', sans-serif; }
                         </button>
                     </li>
                     <li>
-    <form action="{{ route('folders.archive', $folder->id) }}" method="POST">
+    <form action="{{ route('folders.archive', $folder->id) }}" method="POST"
+          data-confirm-title="Archive this folder?"
+          data-confirm="“{{ $folder->name }}” and its files are packed into a ZIP and leave the Folders page. You can restore it from Archives."
+          data-confirm-ok="Archive" data-confirm-tone="warning">
         @csrf
-        <button type="submit" class="dropdown-item py-2 text-warning" onclick="return confirm('Archive this folder?')">
+        <button type="submit" class="dropdown-item py-2 text-warning">
             <i class="bi bi-archive me-2"></i> Archive
         </button>
 
@@ -632,7 +459,10 @@ body { font-family: 'Segoe UI', sans-serif; }
                     @if($folder->accessible)
                     <li><hr class="dropdown-divider my-1"></li>
                     <li>
-                        <form action="{{ route('folders.destroy', $folder->id) }}" method="POST">
+                        <form action="{{ route('folders.destroy', $folder->id) }}" method="POST"
+                              data-confirm-title="Move this folder to Trash?"
+                              data-confirm="“{{ $folder->name }}” and everything in it can be restored from Trash within {{ config('trash.retention_days') }} days."
+                              data-confirm-ok="Move to Trash">
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="dropdown-item py-2 text-danger">
@@ -647,18 +477,14 @@ body { font-family: 'Segoe UI', sans-serif; }
             {{-- Folder Icon & Name --}}
             @if($folder->accessible)
             <a href="{{ route('folders.show', $folder->id) }}" style="text-decoration:none; color:inherit;">
-                <i class="bi bi-folder-fill text-warning" style="font-size:4rem;"></i>
-                @if($folder->is_restricted)
-                    <i class="bi bi-lock-fill text-secondary" style="font-size:1.1rem; margin-left:-1.4rem; vertical-align:top;" title="Restricted"></i>
-                @endif
+                @include('Admin.partials.folder-icon', ['locked' => $folder->is_restricted])
                 <div class="mt-2 text-truncate" style="font-size:13px; font-weight:500;">
                     {{ $folder->name }}
                 </div>
             </a>
             @else
             <div style="cursor:not-allowed;" title="Restricted — you don't have access">
-                <i class="bi bi-folder-fill text-warning" style="font-size:4rem;"></i>
-                <i class="bi bi-lock-fill text-secondary" style="font-size:1.1rem; margin-left:-1.4rem; vertical-align:top;"></i>
+                @include('Admin.partials.folder-icon', ['locked' => true])
                 <div class="mt-2 text-truncate" style="font-size:13px; font-weight:500;">
                     {{ $folder->name }}
                 </div>
@@ -675,42 +501,7 @@ body { font-family: 'Segoe UI', sans-serif; }
     </div>
     @endforelse
 </div>
-
-{{-- START NEW SCHOOL YEAR MODAL --}}
-<div class="modal fade" id="newSchoolYearModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
-            <div class="modal-content">
-                <form action="{{ route('folders.startNewYear') }}" method="POST">
-                    @csrf
-                    <div class="modal-header">
-                        <h5 class="modal-title">
-                            <i class="bi bi-calendar-plus me-2 text-warning"></i>
-                            Start New School Year
-                        </h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <p class="text-muted" style="font-size:13px;">
-                            All folders and files currently on this page will be stored under the
-                            school year you enter below, and will be removed from this page.
-                            You'll get a fresh, empty page to upload the new school year's folders and files.
-                        </p>
-
-                        <label class="form-label text-muted" style="font-size:13px;">School year</label>
-                        <input type="text" name="school_year" class="form-control"
-                               placeholder="e.g. 2026-2027" required autofocus style="border-radius:8px;">
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-warning"
-                                onclick="return confirm('Store all current folders and files under this school year and clear the page?')">
-                            <i class="bi bi-calendar-check me-1"></i> Start New Year
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
+</div>
 
     {{-- ARCHIVE MULTIPLE FOLDERS MODAL --}}
 <div class="modal fade" id="archiveFolderModal" tabindex="-1">
@@ -975,6 +766,13 @@ body { font-family: 'Segoe UI', sans-serif; }
                     </div>
                     @endif
 
+                    <div class="form-check mt-3">
+                        <input type="checkbox" class="form-check-input" id="pendingApproval" name="pending_approval" value="1">
+                        <label class="form-check-label" for="pendingApproval" style="font-size:13px;">
+                            Still subject for approval <span class="text-muted">(label it as not yet official)</span>
+                        </label>
+                    </div>
+
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
@@ -1030,7 +828,7 @@ body { font-family: 'Segoe UI', sans-serif; }
 [data-theme="dark"] .upload-toast-row .row-top { color: var(--text-1); }
 [data-theme="dark"] .upload-toast-row .row-track { background: var(--nav-hover-bg); }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ asset('vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
 <script>
 let fabOpen = false;
 
@@ -1052,70 +850,7 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// ── Live search ──────────────────────────────────────────
-(function () {
-    const input    = document.getElementById('searchInput');
-    const dropdown = document.getElementById('liveSearchDropdown');
-    const liveUrl  = "{{ route('search.live') }}";
-
-    let debounceTimer = null;
-    let activeRequest  = null;
-
-    function hideDropdown() {
-        dropdown.classList.remove('show');
-    }
-
-    function runSearch(query) {
-        if (activeRequest) {
-            activeRequest.abort();
-        }
-
-        const controller = new AbortController();
-        activeRequest = controller;
-
-        fetch(`${liveUrl}?query=${encodeURIComponent(query)}`, {
-            signal: controller.signal,
-            headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        })
-            .then(res => res.text())
-            .then(html => {
-                dropdown.innerHTML = html;
-                dropdown.classList.add('show');
-            })
-            .catch(err => {
-                if (err.name !== 'AbortError') hideDropdown();
-            });
-    }
-
-    input.addEventListener('input', function () {
-        const query = input.value.trim();
-
-        clearTimeout(debounceTimer);
-
-        if (query.length < 2) {
-            hideDropdown();
-            return;
-        }
-
-        debounceTimer = setTimeout(() => runSearch(query), 300);
-    });
-
-    input.addEventListener('focus', function () {
-        if (input.value.trim().length >= 2 && dropdown.innerHTML.trim() !== '') {
-            dropdown.classList.add('show');
-        }
-    });
-
-    document.addEventListener('click', function (e) {
-        if (!dropdown.contains(e.target) && e.target !== input) {
-            hideDropdown();
-        }
-    });
-
-    input.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') hideDropdown();
-    });
-})();
+// Search now lives in the topbar (partials/header-search.blade.php).
 
 function showFileNames(input) {
     const list = document.getElementById('fileNameList');
@@ -1181,6 +916,7 @@ window.addEventListener('drop', e => e.preventDefault());
 
     const csrfToken = form.querySelector('[name="_token"]').value;
     const scanCheckbox = form.querySelector('[name="scan_as_document"]');
+    const pendingCheckbox = form.querySelector('[name="pending_approval"]');
 
     if (toastClose) {
         toastClose.addEventListener('click', function () {
@@ -1255,6 +991,7 @@ window.addEventListener('drop', e => e.preventDefault());
             fd.append('files[]', file);
             if (folderId) fd.append('folder_id', folderId);
             if (scanCheckbox && scanCheckbox.checked) fd.append('scan_as_document', '1');
+            if (pendingCheckbox && pendingCheckbox.checked) fd.append('pending_approval', '1');
             fd.append('_token', csrfToken);
 
             const xhr = new XMLHttpRequest();
@@ -1331,6 +1068,7 @@ window.addEventListener('drop', e => e.preventDefault());
                                 folder_id: folderId || null,
                                 size: entry.file.size,
                                 scan_as_document: (scanCheckbox && scanCheckbox.checked) ? 1 : 0,
+                                pending_approval: (pendingCheckbox && pendingCheckbox.checked) ? 1 : 0,
                             }),
                         });
                     })

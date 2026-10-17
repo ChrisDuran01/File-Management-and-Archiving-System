@@ -56,6 +56,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Trusted Proxies
+    |--------------------------------------------------------------------------
+    |
+    | Comma-separated addresses (or "*") of a reverse proxy or HTTPS tunnel in
+    | front of the app - e.g. 127.0.0.1 for Cloudflare Tunnel on this computer
+    | when testing the student app on a phone. Their X-Forwarded-* headers are
+    | then believed, so links come out as https on the address visitors used.
+    | Empty trusts nobody.
+    |
+    */
+
+    'trusted_proxies' => env('TRUSTED_PROXIES'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

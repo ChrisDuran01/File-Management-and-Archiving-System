@@ -111,6 +111,12 @@
         <i class="fas fa-check me-1"></i> Reset Password
       </button>
     </form>
+
+    <div class="mt-3 text-center">
+      <a href="{{ route('login') }}" class="text-muted" style="font-size:0.85rem; text-decoration:none;">
+        <i class="fas fa-arrow-left me-1"></i> Back to login
+      </a>
+    </div>
   </div>
 
   <script>

@@ -23,3 +23,8 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# The student app's manifest (see manifest.webmanifest).
+<IfModule mod_mime.c>
+    AddType application/manifest+json .webmanifest
+</IfModule>

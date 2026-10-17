@@ -52,7 +52,7 @@ class CacheFileLocally implements ShouldQueue
         $extension = pathinfo($file->filename, PATHINFO_EXTENSION);
         $localPath = 'uploads/' . ($file->folder_id ?? 'root') . '/' . Str::random(40) . ($extension ? '.' . $extension : '');
 
-        Storage::disk('public')->put($localPath, $contents);
+        Storage::disk('local')->put($localPath, $contents);
 
         $file->forceFill([
             'local_path'   => $localPath,

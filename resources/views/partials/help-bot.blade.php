@@ -26,6 +26,20 @@
        above it so the two don't stack on the same spot. */
     body:has(.hb-launcher) .fab-container { bottom: 6rem; }
 
+    /* Step out of the way while scrolling a long file/folder list, and
+       glide back in once the user scrolls back up (or stops near the top).
+       Only a soft fade + slide, never a hard vanish - see scrollHideFabs()
+       below for why it's skipped while either is actually open. */
+    .hb-launcher, .fab-container {
+        transition: opacity .25s ease, transform .25s ease;
+    }
+    body.hb-scroll-hide .hb-launcher,
+    body.hb-scroll-hide .fab-container {
+        opacity: 0;
+        transform: translateY(14px);
+        pointer-events: none;
+    }
+
     .hb-panel {
         position: fixed; right: 1.5rem; bottom: 1.5rem; z-index: 1091;
         width: 360px; max-width: calc(100vw - 3rem);
@@ -127,10 +141,14 @@
     var csrf   = document.querySelector('meta[name="csrf-token"]').content,
         askUrl = "{{ route('helpbot.ask') }}",
         fbUrl  = "{{ route('helpbot.feedback') }}",
-        STORE  = 'hbConversation';
+        // Scoped to the logged-in user's id, NOT a fixed key: on a shared
+        // computer, sessionStorage otherwise survives a logout/login inside
+        // the same tab, so the next officer to sign in would open the panel
+        // and see the previous user's questions and answers.
+        STORE  = 'hbConversation_{{ Auth::id() }}';
 
     // history: [{role:'user'|'model', text}] - kept for follow-up context and
-    // restored across page loads within the same tab.
+    // restored across page loads within the same tab, for THIS user only.
     var history = [];
     try { history = JSON.parse(sessionStorage.getItem(STORE) || '[]'); } catch (e) {}
 
@@ -209,6 +227,55 @@
     closeBtn.addEventListener('click', close);
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && panel.classList.contains('hb-open')) close(); });
 
+    // Retry affordance shown under a failed reply - re-sends the exact same
+    // question/context with one click instead of making the officer retype
+    // it, since most failures here are a transient network blip.
+    function retryRow(q, prior) {
+        var row = document.createElement('div');
+        row.className = 'hb-feedback';
+        row.innerHTML = '<button type="button">&#8635; Try again</button>';
+        row.addEventListener('click', function () {
+            row.remove();
+            askServer(q, prior);
+        }, { once: true });
+        log.appendChild(row);
+        log.scrollTop = log.scrollHeight;
+    }
+
+    function askServer(q, prior) {
+        sendBtn.disabled = true;
+        var typing = bubble('bot', 'Typing…');
+        typing.classList.add('typing');
+
+        return fetch(askUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+            body: JSON.stringify({ message: q, history: prior }),
+        })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+            typing.remove();
+            var reply = res.j.reply || "Sorry, something went wrong.";
+            bubble('bot', reply);
+            history.push({ role: 'model', text: reply });
+            save();
+            if (res.ok && res.j.log_id) {
+                feedbackRow(res.j.log_id);
+            } else {
+                retryRow(q, prior);
+            }
+        })
+        .catch(function () {
+            typing.remove();
+            bubble('bot', "Sorry, I couldn't reach the help service.");
+            retryRow(q, prior);
+        })
+        .finally(function () {
+            sendBtn.disabled = false;
+            input.focus();
+        });
+    }
+
     form.addEventListener('submit', function (e) {
         e.preventDefault();
         var q = input.value.trim();
@@ -222,34 +289,47 @@
         history.push({ role: 'user', text: q });
         save();
         input.value = '';
-        sendBtn.disabled = true;
 
-        var typing = bubble('bot', 'Typing…');
-        typing.classList.add('typing');
-
-        fetch(askUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
-            body: JSON.stringify({ message: q, history: prior }),
-        })
-        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
-        .then(function (res) {
-            typing.remove();
-            var reply = res.j.reply || "Sorry, something went wrong.";
-            bubble('bot', reply);
-            history.push({ role: 'model', text: reply });
-            save();
-            if (res.ok && res.j.log_id) feedbackRow(res.j.log_id);
-        })
-        .catch(function () {
-            typing.remove();
-            bubble('bot', "Sorry, I couldn't reach the help service. Please try again.");
-        })
-        .finally(function () {
-            sendBtn.disabled = false;
-            input.focus();
-        });
+        askServer(q, prior);
     });
+})();
+
+// Auto-hide the launcher (and the folder pages' green FAB alongside it)
+// while actively scrolling down a long list, and bring them back on the
+// way back up - so neither one sits over content mid-scroll, without
+// removing them from the page (see the fade+slide in the style block above).
+(function () {
+    var fabMain  = document.querySelector('.fab-container .fab-main'),
+        hbPanel  = document.getElementById('hbPanel');
+
+    var lastY = window.scrollY, ticking = false;
+
+    function update() {
+        var y = window.scrollY,
+            delta = y - lastY,
+            chatOpen = hbPanel && hbPanel.classList.contains('hb-open'),
+            fabOpen  = fabMain && fabMain.classList.contains('open');
+
+        // Never hide mid-conversation or mid-menu, and never bother below a
+        // small scroll offset (no point hiding right at the top of a page).
+        if (chatOpen || fabOpen) {
+            document.body.classList.remove('hb-scroll-hide');
+        } else if (y > 120 && delta > 6) {
+            document.body.classList.add('hb-scroll-hide');
+        } else if (delta < -6 || y < 120) {
+            document.body.classList.remove('hb-scroll-hide');
+        }
+
+        lastY = y;
+        ticking = false;
+    }
+
+    window.addEventListener('scroll', function () {
+        if (!ticking) {
+            requestAnimationFrame(update);
+            ticking = true;
+        }
+    }, { passive: true });
 })();
 </script>
 @endif

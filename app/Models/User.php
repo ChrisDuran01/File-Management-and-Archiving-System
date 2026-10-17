@@ -67,6 +67,15 @@ class User extends Authenticatable
 }
 
     /**
+     * Whether this account can still act in the admin area - the same test
+     * as activeOfficers() below, for one user.
+     */
+    public function isActiveOfficer(): bool
+    {
+        return $this->activeOfficerTerm()->exists() || ! $this->officerTerms()->exists();
+    }
+
+    /**
      * Everyone who can act inside the admin area right now: users holding an
      * active officer term, plus legacy accounts with no officer_terms row at
      * all (those count as SuperAdmin - see Folder::isSuperAdmin()). This is

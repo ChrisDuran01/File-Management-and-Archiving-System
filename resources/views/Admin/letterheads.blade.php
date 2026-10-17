@@ -9,8 +9,6 @@
     * { box-sizing: border-box; }
     body { background: var(--surface); font-family: 'Inter', sans-serif; color: var(--text-1); }
 
-    .page-header h2 { font-size: 1.35rem; font-weight: 600; letter-spacing: -.3px; margin: 0 0 4px; }
-    .page-header .sub { font-size: .85rem; color: var(--text-2); margin: 0 0 20px; }
     .back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #888; text-decoration: none; margin-bottom: 1rem; }
     .back-link:hover { color: var(--primary); }
 
@@ -73,19 +71,65 @@
     [data-theme="dark"] .lh-actions .danger:hover { background: var(--danger-dim); border-color: #7f2a2a; color: #fca5a5; }
 </style>
 
+{{-- Skeleton placeholder, shown until the real content below is revealed --}}
+<div class="skel-shell" aria-hidden="true">
+    <div class="skel skel-text" style="width:180px; margin-bottom:1rem;"></div>
+
+    <div class="page-header">
+        <div>
+            <div class="skel skel-text" style="width:150px; height:22px; margin-bottom:8px;"></div>
+            <div class="skel skel-text" style="width:420px;"></div>
+        </div>
+    </div>
+
+    <div class="card-panel">
+        <div class="skel skel-text" style="width:170px; margin-bottom:14px;"></div>
+        <div class="row">
+            @for ($i = 0; $i < 4; $i++)
+            <div class="col-md-6">
+                <div class="field-group">
+                    <div class="skel skel-text" style="width:100px; margin-bottom:6px;"></div>
+                    <div class="skel" style="width:100%; height:36px; border-radius:8px;"></div>
+                </div>
+            </div>
+            @endfor
+        </div>
+        <div class="upload-grid">
+            @for ($i = 0; $i < 4; $i++)
+            <div class="skel" style="width:100%; height:60px; border-radius:8px;"></div>
+            @endfor
+        </div>
+        <div class="skel" style="width:150px; height:38px; border-radius:8px; margin-top:14px;"></div>
+    </div>
+
+    <div class="card-panel">
+        <div class="skel skel-text" style="width:190px; margin-bottom:14px;"></div>
+        @for ($i = 0; $i < 3; $i++)
+        <div class="lh-card">
+            <div class="lh-thumbs">
+                @for ($j = 0; $j < 4; $j++)
+                <div class="skel" style="width:52px; height:52px; border-radius:8px;"></div>
+                @endfor
+            </div>
+            <div class="lh-info">
+                <div class="skel skel-text" style="width:180px; margin-bottom:6px;"></div>
+                <div class="skel skel-text" style="width:260px;"></div>
+            </div>
+        </div>
+        @endfor
+    </div>
+</div>
+
+<div class="skel-real">
+
 <a href="{{ route('templates.index') }}" class="back-link"><i class="fas fa-arrow-left"></i> Back to Document Templates</a>
 
 <div class="page-header">
-    <h2><i class="fas fa-stamp me-2" style="color:var(--primary);font-size:1.1rem;"></i>Letterheads</h2>
-    <p class="sub">Upload the border, logo, seal, and footer images used to dress up generated Resolutions. Any Admin or Officer can add and manage these.</p>
+    <div>
+        <h2><i class="fas fa-stamp me-2" style="color:var(--primary);font-size:1.1rem;"></i>Letterheads</h2>
+        <p class="sub">Upload the border, logo, seal, and footer images used to dress up generated Resolutions. Any Admin or Officer can add and manage these.</p>
+    </div>
 </div>
-
-@if(session('success'))
-    <div class="alert alert-success">{{ session('success') }}</div>
-@endif
-@if($errors->any())
-    <div class="alert alert-danger">{{ $errors->first() }}</div>
-@endif
 
 <div class="card-panel">
     <div class="panel-label"><i class="fas fa-plus"></i> Add a new letterhead</div>
@@ -198,7 +242,10 @@
                     <button type="button" class="edit" onclick="document.getElementById('edit-{{ $lh->id }}').classList.toggle('show')">
                         <i class="fas fa-pen"></i> Edit
                     </button>
-                    <form action="{{ route('letterheads.destroy', $lh->id) }}" method="POST" onsubmit="return confirm('Delete this letterhead? Templates using it will fall back to the plain layout.');">
+                    <form action="{{ route('letterheads.destroy', $lh->id) }}" method="POST"
+                          data-confirm-title="Delete this letterhead?"
+                          data-confirm="Templates using it will fall back to the plain layout. This cannot be undone."
+                          data-confirm-ok="Delete">
                         @csrf @method('DELETE')
                         <button type="submit" class="danger"><i class="fas fa-trash"></i> Delete</button>
                     </form>
@@ -206,6 +253,8 @@
             </div>
         @endforeach
     @endif
+</div>
+
 </div>
 
 @endsection

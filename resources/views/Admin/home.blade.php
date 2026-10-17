@@ -19,7 +19,7 @@
          the old 5.0.0-beta1 CSS made dropdown-menu-end menus open off-screen,
          because 5.3's JS positions static dropdowns via a [data-bs-popper]
          attribute that beta1's CSS resolves with the wrong alignment. --}}
-    <link href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css' rel='stylesheet'>
+    <link href='{{ asset('vendor/bootstrap/bootstrap.min.css') }}' rel='stylesheet'>
     <link href='https://cdn.jsdelivr.net/npm/boxicons@latest/css/boxicons.min.css' rel='stylesheet'>
     <link href='https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css' rel="stylesheet">
 
@@ -31,14 +31,25 @@
         --header-height: 3rem;
         --nav-width: 58px;
         --nav-width-expanded: 224px;
-        --first-color: #058028;          /* brand green - used only as accent */
-        --first-color-dark: #046322;
-        --accent-dim: #e9f5ee;           /* pale green tint for the active item */
-        --sidebar-bg: #ffffff;
-        --sidebar-border: #e8eaf0;
-        --nav-text: #64748b;             /* resting link color */
-        --nav-text-strong: #0f172a;      /* hover / active text */
+        --first-color: #058028;          /* brand green - accents on white surfaces (header/dropdowns), and the active-item icon on the green sidebar */
+        --first-color-dark: #046322;     /* active-item text on the green sidebar (re-pointed to a light green in dark mode - see theme.blade.php) */
+        --accent-dim: #e9f5ee;           /* pale green tint - active-item pill on both white surfaces and the green sidebar */
+        --sidebar-bg: #058028;           /* sidebar itself is solid brand green, matching SuperAdmin's */
+        --sidebar-border: #e8eaf0;       /* hairlines on WHITE surfaces only (header, dropdowns) - unrelated to the green sidebar below */
+        --nav-text: #64748b;             /* resting link color - WHITE-surface contexts only (header) */
+        --nav-text-strong: #0f172a;      /* hover / active text - WHITE-surface contexts only (header) */
         --nav-hover-bg: #f4f6f9;
+
+        /* On-sidebar tokens: the sidebar sits on solid green, so its resting
+           text/hover/border colors are white-on-green overlays rather than
+           the gray-on-white tokens above (which stay exactly as they were
+           for the header/dropdowns, which are still white). Same technique
+           as SuperAdmin's sidebar. The active item uses --accent-dim/
+           --first-color-dark instead (see .nav_link.active below). */
+        --sidebar-line: rgba(255, 255, 255, .16);
+        --sidebar-text: rgba(255, 255, 255, .72);
+        --sidebar-text-strong: #ffffff;
+        --sidebar-hover-bg: rgba(255, 255, 255, .10);
         --white-color: #F7F6FB;
         --body-font: 'Inter', sans-serif;
         --normal-font-size: .95rem;
@@ -77,6 +88,7 @@
     .header_toggle{ color: var(--nav-text); font-size: 1.35rem; cursor: pointer; transition: color .2s; }
     .header_toggle:hover{ color: var(--nav-text-strong); }
     .header_actions{ display: flex; align-items: center; gap: 2px; }
+    .header_actions .header-search{ margin-right: 14px; }
     .theme-toggle-btn{ font-size: 1.2rem; }
     .header_img{ width: 35px; height: 35px; display: flex; justify-content: center; border-radius: 50%; overflow: hidden; }
     .header_img img{ width: 40px; }
@@ -132,14 +144,14 @@
     .notif-when{ font-size: .68rem; color: #9aa3b2; margin-top: 2px; }
     .notif-empty{ padding: 30px 14px; text-align: center; color: #9aa3b2; font-size: .8rem; }
 
-    /* ===== SIDEBAR (minimalist: white, hairline border, one green accent) ===== */
+    /* ===== SIDEBAR (solid brand green, matching SuperAdmin's) ===== */
     .l-navbar{
         position: fixed;
         top: 0; left: -30%;
         width: var(--nav-width);
         height: 100vh;
         background: var(--sidebar-bg);
-        border-right: 1px solid var(--sidebar-border);
+        border-right: 1px solid var(--sidebar-line);
         padding: .5rem 0 0 0;
         transition: .5s;
         z-index: var(--z-fixed);
@@ -161,9 +173,9 @@
     /* Let a long menu scroll instead of clipping on short screens */
     /* min-height:0 lets this flex child actually shrink and scroll - without
        it, a long menu pushes the user profile below the viewport. */
-    .nav > div:first-child{ min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: #d8dde5 transparent; }
+    .nav > div:first-child{ min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: var(--sidebar-line) transparent; }
     .nav > div:first-child::-webkit-scrollbar{ width: 4px; }
-    .nav > div:first-child::-webkit-scrollbar-thumb{ background: #d8dde5; border-radius: 4px; }
+    .nav > div:first-child::-webkit-scrollbar-thumb{ background: var(--sidebar-line); border-radius: 4px; }
 
     .nav_logo{
         display: flex;
@@ -171,20 +183,20 @@
         column-gap: .75rem;
         padding: .5rem 0 1rem 1.05rem;
         margin-bottom: .5rem;
-        border-bottom: 1px solid var(--sidebar-border);
+        border-bottom: 1px solid var(--sidebar-line);
     }
     .nav_logo-icon{
         background: #fff;
         width: 30px;
         height: 30px;
         border-radius: 8px;
-        border: 1px solid var(--sidebar-border);
+        border: 1px solid var(--sidebar-line);
         object-fit: contain;
         padding: 3px;
         flex-shrink: 0;
     }
     .nav_logo-name{
-        color: var(--nav-text-strong);
+        color: var(--sidebar-text-strong);
         font-weight: 700;
         font-size: .92rem;
         letter-spacing: -.01em;
@@ -206,13 +218,13 @@
         column-gap: .9rem;
         padding: .55rem .72rem;
         border-radius: 8px;
-        color: var(--nav-text);
+        color: var(--sidebar-text);
         font-size: .86rem;
         font-weight: 500;
         transition: background .15s, color .15s;
         white-space: nowrap;
     }
-    .nav_link:hover{ background: var(--nav-hover-bg); color: var(--nav-text-strong); }
+    .nav_link:hover{ background: var(--sidebar-hover-bg); color: var(--sidebar-text-strong); }
     .nav_icon{ font-size: 1.1rem; }
 
     /* Scoped to the sidebar element: Bootstrap toggles a bare `show` class
@@ -269,26 +281,26 @@
         align-items: center;
         gap: .65rem;
         padding: .8rem .55rem .55rem;
-        border-top: 1px solid var(--sidebar-border);
+        border-top: 1px solid var(--sidebar-line);
         cursor: pointer;
         transition: background .15s;
         border-radius: 8px;
     }
-    .user-profile:hover{ background: var(--nav-hover-bg); }
+    .user-profile:hover{ background: var(--sidebar-hover-bg); }
 
     .user-profile img{
         width: 32px;
         height: 32px;
         border-radius: 50%;
         object-fit: cover;
-        border: 1px solid var(--sidebar-border);
+        border: 1px solid var(--sidebar-line);
         flex-shrink: 0;
     }
 
     .user-info{ display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
     .user-name{
         font-weight: 600;
-        color: var(--nav-text-strong);
+        color: var(--sidebar-text-strong);
         font-size: 13px;
         white-space: nowrap;
         overflow: hidden;
@@ -296,14 +308,14 @@
     }
     .user-role{
         font-size: 11px;
-        color: var(--nav-text);
+        color: var(--sidebar-text);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
     .user-caret{
         margin-left: auto;
-        color: #b6bdc9;
+        color: var(--sidebar-text);
         font-size: .9rem;
         flex-shrink: 0;
     }
@@ -400,6 +412,7 @@
         <div class="header_toggle"> <i class='bx bx-menu' id="header-toggle"></i> </div>
 
         <div class="header_actions">
+            @include('partials.header-search')
             @include('partials.theme-toggle')
 
             <div class="notif-bell">
@@ -470,7 +483,7 @@
                     </a>
 
                     <a href="/announcements" class="nav_link {{ Request::is('announcements') ? 'active' : '' }}">
-                        <i class='bx bx-bullhorn nav_icon'></i>
+                        <i class='bx bxs-megaphone nav_icon'></i>
                         <span class="nav_name">Announcements</span>
                     </a>
 
@@ -479,10 +492,7 @@
                         <span class="nav_name">Site Content</span>
                     </a>
 
-                    <a href="/profile" class="nav_link {{ Request::is('profile') ? 'active' : '' }}">
-                        <i class='bx bx-user nav_icon'></i>
-                        <span class="nav_name">Profile</span>
-                    </a>
+                   
                 </div>
             </div>
 
@@ -699,6 +709,8 @@ document.addEventListener("click",function(){
 })();
 </script>
 
+@include('partials.toasts')
+@include('partials.confirm-dialog')
 @include('partials.help-bot')
 @include('partials.idle-timeout')
 </body>
