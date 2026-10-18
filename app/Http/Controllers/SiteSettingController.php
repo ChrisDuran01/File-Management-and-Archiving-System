@@ -7,6 +7,7 @@ use App\Models\DisplayOfficer;
 use App\Models\Folder;
 use App\Models\OfficerTerm;
 use App\Models\SiteSetting;
+use App\Services\ImageCompressor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -32,13 +33,15 @@ class SiteSettingController extends Controller
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'position_name' => 'required|string|max:255',
-            'photo' => 'nullable|image|max:5120',
+            'photo' => 'nullable|image|max:10240',
         ]);
 
         $officer = DisplayOfficer::create([
             'name' => $data['name'],
             'position_name' => $data['position_name'],
-            'photo' => $request->hasFile('photo') ? $request->file('photo')->store('site/officers', 'public') : null,
+            'photo' => $request->hasFile('photo')
+                ? app(ImageCompressor::class)->store($request->file('photo'), 'site/officers', ImageCompressor::PHOTO)
+                : null,
         ]);
 
         ActivityLog::create([
@@ -79,19 +82,29 @@ class SiteSettingController extends Controller
         'hymn_image' => 'hymn_image_path',
     ];
 
+    /** Longest edge each one is shrunk to on upload - see ImageCompressor. */
+    public const IMAGE_SLOT_SIZES = [
+        'logo_path' => ImageCompressor::LOGO,
+        'hero_background_path' => ImageCompressor::HERO,
+        'vision_image_path' => ImageCompressor::PAGE_IMAGE,
+        'mission_image_path' => ImageCompressor::PAGE_IMAGE,
+        'hymn_image_path' => ImageCompressor::PAGE_IMAGE,
+    ];
+
     public function update(Request $request)
     {
         $data = $request->validate([
             'hymn' => 'nullable|string',
             'vision' => 'nullable|string',
             'mission' => 'nullable|string',
-            'logo' => 'nullable|image|max:5120',
-            'hero_background' => 'nullable|image|max:8192',
-            'vision_image' => 'nullable|image|max:8192',
-            'mission_image' => 'nullable|image|max:8192',
-            'hymn_image' => 'nullable|image|max:8192',
+            // Up to 10 MB each: they are shrunk on upload (ImageCompressor).
+            'logo' => 'nullable|image|max:10240',
+            'hero_background' => 'nullable|image|max:10240',
+            'vision_image' => 'nullable|image|max:10240',
+            'mission_image' => 'nullable|image|max:10240',
+            'hymn_image' => 'nullable|image|max:10240',
             'officer_photos' => 'nullable|array',
-            'officer_photos.*' => 'nullable|image|max:5120',
+            'officer_photos.*' => 'nullable|image|max:10240',
             'remove_officer_photo' => 'nullable|array',
             'remove_officer_photo.*' => 'integer',
         ]);
@@ -109,7 +122,9 @@ class SiteSettingController extends Controller
                     Storage::disk('public')->delete($term->site_photo);
                 }
 
-                $term->update(['site_photo' => $upload ? $upload->store('site/officers', 'public') : null]);
+                $term->update(['site_photo' => $upload
+                    ? app(ImageCompressor::class)->store($upload, 'site/officers', ImageCompressor::PHOTO)
+                    : null]);
             }
         }
 
@@ -119,7 +134,7 @@ class SiteSettingController extends Controller
                     Storage::disk('public')->delete($settings->$column);
                 }
 
-                $data[$column] = $request->file($field)->store('site', 'public');
+                $data[$column] = app(ImageCompressor::class)->store($request->file($field), 'site', self::IMAGE_SLOT_SIZES[$column]);
             }
         }
 

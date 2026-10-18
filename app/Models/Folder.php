@@ -5,10 +5,22 @@ use App\Models\File;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
+use WeakMap;
 
 class Folder extends Model
 {
     use SoftDeletes;
+
+    /**
+     * Answers to "is this user a SuperAdmin?" and "which restricted folders
+     * was this user given?", kept per User object so a page listing many
+     * folders asks the database once instead of once per folder. Emptied
+     * after every request and before every queued job
+     * (AppServiceProvider), so a changed role or access list is never
+     * answered from an old copy.
+     */
+    private static ?WeakMap $superAdminAnswers = null;
+    private static ?WeakMap $grantedFolderIds = null;
 
     protected $fillable = ['name', 'school_year', 'is_archived', 'is_restricted', 'created_by', 'officer_term_id', 'last_accessed_at'];
 
@@ -64,7 +76,30 @@ class Folder extends Model
             return true;
         }
 
-        return $this->allowedUsers()->where('users.id', $user->id)->exists();
+        return in_array((int) $this->id, self::grantedFolderIds($user), true);
+    }
+
+    /** Folders $user was explicitly given access to (folder_access) - one query per request. */
+    private static function grantedFolderIds(User $user): array
+    {
+        self::$grantedFolderIds ??= new WeakMap();
+
+        if (! isset(self::$grantedFolderIds[$user])) {
+            self::$grantedFolderIds[$user] = DB::table('folder_access')
+                ->where('user_id', $user->id)
+                ->pluck('folder_id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+        }
+
+        return self::$grantedFolderIds[$user];
+    }
+
+    /** Called after each request and before each queued job - see the properties above. */
+    public static function forgetAccessAnswers(): void
+    {
+        self::$superAdminAnswers = null;
+        self::$grantedFolderIds = null;
     }
 
     /**
@@ -85,6 +120,17 @@ class Folder extends Model
      * AuthController::login().
      */
     public static function isSuperAdmin(User $user): bool
+    {
+        self::$superAdminAnswers ??= new WeakMap();
+
+        if (! isset(self::$superAdminAnswers[$user])) {
+            self::$superAdminAnswers[$user] = self::checkSuperAdmin($user);
+        }
+
+        return self::$superAdminAnswers[$user];
+    }
+
+    private static function checkSuperAdmin(User $user): bool
     {
         $hasLeadershipTerm = DB::table('officer_terms')
             ->join('positions', 'officer_terms.position_id', '=', 'positions.id')

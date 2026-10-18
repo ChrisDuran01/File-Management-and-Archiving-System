@@ -239,6 +239,49 @@
     .al-empty i { font-size: 2rem; margin-bottom: 12px; display: block; }
     .al-empty p { margin: 0; font-size: .9rem; }
 
+    /* ── Infinite scroll: status line, Load more, Back to top ── */
+    #alSentinel { height: 1px; }
+    .al-status {
+        margin: 0;
+        padding: .5rem 1rem 0;
+        text-align: center;
+        font-size: 12.5px;
+        color: var(--text-3);
+    }
+    .al-status:empty { display: none; }
+    .al-more-wrap { text-align: center; padding: .75rem 1rem 1rem; }
+    .al-more-wrap:has(.al-more-btn[hidden]) { display: none; }
+    .al-more-btn {
+        border: 1px solid var(--border);
+        border-radius: 50px;
+        background: var(--card);
+        color: var(--text-1);
+        font-size: 13px;
+        font-weight: 500;
+        padding: .45rem 1.25rem;
+        cursor: pointer;
+    }
+    .al-more-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .al-top-btn {
+        position: fixed;
+        right: 1.5rem;
+        bottom: 5.5rem; /* above the help assistant's button */
+        z-index: 1080;
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        border: 1px solid var(--border);
+        background: var(--card);
+        color: var(--text-1);
+        box-shadow: var(--shadow-sm);
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+    }
+    .al-top-btn[hidden] { display: none; }
+    .al-top-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .al-top-btn svg { width: 16px; height: 16px; }
+
     /* ===== DARK MODE ===== */
     [data-theme="dark"] .al-card-header,
     [data-theme="dark"] .al-ip { background: var(--surface); }
@@ -306,7 +349,7 @@
 
     {{-- ── Filter Header ── --}}
     <div class="al-card-header">
-        <form method="GET" action="{{ route('activity.logs') }}" class="al-filter-row">
+        <form method="GET" action="{{ route('activity.logs') }}" class="al-filter-row" id="alFilterForm">
             <span class="al-filter-label">Date range</span>
 
             <input type="date"
@@ -340,110 +383,167 @@
                 <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.3"/>
                 <line x1="10" y1="10" x2="14" y2="14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
             </svg>
-            <input type="text"
+            {{-- Part of the date form too, so changing dates keeps the search. --}}
+            <input type="search"
                    id="searchInput"
+                   name="q"
+                   form="alFilterForm"
+                   value="{{ request('q') }}"
                    placeholder="Search by user, action, or IP address…"
-                   oninput="filterLogs()">
+                   autocomplete="off">
         </div>
     </div>
 
-    {{-- ── Stats Chips ── --}}
+    {{-- ── Stats Chips (everything that matches, not just what is loaded) ── --}}
     <div class="al-stats">
         <span class="al-chip">
             <i class="fas fa-list"></i>
-            {{ $logs->count() }} {{ Str::plural('event', $logs->count()) }}
+            <span id="alStatEvents">{{ number_format($stats['events']) }} {{ Str::plural('event', $stats['events']) }}</span>
         </span>
         <span class="al-chip">
             <i class="fas fa-user"></i>
-            {{ $logs->pluck('user_name')->unique()->count() }} {{ Str::plural('user', $logs->pluck('user_name')->unique()->count()) }}
+            <span id="alStatUsers">{{ number_format($stats['users']) }} {{ Str::plural('user', $stats['users']) }}</span>
         </span>
         <span class="al-chip">
             <i class="fas fa-globe"></i>
-            {{ $logs->pluck('ip_address')->unique()->count() }} unique {{ Str::plural('IP', $logs->pluck('ip_address')->unique()->count()) }}
+            {{-- Not Str::plural(): it keeps the capitals and gives "IPS". --}}
+            <span id="alStatIps">{{ number_format($stats['ips']) }} unique IP{{ $stats['ips'] === 1 ? '' : 's' }}</span>
         </span>
     </div>
 
-    {{-- ── Log Timeline ── --}}
+    {{-- ── Log Timeline: newest first; older batches load while scrolling ── --}}
     <div class="al-body">
-        @if($logs->count() > 0)
-            @foreach($logs as $i => $log)
-                @php
-                    $activity = strtolower($log->activity);
-                    $type = match(true) {
-                        str_contains($activity, 'upload')                   => 'upload',
-                        str_contains($activity, 'added')                   => 'upload',
-                        str_contains($activity, 'delete')                   => 'delete',
-                        str_contains($activity, 'rename')                   => 'rename',
-                        str_contains($activity, 'public') ||
-                            str_contains($activity, 'private') ||
-                            str_contains($activity, 'access')               => 'access',
-                        str_contains($activity, 'login') ||
-                            str_contains($activity, 'logged')               => 'login',
-                        default                                             => 'login',
-                    };
-                    $badgeLabel = match($type) {
-                        'upload' => 'Upload',
-                        
-                        'delete' => 'Delete',
-                        'rename' => 'Rename',
-                        'access' => 'Access',
-                        'login'  => 'Login',
-                        default  => ucfirst($type),
-                    };
-                    $isLast = $loop->last;
-                @endphp
+        <div id="alList" data-next="{{ $next }}" data-has-more="{{ $hasMore ? '1' : '0' }}">
+            @include('SuperAdmin.partials.activity-log-rows', ['logs' => $logs, 'hasMore' => $hasMore, 'firstLoad' => true])
+        </div>
 
-                <div class="al-log-item log-row"
-                     data-search="{{ strtolower($log->user_name . ' ' . $log->activity . ' ' . $log->ip_address) }}">
-
-                    {{-- Timeline dot + connector --}}
-                    <div class="al-timeline-col">
-                        <div class="al-dot {{ $type }}"></div>
-                        @if(!$isLast)
-                            <div class="al-line"></div>
-                        @endif
-                    </div>
-
-                    {{-- Content --}}
-                    <div class="al-content">
-                        <div class="al-meta">
-                            <span class="al-time">
-                                {{ $log->created_at->format('M d, Y · h:i A') }}
-                            </span>
-                            <span class="al-ip">
-                                <i class="fas fa-globe"></i>
-                                {{ $log->ip_address ?? 'Unknown' }}
-                            </span>
-                        </div>
-                        <div class="al-text">
-                            <b>{{ $log->user_name }}</b>
-                            <span class="al-detail">{{ $log->activity }}</span>
-                            <span class="al-badge {{ $type }}">{{ $badgeLabel }}</span>
-                        </div>
-                    </div>
-
-                </div>
-            @endforeach
-        @else
-            <div class="al-empty">
-                <i class="fas fa-folder-open"></i>
-                <p>No activity logs found.</p>
-            </div>
-        @endif
+        <div id="alSentinel" aria-hidden="true"></div>
+        <p class="al-status" id="alStatus" role="status" aria-live="polite">
+            @if(! $hasMore && $logs->isNotEmpty())
+                You've reached the oldest activity.
+            @endif
+        </p>
+        <div class="al-more-wrap">
+            <button type="button" class="al-more-btn" id="alMore" @if(! $hasMore) hidden @endif>Load more</button>
+        </div>
     </div>
 
 </div>
 
 </div>
 
+<button type="button" class="al-top-btn" id="alTop" aria-label="Back to top" hidden>
+    <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M8 13V3M8 3L3.5 7.5M8 3l4.5 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+</button>
+
 <script>
-function filterLogs() {
-    const q = document.getElementById('searchInput').value.toLowerCase();
-    document.querySelectorAll('.log-row').forEach(row => {
-        const text = row.getAttribute('data-search') || '';
-        row.style.display = text.includes(q) ? '' : 'none';
+// Infinite scroll for Activity Logs: the next 50 older entries load as the
+// end of the list comes near. "Load more" is the same action for keyboards
+// and for a retry after a failed load. Search runs on the server (it has to
+// reach entries not loaded yet) and starts the list over.
+(function () {
+    const url      = @json(route('activity.logs'));
+    const list     = document.getElementById('alList');
+    const sentinel = document.getElementById('alSentinel');
+    const status   = document.getElementById('alStatus');
+    const more     = document.getElementById('alMore');
+    const search   = document.getElementById('searchInput');
+    const top      = document.getElementById('alTop');
+
+    let next    = list.dataset.next;
+    let hasMore = list.dataset.hasMore === '1';
+    let busy    = false;
+    let request = 0; // a newer search makes older replies stale
+
+    function query(extra) {
+        const params = new URLSearchParams(window.location.search); // keeps the date range
+        params.delete('before');
+        params.delete('q');
+        if (search.value.trim()) params.set('q', search.value.trim());
+        Object.entries(extra).forEach(([key, value]) => params.set(key, value));
+        return params;
+    }
+
+    function plural(n, word) {
+        return n.toLocaleString() + ' ' + word + (n === 1 ? '' : 's');
+    }
+
+    function showStats(stats) {
+        document.getElementById('alStatEvents').textContent = plural(stats.events, 'event');
+        document.getElementById('alStatUsers').textContent  = plural(stats.users, 'user');
+        document.getElementById('alStatIps').textContent    = stats.ips.toLocaleString() + ' unique IP' + (stats.ips === 1 ? '' : 's');
+    }
+
+    async function load(fresh) {
+        if (! fresh && (busy || ! hasMore)) return;
+
+        const id = ++request;
+        busy = true;
+        more.hidden = true;
+        status.textContent = 'Loading…';
+
+        try {
+            const res = await fetch(url + '?' + query(fresh ? {} : { before: next }), {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+            });
+            if (! res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+            if (id !== request) return;
+
+            if (fresh) list.innerHTML = '';
+            list.insertAdjacentHTML('beforeend', data.html);
+            if (data.stats) showStats(data.stats);
+
+            next    = data.next;
+            hasMore = data.hasMore;
+            more.textContent = 'Load more';
+            more.hidden = ! hasMore;
+            status.textContent = (! hasMore && list.querySelector('.log-row')) ? "You've reached the oldest activity." : '';
+        } catch (e) {
+            if (id !== request) return;
+            status.textContent = "Couldn't load more activity.";
+            more.textContent = 'Try again';
+            more.hidden = false;
+        } finally {
+            if (id === request) {
+                busy = false;
+                fillScreen();
+            }
+        }
+    }
+
+    // On a tall screen one batch may not reach the bottom, and the
+    // observer only fires when visibility changes - so keep going.
+    function fillScreen() {
+        if (hasMore && ! busy && sentinel.getBoundingClientRect().top < window.innerHeight + 600) {
+            load(false);
+        }
+    }
+
+    new IntersectionObserver(entries => {
+        if (entries.some(entry => entry.isIntersecting)) load(false);
+    }, { rootMargin: '600px 0px' }).observe(sentinel);
+
+    more.addEventListener('click', () => load(false));
+
+    let typing;
+    search.addEventListener('input', () => {
+        clearTimeout(typing);
+        typing = setTimeout(() => {
+            history.replaceState(null, '', '?' + query({}));
+            load(true);
+        }, 300);
     });
-}
+
+    window.addEventListener('scroll', () => {
+        top.hidden = window.scrollY < 800;
+    }, { passive: true });
+    top.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+
+    fillScreen();
+})();
 </script>
 
 @endsection

@@ -557,7 +557,7 @@
     <div class="wrap footer-grid">
         <div class="footer-about">
             <div class="footer-brand">
-                <img src="{{ $logo }}" alt="" width="48" height="48">
+                <img loading="lazy" decoding="async" src="{{ $logo }}" alt="" width="48" height="48">
                 <div>
                     <strong>QSU Student Government</strong>
                     <span>Diffun Campus</span>

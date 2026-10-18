@@ -188,7 +188,7 @@
                 <div class="lh-thumbs">
                     @foreach(['border_image_path' => 'Border', 'logo_path' => 'Logo', 'seal_path' => 'Seal', 'footer_image_path' => 'Footer'] as $col => $label)
                         @if($lh->$col)
-                            <img src="{{ asset('storage/'.$lh->$col) }}" class="lh-thumb" title="{{ $label }}" alt="{{ $label }}">
+                            <img loading="lazy" decoding="async" src="{{ asset('storage/'.$lh->$col) }}" class="lh-thumb" title="{{ $label }}" alt="{{ $label }}">
                         @else
                             <span class="lh-thumb-empty" title="No {{ $label }} uploaded">{{ $label }}</span>
                         @endif

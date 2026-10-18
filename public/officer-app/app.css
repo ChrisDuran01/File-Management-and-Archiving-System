@@ -257,9 +257,12 @@ details.more[open] { padding-bottom: 12px; }
 .viewer-status strong { color: var(--text-1); font-family: var(--display); font-size: 16px; font-weight: 600; }
 .viewer img { display: block; width: 100%; height: auto; background: #ffffff; }
 .viewer canvas { display: block; width: 100%; height: auto; background: #ffffff; }
-.viewer canvas + canvas { border-top: 6px solid var(--bg); }
+/* PDF pages: a placeholder holds each page's place until it is drawn (lazyPdfPages in app.js).
+   content-box so aspect-ratio sizes the page itself, not page + gap. */
+.viewer-page { box-sizing: content-box; width: 100%; background: #ffffff; }
+.viewer-page + .viewer-page { border-top: 6px solid var(--bg); }
 .viewer pre { margin: 0; padding: 16px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: #ffffff; font-size: 13px; }
-.viewer:has(canvas), .viewer:has(img), .viewer:has(.viewer-doc), .viewer:has(pre) { min-height: 0; }
+.viewer:has(canvas), .viewer:has(.viewer-page), .viewer:has(img), .viewer:has(.viewer-doc), .viewer:has(pre) { min-height: 0; }
 .viewer-doc { padding: 18px; overflow-x: auto; background: #ffffff; color: #0f172a; font-size: 14px; }
 /* The Word viewer lays text out with the document's own paper size and
    one-inch margins, which leaves a thin column on a phone - drop them. */

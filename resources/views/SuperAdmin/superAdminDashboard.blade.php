@@ -498,7 +498,7 @@
 </div>
 
 @if ($activityChart['totalUploads'] + $activityChart['totalActions'] > 0)
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1"></script>
 <script>
 (() => {
     const canvas = document.getElementById('activityChart');

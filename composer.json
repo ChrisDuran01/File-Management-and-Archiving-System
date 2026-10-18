@@ -14,6 +14,7 @@
         "kreait/laravel-firebase": "6.2",
         "laravel/framework": "^12.0",
         "laravel/tinker": "^2.10.1",
+        "league/flysystem-aws-s3-v3": "^3.0",
         "minishlink/web-push": "^11.0",
         "quix-labs/laravel-supabase-flysystem": "*",
         "spatie/pdf-to-text": "^1.54",

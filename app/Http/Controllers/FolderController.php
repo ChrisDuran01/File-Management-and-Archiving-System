@@ -54,17 +54,23 @@ class FolderController extends Controller
      */
     public function index()
     {
-        // Only show folders that haven't been stored away under a past school year
-        $folders = Folder::where('is_archived', false)->get();
+        // Only show folders that haven't been stored away under a past school
+        // year. Who has access is loaded for all of them in one query (eager
+        // loading) rather than one query per folder.
+        $folders = Folder::where('is_archived', false)
+            ->with(['allowedUsers' => fn ($query) => $query->select('users.id')])
+            ->get();
 
         // Restricted folders still show up in the listing (so their
         // existence isn't a secret) but are locked for anyone without
         // access - flag per folder so the view can render them accordingly.
+        // The access list is only for folders this user may manage (the
+        // access editor) - nobody else needs to see who was given access.
         $user = Auth::user();
         $folders->each(function (Folder $folder) use ($user) {
             $folder->accessible = $folder->isAccessibleBy($user);
             $folder->manageable = $folder->isManageableBy($user);
-            $folder->allowed_user_ids = $folder->allowedUsers()->pluck('users.id');
+            $folder->allowed_user_ids = $folder->manageable ? $folder->allowedUsers->pluck('id') : collect();
         });
 
         // Get files that are not inside any folder (root files), same rule

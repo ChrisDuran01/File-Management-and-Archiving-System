@@ -83,6 +83,29 @@ return [
             'signedUrlExpires' => 3600,
         ],
 
+        /*
+        | Off-site copy of the backup ZIPs, on Backblaze B2 through its S3 API.
+        | Kept apart from 'cloud' on purpose: the free Supabase plan refuses
+        | any file over 50 MB (a full backup is bigger), and a backup in the
+        | same account as the files it protects is lost along with them.
+        | Use a B2 application key limited to this one bucket.
+        */
+        'backups' => [
+            'driver' => 's3',
+            'key' => env('BACKUP_B2_KEY_ID'),
+            'secret' => env('BACKUP_B2_APPLICATION_KEY'),
+            'region' => env('BACKUP_B2_REGION'),
+            'bucket' => env('BACKUP_B2_BUCKET'),
+            'endpoint' => env('BACKUP_B2_ENDPOINT'),
+            'use_path_style_endpoint' => false,
+            // Only send/check checksums where S3 requires them - the SDK's
+            // newer default adds headers some S3-compatible stores reject.
+            'request_checksum_calculation' => 'when_required',
+            'response_checksum_validation' => 'when_required',
+            'throw' => true,
+            'report' => false,
+        ],
+
     ],
 
     /*

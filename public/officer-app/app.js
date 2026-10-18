@@ -24,7 +24,7 @@
     const FILE_CACHE = 'sgo-files-v1';   // officer-sw.js reads the same cache
     const DAY = 86400000;
     const SYNC_EVERY = 5 * 60000;        // don't ask the server on every screen
-    const MAX_PDF_PAGES = 30;
+    const MAX_PDF_PAGES = 300;           // pages are drawn only near the screen - see lazyPdfPages()
 
     // Cache Storage and service workers only exist on https (or localhost).
     const canStore = 'caches' in window && 'serviceWorker' in navigator;
@@ -390,6 +390,58 @@
         return wrap;
     }
 
+    // Draws a PDF page only when it comes near the screen, and lets go of
+    // pages scrolled far away. Drawing every page up front cost about 3 MB of
+    // memory per page on a phone - the reason long PDFs used to stop at 30.
+    function lazyPdfPages(pdf, slots) {
+        const drawn = new Set();
+        let queue = Promise.resolve(); // one page at a time keeps scrolling smooth
+
+        function draw(slot) {
+            if (drawn.has(slot)) return;
+            drawn.add(slot);
+
+            queue = queue.then(async () => {
+                if (! drawn.has(slot)) return; // scrolled far away before its turn
+
+                const page = await pdf.getPage(Number(slot.dataset.page));
+                const base = page.getViewport({ scale: 1 });
+                const scale = ((slot.clientWidth || 358) / base.width) * Math.min(window.devicePixelRatio || 1, 2);
+                const viewport = page.getViewport({ scale: scale });
+                const canvas = el('canvas');
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                slot.style.aspectRatio = base.width + ' / ' + base.height; // this page's own shape
+
+                await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
+
+                if (drawn.has(slot)) {
+                    slot.replaceChildren(canvas);
+                } else {
+                    canvas.width = canvas.height = 0;
+                }
+            }).catch(() => drawn.delete(slot)); // try again next time it comes near
+        }
+
+        function release(slot) {
+            if (! drawn.delete(slot)) return;
+            const canvas = slot.querySelector('canvas');
+            if (canvas) {
+                canvas.width = canvas.height = 0; // frees the pixels now, not whenever memory is collected
+                canvas.remove();
+            }
+        }
+
+        const near = new IntersectionObserver(entries => {
+            entries.forEach(entry => { if (entry.isIntersecting) draw(entry.target); });
+        }, { rootMargin: '150% 0px' });
+        const far = new IntersectionObserver(entries => {
+            entries.forEach(entry => { if (! entry.isIntersecting) release(entry.target); });
+        }, { rootMargin: '600% 0px' });
+
+        slots.forEach(slot => { near.observe(slot); far.observe(slot); });
+    }
+
     async function renderFile(box, meta) {
         status(box, 'Opening…');
 
@@ -408,23 +460,24 @@
 
                 const data = await (await fileBlob(meta)).arrayBuffer();
                 const pdf = await window.pdfjsLib.getDocument({ data: data }).promise;
-                const width = box.clientWidth || 358;
                 const pages = Math.min(pdf.numPages, MAX_PDF_PAGES);
+                const first = (await pdf.getPage(1)).getViewport({ scale: 1 });
 
+                // A light placeholder per page, sized like page 1 (most PDFs
+                // keep one page size), so the length and scroll bar are right
+                // from the start; each is drawn when it comes near.
                 box.replaceChildren();
-
+                const slots = [];
                 for (let n = 1; n <= pages; n++) {
-                    const page = await pdf.getPage(n);
-                    const scale = (width / page.getViewport({ scale: 1 }).width) * Math.min(window.devicePixelRatio || 1, 2);
-                    const viewport = page.getViewport({ scale: scale });
-                    const canvas = el('canvas');
-                    canvas.width = viewport.width;
-                    canvas.height = viewport.height;
-                    canvas.setAttribute('role', 'img');
-                    canvas.setAttribute('aria-label', 'Page ' + n + ' of ' + pdf.numPages);
-                    box.appendChild(canvas);
-                    await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
+                    const slot = el('div', 'viewer-page');
+                    slot.style.aspectRatio = first.width + ' / ' + first.height;
+                    slot.dataset.page = String(n);
+                    slot.setAttribute('role', 'img');
+                    slot.setAttribute('aria-label', 'Page ' + n + ' of ' + pdf.numPages);
+                    box.appendChild(slot);
+                    slots.push(slot);
                 }
+                lazyPdfPages(pdf, slots);
 
                 if (pdf.numPages > pages) {
                     box.appendChild(el('div', 'viewer-more', 'Showing the first ' + pages + ' of ' + pdf.numPages + ' pages. Open it in another app to read the rest.'));

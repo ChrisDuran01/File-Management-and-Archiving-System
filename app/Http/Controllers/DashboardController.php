@@ -14,6 +14,7 @@ use App\Models\Position;
 use App\Models\PushSubscription;
 use App\Models\ScanBatch;
 use App\Models\SiteSetting;
+use App\Services\BackupScheduler;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -240,7 +241,7 @@ class DashboardController extends Controller
         };
 
         $settings = SiteSetting::current();
-        $schedules = ['daily' => 'Daily at 2:00 AM', 'weekly' => 'Mondays at 2:00 AM', 'monthly' => '1st of the month, 2:00 AM'];
+        $schedules = BackupScheduler::DESCRIPTIONS;
         $rows[] = ['label' => 'Automatic backups'] + (($settings->backup_enabled ?? true)
             ? ['status' => 'ok', 'detail' => $schedules[$settings->backup_frequency ?? 'daily'] ?? ucfirst((string) $settings->backup_frequency)]
             : ['status' => 'warning', 'detail' => 'Turned off']);

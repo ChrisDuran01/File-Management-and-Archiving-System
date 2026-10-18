@@ -28,6 +28,10 @@ class RunRestoreJob implements ShouldQueue
     // Matches performRestore()'s own set_time_limit(0).
     public $timeout = 0;
 
+    // Never re-run on its own: a restore replaces the whole database, and
+    // performRestore() already puts the old one back when a step fails.
+    public $tries = 1;
+
     /**
      * @param int         $backupId      Which backups row to restore from.
      * @param string|null $initiatedBy   Who triggered this (for the activity

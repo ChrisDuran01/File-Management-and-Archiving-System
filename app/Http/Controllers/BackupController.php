@@ -15,10 +15,14 @@ use App\Models\User;
 use App\Notifications\BackupFailed;
 use App\Notifications\RestoreFailed;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
+use Symfony\Component\Mime\MimeTypes;
 use Symfony\Component\Process\Process;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\HandlerStack;
@@ -37,6 +41,8 @@ class BackupController extends Controller
     private const PROGRESS_KEY         = 'backup_progress'; // cache key polled by the frontend
     private const PROGRESS_TTL_MIN     = 20;    // how long progress stays visible after finishing
     private const RESTORE_PROGRESS_KEY = 'restore_progress'; // separate key - a restore and a backup could in theory overlap
+    private const SNAPSHOTS_KEPT       = 3;     // pre-restore copies of the database kept in storage/app/backups
+    private const PUBLIC_ENTRY_PREFIX  = 'public/'; // ZIP folder for the `public` disk's files (site images, letterheads...)
 
     // Extensions that are already compressed (photos, PDFs, office docs -
     // themselves ZIP containers, video, existing archives). Re-running
@@ -169,6 +175,16 @@ class BackupController extends Controller
             $stats = $this->downloadFilesIntoZip($zip, $files, $totalFiles, $entryNames);
 
             // ==============================
+            // STEP 2a: THE SITE'S OWN FILES
+            // ==============================
+            // Announcement attachments and images, letterheads, officer
+            // photos, the site logo - kept on the `public` disk on this
+            // computer only, never in Supabase, so without this a lost
+            // computer lost them for good.
+            $this->setProgress('finalizing', 65, 'Adding site images, letterheads and announcement files…');
+            $publicFiles = $this->addPublicFilesToZip($zip);
+
+            // ==============================
             // STEP 2b: DUMP THE DATABASE INTO THE SAME ZIP
             // ==============================
             // A files-only backup can't rebuild anything - folder/file records,
@@ -186,7 +202,7 @@ class BackupController extends Controller
             }
             $this->tempFiles = [];
 
-            Log::info("Backup ZIP closed — added: {$stats['added']}, failed: {$stats['failed']}, skipped: {$stats['skipped']}, database: " . ($includesDatabase ? 'yes' : 'no'));
+            Log::info("Backup ZIP closed — added: {$stats['added']}, failed: {$stats['failed']}, skipped: {$stats['skipped']}, site files: {$publicFiles}, database: " . ($includesDatabase ? 'yes' : 'no'));
 
             if ($stats['added'] === 0 && ! $includesDatabase) {
                 @unlink($filePath);
@@ -195,23 +211,24 @@ class BackupController extends Controller
             }
 
             // ==============================
-            // STEP 3: UPLOAD TO THE CLOUD DISK, KEEP A LOCAL COPY TOO
+            // STEP 3: UPLOAD OFF-SITE, KEEP A LOCAL COPY TOO
             // ==============================
-            // Redundancy means two independent locations: previously the local
-            // ZIP was deleted right after upload, leaving only one copy - in the
-            // same cloud bucket the live files sit in. Losing that bucket (or
-            // the Supabase account) lost every backup along with the originals.
-            // Keeping the local copy means either one alone can still recover.
+            // Redundancy means two independent locations: the local ZIP on
+            // this computer, and an off-site copy on the 'backups' disk
+            // (Backblaze B2) - a different account from the Supabase bucket
+            // the live files sit in, so losing either one alone can still be
+            // recovered from. Supabase was used before, but its free plan
+            // refuses any file over 50 MB, and a full backup is bigger.
 
             $sizeInMB  = round(filesize($filePath) / 1024 / 1024, 2);
             $checksum  = hash_file('sha256', $filePath);
             $cloudPath = 'backups/' . $fileName;
 
-            $this->setProgress('uploading', 70, 'Uploading backup to cloud storage…');
-            $uploaded = $this->uploadZipToCloud($filePath, $cloudPath);
+            $this->setProgress('uploading', 70, "Uploading backup off-site ({$sizeInMB} MB)…");
+            $uploaded = $this->uploadBackupOffsite($filePath, $cloudPath);
 
             if (! $uploaded) {
-                Log::warning('Backup upload to cloud storage failed - keeping the local copy only.');
+                Log::warning('Backup upload to off-site storage failed - keeping the local copy only.');
             }
 
             // ==============================
@@ -222,22 +239,23 @@ class BackupController extends Controller
                 'name'              => $fileName,
                 'file_path'         => $cloudPath,
                 'cloud_path'        => $uploaded ? $cloudPath : null,
+                'cloud_disk'        => $uploaded ? 'backups' : null,
                 'local_path'        => $filePath,
                 'includes_database' => $includesDatabase,
                 'checksum'          => $checksum,
                 'size'              => $sizeInMB . ' MB',
-                'status'            => $uploaded ? 'Success' : 'Local only (cloud upload failed)',
+                'status'            => $uploaded ? 'Success' : 'Local only (off-site upload failed)',
             ]);
 
             $this->cleanupOldBackups();
 
             ActivityLog::create([
                 'user_name'  => $initiatedBy ?? 'System',
-                'activity'   => "Created backup: {$fileName} ({$sizeInMB} MB, {$stats['added']} files" . ($includesDatabase ? ', includes database' : ', NO database dump') . ($uploaded ? ', stored locally + cloud' : ', LOCAL ONLY - cloud upload failed') . ')',
+                'activity'   => "Created backup: {$fileName} ({$sizeInMB} MB, {$stats['added']} files, {$publicFiles} site files" . ($includesDatabase ? ', includes database' : ', NO database dump') . ($uploaded ? ', stored locally + off-site' : ', LOCAL ONLY - off-site upload failed') . ')',
                 'ip_address' => $initiatedByIp
             ]);
 
-            $summary = "Backup created! Size: {$sizeInMB} MB | {$stats['added']} files | database " . ($includesDatabase ? 'included' : 'NOT included') . ' | stored ' . ($uploaded ? 'locally and in the cloud' : 'LOCALLY ONLY (cloud upload failed)');
+            $summary = "Backup created! Size: {$sizeInMB} MB | {$stats['added']} files + {$publicFiles} site files | database " . ($includesDatabase ? 'included' : 'NOT included') . ' | stored ' . ($uploaded ? 'locally and off-site' : 'LOCALLY ONLY (off-site upload failed)');
 
             $this->setProgress('done', 100, $summary, ['uploaded' => $uploaded]);
 
@@ -328,12 +346,19 @@ class BackupController extends Controller
 
     private function setRestoreProgress(string $stage, int $percent, string $message, array $extra = []): void
     {
-        Cache::put(self::RESTORE_PROGRESS_KEY, array_merge([
-            'stage'     => $stage,
-            'percent'   => $percent,
-            'message'   => $message,
-            'updatedAt' => now()->timestamp,
-        ], $extra), now()->addMinutes(self::PROGRESS_TTL_MIN));
+        // The cache lives in the database being replaced - for a moment
+        // mid-restore its table may not exist. Reporting progress must
+        // never be what stops a restore.
+        try {
+            Cache::put(self::RESTORE_PROGRESS_KEY, array_merge([
+                'stage'     => $stage,
+                'percent'   => $percent,
+                'message'   => $message,
+                'updatedAt' => now()->timestamp,
+            ], $extra), now()->addMinutes(self::PROGRESS_TTL_MIN));
+        } catch (\Throwable $e) {
+            Log::warning("Could not record restore progress ({$stage}): " . $e->getMessage());
+        }
     }
 
     /**
@@ -347,7 +372,8 @@ class BackupController extends Controller
      * A database restore failure aborts before touching any files, rather
      * than re-uploading files against whatever (old or empty) File rows
      * happen to still exist - that would silently scatter content under
-     * wrong or stale paths instead of failing loudly.
+     * wrong or stale paths instead of failing loudly. The database itself
+     * is then put back as it was - see replaceDatabase().
      */
     public function performRestore(int $id, ?string $initiatedBy = null, ?string $initiatedByIp = null): void
     {
@@ -402,16 +428,17 @@ class BackupController extends Controller
 
             $includesDatabase = $zip->locateName('database_backup.sql') !== false;
             $dbRestored = false;
+            $snapshotName = null;
 
             if ($includesDatabase) {
-                $this->setRestoreProgress('database', 10, 'Restoring database…');
-                $dbRestored = $this->restoreDatabaseFromZip($zip);
+                $snapshotName = $this->replaceDatabase($zip, $backup->name);
 
-                if (! $dbRestored) {
+                if ($snapshotName === null) {
+                    // replaceDatabase() has already reported what happened.
                     $zip->close();
-                    $this->setRestoreProgress('error', 100, 'Database restore failed - aborting before touching any files. See logs for details.');
                     return;
                 }
+                $dbRestored = true;
             } else {
                 Log::warning("Restore of backup #{$backup->id} has no database dump inside it - restoring files only.");
             }
@@ -423,7 +450,8 @@ class BackupController extends Controller
 
             ActivityLog::create([
                 'user_name'  => $initiatedBy ?? 'System',
-                'activity'   => "Restored system from backup: {$backup->name} (" . ($dbRestored ? 'database restored' : 'database NOT restored') . ", {$stats['restored']} files restored, {$stats['skipped']} skipped, {$stats['failed']} failed)",
+                'activity'   => "Restored system from backup: {$backup->name} (" . ($dbRestored ? 'database restored' : 'database NOT restored') . ", {$stats['restored']} files restored, {$stats['skipped']} skipped, {$stats['failed']} failed"
+                    . ($snapshotName ? "; the database from before is saved as {$snapshotName}" : '') . ')',
                 'ip_address' => $initiatedByIp,
             ]);
 
@@ -431,19 +459,15 @@ class BackupController extends Controller
                 . ", {$stats['restored']} files restored"
                 . ($stats['skipped'] > 0 ? ", {$stats['skipped']} skipped (no matching record)" : '')
                 . ($stats['failed'] > 0 ? ", {$stats['failed']} failed" : '')
-                . '.';
+                . '.'
+                . ($snapshotName ? " The database from before the restore is saved as {$snapshotName}." : '');
 
             $this->setRestoreProgress('done', 100, $summary);
 
         } catch (\Throwable $e) {
             Log::error('Restore crashed: ' . $e->getMessage());
             $this->setRestoreProgress('error', 100, 'Restore failed: ' . $e->getMessage());
-
-            try {
-                Notification::send(User::superAdmins(), new RestoreFailed($e->getMessage(), $backup->name ?? ('#' . $id)));
-            } catch (\Throwable $notifyError) {
-                Log::warning('Could not send restore-failure notification: ' . $notifyError->getMessage());
-            }
+            $this->notifyRestoreFailed($e->getMessage(), $backup->name ?? ('#' . $id));
         } finally {
             if ($tempZipPath && file_exists($tempZipPath)) {
                 @unlink($tempZipPath);
@@ -469,37 +493,151 @@ class BackupController extends Controller
             return [$backup->local_path, false];
         }
 
-        $cloudPath = $backup->cloud_path ?? $backup->file_path;
-        if (! $cloudPath) {
+        $disk = $backup->offsiteDisk();
+        if (! $disk) {
             return [null, false];
         }
+
+        // Streamed to a temp file rather than read into memory - a full
+        // backup is easily bigger than PHP's memory limit.
+        $tmp = tempnam(sys_get_temp_dir(), 'restore_zip_');
 
         try {
-            $content = Storage::disk('cloud')->get($cloudPath);
+            $in = $disk->readStream($backup->cloud_path);
+            if (! $in) {
+                @unlink($tmp);
+                return [null, false];
+            }
+
+            $out = fopen($tmp, 'w');
+            stream_copy_to_stream($in, $out);
+            fclose($out);
+            fclose($in);
         } catch (\Throwable $e) {
-            Log::error('Failed to download backup from cloud storage for restore: ' . $e->getMessage());
+            Log::error('Failed to download backup from off-site storage for restore: ' . $e->getMessage());
+            @unlink($tmp);
             return [null, false];
         }
-
-        if ($content === null) {
-            return [null, false];
-        }
-
-        $tmp = tempnam(sys_get_temp_dir(), 'restore_zip_');
-        file_put_contents($tmp, $content);
 
         return [$tmp, true];
     }
 
     /**
-     * Extracts database_backup.sql from the (already password-set) ZIP and
-     * pipes it straight into `mysql` against the app's own configured
-     * database - the counterpart to addDatabaseDumpToZip()'s mysqldump.
+     * Swaps the live database for the one in the backup: it ends up exactly
+     * as it was when the backup was made, then migrated to this version of
+     * the code.
+     *
+     * - A copy of the current database is saved first (pre-restore_*.zip,
+     *   encrypted like a backup). If any later step fails it is put back, so
+     *   a failed restore leaves the system as it was.
+     * - Every table is dropped before the import. The dump only replaces the
+     *   tables it contains, so restoring an older backup used to leave the
+     *   tables created since then in place, with today's rows, while the
+     *   migrations table said they didn't exist - the app broke, and
+     *   `migrate` couldn't repair it ("table already exists").
+     * - Pending migrations then run, so an older backup comes up with the
+     *   columns and tables this code expects.
+     * - The backup list and who is signed in stay as they are now - see
+     *   keepAcrossRestore().
+     *
+     * @return string|null The saved copy's file name, or null when the
+     *                     restore failed (and has been reported).
+     */
+    private function replaceDatabase(ZipArchive $zip, string $backupName): ?string
+    {
+        $this->setRestoreProgress('database', 8, 'Saving a copy of the current database first…');
+
+        $snapshot = $this->snapshotCurrentDatabase();
+        if (! $snapshot) {
+            $message = 'Could not save a copy of the current database, so nothing was changed. See logs for details.';
+            $this->setRestoreProgress('error', 100, $message);
+            $this->notifyRestoreFailed($message, $backupName);
+            return null;
+        }
+
+        $kept = $this->rowsToKeepAcrossRestore();
+
+        $this->setRestoreProgress('database', 10, 'Restoring database…');
+
+        try {
+            $restored = $this->restoreDatabaseFromZip($zip) && $this->migrateRestoredDatabase();
+        } catch (\Throwable $e) {
+            Log::error('Database restore crashed: ' . $e->getMessage());
+            $restored = false;
+        }
+
+        if (! $restored) {
+            $message = $this->rollbackDatabase($snapshot)
+                ? 'Database restore failed, so the database was put back exactly as it was. Nothing was changed. See logs for details.'
+                : 'Database restore failed, and putting the previous database back failed too. Its copy is saved as '
+                    . basename($snapshot) . ' in storage/app/backups. See logs for details.';
+            $this->setRestoreProgress('error', 100, $message);
+            $this->notifyRestoreFailed($message, $backupName);
+            return null;
+        }
+
+        try {
+            $this->keepAcrossRestore($kept);
+        } catch (\Throwable $e) {
+            // The data is restored; only the housekeeping is incomplete.
+            Log::error('Restore: could not carry the backup list / sign-ins across: ' . $e->getMessage());
+        }
+
+        return basename($snapshot);
+    }
+
+    /**
+     * Saves the current database as storage/app/backups/pre-restore_*.zip,
+     * encrypted with the backup key like a backup. The newest SNAPSHOTS_KEPT
+     * stay after the restore too, as the way back if the wrong backup was
+     * restored.
+     */
+    private function snapshotCurrentDatabase(): ?string
+    {
+        $folder = storage_path('app/backups');
+        if (! is_dir($folder)) {
+            mkdir($folder, 0755, true);
+        }
+
+        $sqlPath = $this->tempPath('prerestore_', '.sql');
+        if (! $this->dumpDatabaseTo($sqlPath)) {
+            return null;
+        }
+
+        $zipPath = $folder . DIRECTORY_SEPARATOR . 'pre-restore_' . now()->format('Y_m_d_His') . '.zip';
+
+        $zip = new ZipArchive();
+        if ($zip->open($zipPath, ZipArchive::CREATE) !== true) {
+            Log::error('Could not create the pre-restore copy: ' . $zipPath);
+            return null;
+        }
+        $zip->setPassword(config('services.backup.encryption_key'));
+        $zip->addFile($sqlPath, 'database_backup.sql');
+        $zip->setEncryptionName('database_backup.sql', ZipArchive::EM_AES_256);
+
+        if (! $zip->close()) {
+            Log::error('Could not write the pre-restore copy: ' . $zipPath);
+            @unlink($zipPath);
+            return null;
+        }
+
+        $copies = glob($folder . DIRECTORY_SEPARATOR . 'pre-restore_*.zip') ?: [];
+        rsort($copies); // names carry the time, so newest first
+        foreach (array_slice($copies, self::SNAPSHOTS_KEPT) as $old) {
+            @unlink($old);
+        }
+
+        return $zipPath;
+    }
+
+    /**
+     * Extracts database_backup.sql from the (already password-set) ZIP,
+     * empties the app's database and pipes the dump into `mysql` - the
+     * counterpart to addDatabaseDumpToZip()'s mysqldump.
      */
     private function restoreDatabaseFromZip(ZipArchive $zip): bool
     {
-        $sqlPath = tempnam(sys_get_temp_dir(), 'restoredb_') . '.sql';
-        $this->tempFiles[] = $sqlPath;
+        $sqlPath = $this->tempPath('restoredb_', '.sql');
 
         if (! $this->extractZipEntryTo($zip, 'database_backup.sql', $sqlPath)) {
             Log::error('Could not extract database_backup.sql from the backup archive (wrong password or corrupted entry).');
@@ -511,6 +649,36 @@ class BackupController extends Controller
             return false;
         }
 
+        // Checked before anything is dropped: a dump that switches database
+        // would be imported somewhere other than the one just emptied.
+        if ($this->dumpNamesADatabase($sqlPath)) {
+            Log::error('The database dump names a database (USE / CREATE DATABASE) - refusing to import it.');
+            return false;
+        }
+
+        DB::connection()->getSchemaBuilder()->dropAllTables();
+
+        return $this->importSqlFile($sqlPath);
+    }
+
+    private function dumpNamesADatabase(string $sqlPath): bool
+    {
+        $handle = fopen($sqlPath, 'r');
+
+        while (($line = fgets($handle)) !== false) {
+            if (preg_match('/^\s*(USE\s|CREATE\s+DATABASE)/i', $line)) {
+                fclose($handle);
+                return true;
+            }
+        }
+
+        fclose($handle);
+        return false;
+    }
+
+    /** Pipes an SQL file into `mysql`, against the app's configured database. */
+    private function importSqlFile(string $sqlPath): bool
+    {
         $process = new Process([
             config('services.backup.mysql_path'),
             '--host=' . config('database.connections.mysql.host'),
@@ -526,12 +694,12 @@ class BackupController extends Controller
 
         $handle = fopen($sqlPath, 'r');
         $process->setInput($handle);
-        $process->setTimeout(300);
+        $process->setTimeout(900);
 
         try {
             $process->run();
         } catch (\Throwable $e) {
-            Log::error('Database restore process failed to run: ' . $e->getMessage());
+            Log::error('Database import failed to run: ' . $e->getMessage());
             return false;
         } finally {
             if (is_resource($handle)) {
@@ -540,11 +708,114 @@ class BackupController extends Controller
         }
 
         if (! $process->isSuccessful()) {
-            Log::error('Database restore failed: ' . $process->getErrorOutput());
+            Log::error('Database import failed: ' . $process->getErrorOutput());
             return false;
         }
 
         return true;
+    }
+
+    /** Brings a restored (possibly older) database up to this version of the code. */
+    private function migrateRestoredDatabase(): bool
+    {
+        $this->setRestoreProgress('database', 20, 'Updating the restored database to this version of the system…');
+
+        $exitCode = Artisan::call('migrate', ['--force' => true]);
+        $output   = trim(Artisan::output());
+
+        if ($exitCode !== 0) {
+            Log::error('Migrations after restore failed: ' . $output);
+            return false;
+        }
+
+        Log::info('Migrations after restore: ' . $output);
+        return true;
+    }
+
+    /** Puts the pre-restore copy back after a failed restore. */
+    private function rollbackDatabase(string $snapshotZip): bool
+    {
+        $this->setRestoreProgress('database', 25, 'Something failed - putting the previous database back…');
+
+        $zip = new ZipArchive();
+        if ($zip->open($snapshotZip) !== true) {
+            Log::critical('Restore rollback: cannot open ' . $snapshotZip);
+            return false;
+        }
+        $zip->setPassword(config('services.backup.encryption_key'));
+
+        $sqlPath   = $this->tempPath('rollback_', '.sql');
+        $extracted = $this->extractZipEntryTo($zip, 'database_backup.sql', $sqlPath);
+        $zip->close();
+
+        if (! $extracted) {
+            Log::critical('Restore rollback: cannot read ' . $snapshotZip);
+            return false;
+        }
+
+        try {
+            DB::connection()->getSchemaBuilder()->dropAllTables();
+            $ok = $this->importSqlFile($sqlPath);
+        } catch (\Throwable $e) {
+            Log::critical('Restore rollback crashed: ' . $e->getMessage());
+            $ok = false;
+        }
+
+        $ok
+            ? Log::warning('Restore failed - the database was put back from ' . basename($snapshotZip) . '.')
+            : Log::critical('Restore failed AND the rollback failed - the previous database is in ' . $snapshotZip . '.');
+
+        return $ok;
+    }
+
+    /**
+     * Rows that describe the system as it is now rather than its data: the
+     * list of backups (restoring an older one would otherwise drop every
+     * newer backup from the list, though the files still exist) and who is
+     * signed in (so whoever started the restore can watch it finish).
+     */
+    private function rowsToKeepAcrossRestore(): array
+    {
+        return collect(['backups', 'sessions'])
+            ->mapWithKeys(fn ($table) => [$table => DB::table($table)->get()->map(fn ($row) => (array) $row)->all()])
+            ->all();
+    }
+
+    private function keepAcrossRestore(array $kept): void
+    {
+        // Cache and queued jobs come from the moment the backup was made -
+        // among them the backup's own job, which would otherwise run again.
+        foreach (['cache', 'cache_locks', 'jobs', 'job_batches'] as $table) {
+            if (Schema::hasTable($table)) {
+                DB::table($table)->delete();
+            }
+        }
+
+        foreach ($kept as $table => $rows) {
+            DB::table($table)->delete();
+            foreach (array_chunk($rows, 100) as $chunk) {
+                DB::table($table)->insert($chunk);
+            }
+        }
+    }
+
+    private function notifyRestoreFailed(string $message, string $backupName): void
+    {
+        try {
+            Notification::send(User::superAdmins(), new RestoreFailed($message, $backupName));
+        } catch (\Throwable $notifyError) {
+            Log::warning('Could not send restore-failure notification: ' . $notifyError->getMessage());
+        }
+    }
+
+    /** A temp file path, removed again when the backup/restore finishes. */
+    private function tempPath(string $prefix, string $suffix): string
+    {
+        $base = tempnam(sys_get_temp_dir(), $prefix);
+        $this->tempFiles[] = $base;
+        $this->tempFiles[] = $base . $suffix;
+
+        return $base . $suffix;
     }
 
     /**
@@ -568,6 +839,12 @@ class BackupController extends Controller
                 continue;
             }
 
+            if (str_starts_with($entryName, self::PUBLIC_ENTRY_PREFIX)) {
+                $stats[$this->restorePublicFile($zip, $entryName)]++;
+                $this->reportRestoreProgress($processed, $numEntries, $lastProgAt);
+                continue;
+            }
+
             $cloudPath = $this->resolveOriginalCloudPath($entryName);
             if ($cloudPath === null) {
                 $stats['skipped']++;
@@ -586,7 +863,7 @@ class BackupController extends Controller
                 continue;
             }
 
-            if ($this->uploadZipToCloud($tmpFile, $cloudPath)) {
+            if ($this->uploadFileToCloud($tmpFile, $cloudPath)) {
                 $stats['restored']++;
             } else {
                 $stats['failed']++;
@@ -597,6 +874,47 @@ class BackupController extends Controller
         }
 
         return $stats;
+    }
+
+    /**
+     * Puts one site file (see addPublicFilesToZip()) back on the `public`
+     * disk at the same path, overwriting what is there.
+     *
+     * @return string 'restored', 'skipped' or 'failed' - a restoreFilesFromZip() stats key
+     */
+    private function restorePublicFile(ZipArchive $zip, string $entryName): string
+    {
+        $relative = substr($entryName, strlen(self::PUBLIC_ENTRY_PREFIX));
+
+        // Never write outside the public disk, whatever a ZIP says.
+        if ($relative === '' || str_contains($relative, '..') || str_contains($relative, '\\')
+            || str_starts_with($relative, '/') || preg_match('/^[A-Za-z]:/', $relative)) {
+            Log::warning("Restore: unsafe site file path skipped: {$entryName}");
+            return 'skipped';
+        }
+
+        $tmpFile = tempnam(sys_get_temp_dir(), 'restore_p_');
+        $this->tempFiles[] = $tmpFile;
+
+        if (! $this->extractZipEntryTo($zip, $entryName, $tmpFile)) {
+            Log::warning("Restore: could not extract site file: {$entryName}");
+            return 'failed';
+        }
+
+        $stream = fopen($tmpFile, 'r');
+
+        try {
+            $written = Storage::disk('public')->writeStream($relative, $stream);
+        } catch (\Throwable $e) {
+            Log::warning("Restore: could not write site file {$relative}: " . $e->getMessage());
+            $written = false;
+        } finally {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        }
+
+        return $written ? 'restored' : 'failed';
     }
 
     /**
@@ -692,6 +1010,53 @@ class BackupController extends Controller
     {
         $sqlPath = tempnam(sys_get_temp_dir(), 'dbdump_') . '.sql';
 
+        if (! $this->dumpDatabaseTo($sqlPath)) {
+            @unlink($sqlPath);
+            return false;
+        }
+
+        $zip->addFile($sqlPath, 'database_backup.sql');
+        $zip->setEncryptionName('database_backup.sql', ZipArchive::EM_AES_256);
+        $this->applyFastCompression($zip, 'database_backup.sql');
+        $this->tempFiles[] = $sqlPath; // stays alive until $zip->close(), cleaned up after
+
+        return true;
+    }
+
+    /**
+     * Adds every file on the `public` disk (site images, letterheads,
+     * officer photos, announcement files) to the ZIP under "public/",
+     * encrypted like everything else. Returns how many were added.
+     */
+    private function addPublicFilesToZip(ZipArchive $zip): int
+    {
+        $disk  = Storage::disk('public');
+        $added = 0;
+
+        foreach ($disk->allFiles() as $relative) {
+            // .gitignore / .htaccess belong to the code, not the data.
+            if (str_starts_with(basename($relative), '.')) {
+                continue;
+            }
+
+            $entryName = self::PUBLIC_ENTRY_PREFIX . $relative;
+
+            if (! $zip->addFile($disk->path($relative), $entryName)) {
+                Log::warning("Backup: could not add site file {$relative}");
+                continue;
+            }
+
+            $zip->setEncryptionName($entryName, ZipArchive::EM_AES_256);
+            $this->applyFastCompression($zip, $entryName);
+            $added++;
+        }
+
+        return $added;
+    }
+
+    /** mysqldump of the app's database into $sqlPath - for backups and pre-restore copies. */
+    private function dumpDatabaseTo(string $sqlPath): bool
+    {
         $process = new Process([
             config('services.backup.mysqldump_path'),
             '--host=' . config('database.connections.mysql.host'),
@@ -723,11 +1088,6 @@ class BackupController extends Controller
             @unlink($sqlPath);
             return false;
         }
-
-        $zip->addFile($sqlPath, 'database_backup.sql');
-        $zip->setEncryptionName('database_backup.sql', ZipArchive::EM_AES_256);
-        $this->applyFastCompression($zip, 'database_backup.sql');
-        $this->tempFiles[] = $sqlPath; // stays alive until $zip->close(), cleaned up after
 
         return true;
     }
@@ -871,7 +1231,13 @@ class BackupController extends Controller
 
             $record = $fileMeta->get($name);
             if (!$record) {
-                continue; // no metadata to rename with - fulfilled() falls back to $name
+                // No metadata to rename with - fulfilled() falls back to
+                // $name, except where that would be mistaken for one of the
+                // site's own files on restore (see addPublicFilesToZip()).
+                if (str_starts_with($name, self::PUBLIC_ENTRY_PREFIX)) {
+                    $entryNames[$name] = 'cloud-' . $name;
+                }
+                continue;
             }
 
             $year       = $record->school_year ?: ($record->folder->school_year ?? null) ?: 'unknown-year';
@@ -1065,10 +1431,15 @@ class BackupController extends Controller
      * The 'progress' option reports real uploaded/total bytes so the
      * frontend can show an actual percentage instead of a blank wait.
      */
-    private function uploadZipToCloud(string $localPath, string $cloudPath): bool
+    /**
+     * Streams the finished backup ZIP to the 'backups' disk (Backblaze B2),
+     * retrying like the other transfers here, and only reports success once
+     * the stored copy is the same size as the local one.
+     */
+    private function uploadBackupOffsite(string $localPath, string $cloudPath): bool
     {
-        $bucket = env('SUPABASE_BUCKET');
-        $url    = rtrim(env('SUPABASE_URL'), '/') . '/storage/v1/object/' . $bucket . '/' . ltrim($cloudPath, '/');
+        $disk = Storage::disk('backups');
+        $size = filesize($localPath);
 
         for ($attempt = 1; $attempt <= self::MAX_RETRIES; $attempt++) {
             $handle = fopen($localPath, 'r');
@@ -1078,46 +1449,16 @@ class BackupController extends Controller
                 return false;
             }
 
-            $lastProgressAt = 0.0;
-
             try {
-                $response = Http::withHeaders([
-                        'Authorization' => 'Bearer ' . env('SUPABASE_SERVICE_KEY'),
-                        'apikey'        => env('SUPABASE_SERVICE_KEY'),
-                        'x-upsert'      => 'true',
-                    ])
-                    ->withBody($handle, 'application/zip')
-                    ->withOptions([
-                        'timeout'  => self::UPLOAD_TIMEOUT,
-                        'progress' => function ($downloadTotal, $downloadedBytes, $uploadTotal, $uploadedBytes) use (&$lastProgressAt) {
-                            if ($uploadTotal <= 0) {
-                                return;
-                            }
+                $disk->writeStream($cloudPath, $handle);
 
-                            $now = microtime(true);
-                            if ($now - $lastProgressAt < 0.3 && $uploadedBytes < $uploadTotal) {
-                                return;
-                            }
-                            $lastProgressAt = $now;
-
-                            $percent = 70 + (int) round(($uploadedBytes / $uploadTotal) * 29);
-                            $this->setProgress(
-                                'uploading',
-                                min(99, $percent),
-                                'Uploading backup to cloud storage… (' . $this->formatBytes($uploadedBytes) . ' / ' . $this->formatBytes($uploadTotal) . ')'
-                            );
-                        },
-                    ])
-                    ->post($url);
-
-                if ($response->successful() && $response->json('Id') !== null) {
+                if ($disk->size($cloudPath) === $size) {
                     return true;
                 }
 
-                Log::warning("Backup upload attempt {$attempt} failed: HTTP {$response->status()} — " . $response->body());
-
+                Log::warning("Backup off-site upload attempt {$attempt}: stored size does not match the local ZIP.");
             } catch (\Throwable $e) {
-                Log::warning("Backup upload attempt {$attempt} threw: " . $e->getMessage());
+                Log::warning("Backup off-site upload attempt {$attempt} failed: " . $e->getMessage());
             } finally {
                 if (is_resource($handle)) {
                     fclose($handle);
@@ -1129,8 +1470,69 @@ class BackupController extends Controller
             }
         }
 
-        Log::error('All backup upload attempts to cloud storage failed.');
+        Log::error('All backup off-site upload attempts failed.');
         return false;
+    }
+
+    /**
+     * Puts one restored file back in the Supabase bucket at its original
+     * path, overwriting whatever is there. Sent with the file's own type
+     * (PDF, Word, image...) - Supabase serves it back with that type, and
+     * the previews and signed links depend on it.
+     */
+    private function uploadFileToCloud(string $localPath, string $cloudPath): bool
+    {
+        $disk   = config('filesystems.disks.cloud');
+        $url    = rtrim((string) $disk['endpoint'], '/') . '/storage/v1/object/' . $disk['bucket'] . '/' . ltrim($cloudPath, '/');
+        $type   = self::contentTypeFor($cloudPath);
+
+        for ($attempt = 1; $attempt <= self::MAX_RETRIES; $attempt++) {
+            $handle = fopen($localPath, 'r');
+
+            if ($handle === false) {
+                Log::error('Could not open restored file for upload: ' . $localPath);
+                return false;
+            }
+
+            try {
+                $response = Http::withHeaders([
+                        'Authorization' => 'Bearer ' . $disk['key'],
+                        'apikey'        => $disk['key'],
+                        'x-upsert'      => 'true',
+                    ])
+                    ->withBody($handle, $type)
+                    ->timeout(self::UPLOAD_TIMEOUT)
+                    ->post($url);
+
+                if ($response->successful() && $response->json('Id') !== null) {
+                    return true;
+                }
+
+                Log::warning("Restore upload attempt {$attempt} for {$cloudPath} failed: HTTP {$response->status()} — " . $response->body());
+
+            } catch (\Throwable $e) {
+                Log::warning("Restore upload attempt {$attempt} for {$cloudPath} threw: " . $e->getMessage());
+            } finally {
+                if (is_resource($handle)) {
+                    fclose($handle);
+                }
+            }
+
+            if ($attempt < self::MAX_RETRIES) {
+                usleep(self::RETRY_DELAY_MS * 1000);
+            }
+        }
+
+        Log::error("All restore upload attempts for {$cloudPath} failed.");
+        return false;
+    }
+
+    /** The type a file should be served with, from its extension. */
+    public static function contentTypeFor(string $path): string
+    {
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+
+        return MimeTypes::getDefault()->getMimeTypes($extension)[0] ?? 'application/octet-stream';
     }
 
     /**
@@ -1154,17 +1556,6 @@ class BackupController extends Controller
         }
 
         $zip->setCompressionName($entryName, ZipArchive::CM_DEFLATE, 1);
-    }
-
-    private function formatBytes(int $bytes): string
-    {
-        if ($bytes >= 1048576) {
-            return round($bytes / 1048576, 1) . ' MB';
-        }
-        if ($bytes >= 1024) {
-            return round($bytes / 1024, 1) . ' KB';
-        }
-        return $bytes . ' B';
     }
 
     // ─── Decide if a file should be excluded from backup ─────────────
@@ -1196,13 +1587,16 @@ class BackupController extends Controller
         $backup = Backup::findOrFail($id);
 
         try {
-            // Prefer the local copy - faster, and still works if the cloud
-            // account/bucket is unreachable, which is the whole point of
-            // keeping two independent copies.
+            // Prefer the local copy - faster, and still works if the
+            // off-site account is unreachable, which is the whole point of
+            // keeping two independent copies. Both are streamed, never read
+            // into memory whole.
             if ($backup->local_path && file_exists($backup->local_path)) {
-                $content = file_get_contents($backup->local_path);
+                $response = response()->download($backup->local_path, $backup->name, ['Content-Type' => 'application/zip']);
+            } elseif ($disk = $backup->offsiteDisk()) {
+                $response = $disk->download($backup->cloud_path, $backup->name, ['Content-Type' => 'application/zip']);
             } else {
-                $content = Storage::disk('cloud')->get($backup->cloud_path ?? $backup->file_path);
+                return back()->with('error', 'This backup has no copy left to download.');
             }
 
             ActivityLog::create([
@@ -1211,9 +1605,7 @@ class BackupController extends Controller
                 'ip_address' => request()->ip()
             ]);
 
-            return response($content)
-                ->header('Content-Type', 'application/zip')
-                ->header('Content-Disposition', 'attachment; filename="' . $backup->name . '"');
+            return $response;
 
         } catch (\Throwable) {
             return back()->with('error', 'Download failed.');
@@ -1291,9 +1683,15 @@ class BackupController extends Controller
             ->get();
 
         foreach ($backupsToDelete as $backup) {
-            if ($backup->cloud_path) {
-                Storage::disk('cloud')->delete($backup->cloud_path);
-                Log::info('Deleted old backup from cloud storage: ' . $backup->cloud_path);
+            if ($disk = $backup->offsiteDisk()) {
+                try {
+                    $disk->delete($backup->cloud_path);
+                    Log::info("Deleted old backup from the '" . ($backup->cloud_disk ?: 'cloud') . "' disk: " . $backup->cloud_path);
+                } catch (\Throwable $e) {
+                    // Leave the row so the copy is not forgotten; try again next time.
+                    Log::warning('Could not delete old off-site backup ' . $backup->cloud_path . ': ' . $e->getMessage());
+                    continue;
+                }
             }
 
             if ($backup->local_path && file_exists($backup->local_path)) {

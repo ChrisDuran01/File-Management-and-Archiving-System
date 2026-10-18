@@ -148,7 +148,7 @@
         </div>
 
         @if($settings->hymn_image_path)
-            <img src="{{ asset('storage/'.$settings->hymn_image_path) }}" class="image-preview" alt="Current hymn image">
+            <img loading="lazy" decoding="async" src="{{ asset('storage/'.$settings->hymn_image_path) }}" class="image-preview" alt="Current hymn image">
         @endif
         <div class="field-group">
             <label>Or upload an already-designed image instead</label>
@@ -164,7 +164,7 @@
         </div>
 
         @if($settings->vision_image_path)
-            <img src="{{ asset('storage/'.$settings->vision_image_path) }}" class="image-preview" alt="Current vision image">
+            <img loading="lazy" decoding="async" src="{{ asset('storage/'.$settings->vision_image_path) }}" class="image-preview" alt="Current vision image">
         @endif
         <div class="field-group">
             <label>Or upload an already-designed image instead</label>
@@ -180,7 +180,7 @@
         </div>
 
         @if($settings->mission_image_path)
-            <img src="{{ asset('storage/'.$settings->mission_image_path) }}" class="image-preview" alt="Current mission image">
+            <img loading="lazy" decoding="async" src="{{ asset('storage/'.$settings->mission_image_path) }}" class="image-preview" alt="Current mission image">
         @endif
         <div class="field-group">
             <label>Or upload an already-designed image instead</label>
@@ -196,7 +196,7 @@
         @forelse($officers as $term)
             <div class="field-group" style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
                 @if($term->display_photo)
-                    <img src="{{ asset('storage/'.$term->display_photo) }}" alt="{{ $term->user->name }}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
+                    <img loading="lazy" decoding="async" src="{{ asset('storage/'.$term->display_photo) }}" alt="{{ $term->user->name }}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
                 @else
                     <div style="width:56px;height:56px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;">{{ strtoupper(substr($term->user->name, 0, 1)) }}</div>
                 @endif
@@ -225,7 +225,7 @@
     @foreach($displayOfficers as $person)
         <div class="field-group" style="display:flex; align-items:center; gap:14px;">
             @if($person->photo)
-                <img src="{{ asset('storage/'.$person->photo) }}" alt="{{ $person->name }}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
+                <img loading="lazy" decoding="async" src="{{ asset('storage/'.$person->photo) }}" alt="{{ $person->name }}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
             @else
                 <div style="width:56px;height:56px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;">{{ strtoupper(substr($person->name, 0, 1)) }}</div>
             @endif

@@ -2,15 +2,7 @@
 
 use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
-use App\Jobs\RunBackupJob;
-use App\Models\SiteSetting;
-
-// TEST ONLY - Remove this after testing
-Schedule::call(function () {
-    Log::info('TEST: Scheduler is running every minute');
-})->everyMinute();
+use App\Services\BackupScheduler;
 
 // Heartbeat for the SuperAdmin dashboard's System health card: if this stops
 // updating, schedule:work / schedule:run isn't running.
@@ -56,52 +48,21 @@ Schedule::call(function () {
 // for retention.activity_log_days / retention.help_bot_log_days.
 Schedule::command('logs:prune')->dailyAt('04:30');
 
-// Your actual backup schedule
+// Automatic backups: every 15 minutes, check whether this day's / week's /
+// month's backup (per the Backup page) exists yet, and queue one if not -
+// see BackupScheduler. A fixed 2:00 AM run never happened while this
+// computer was off at night.
 //
-// Read from the persisted site_settings row, not session() - this file runs
-// in the scheduler's own process (`php artisan schedule:run`, invoked by
-// cron/Task Scheduler with no browser session at all), which can never see
-// data tied to a browser's session cookie. session('backup_frequency', ...)
-// here always silently returned the default, so the SuperAdmin frequency
-// dropdown and enable/disable toggle never actually affected the real
-// schedule - it always ran as if frequency=daily and enabled=true, no
-// matter what was picked in the UI.
+// The settings are read inside the task, not when this file loads: this
+// file is evaluated on EVERY artisan command, and reading the database
+// here made every command hang whenever MySQL did.
 //
-// Guarded: this file is evaluated on EVERY artisan command, migrate
-// included - must not break a fresh install before site_settings exists.
-try {
-    $backupSettings = Schema::hasTable('site_settings') ? SiteSetting::current() : null;
-    $frequency      = $backupSettings->backup_frequency ?? 'daily';
-    $backupEnabled  = $backupSettings->backup_enabled ?? true;
-} catch (\Throwable $e) {
-    $frequency     = 'daily';
-    $backupEnabled = true;
-}
-
-if ($backupEnabled) {
-    $backupTask = Schedule::call(function () use ($frequency) {
-        try {
-            Log::info('Backup attempt queued - Frequency: ' . $frequency);
-            // Dispatched, not run inline - see RunBackupJob's docblock. Both
-            // null: nobody triggered this, there's nothing to attribute it to.
-            RunBackupJob::dispatch();
-        } catch (\Exception $e) {
-            Log::error('Backup error: ' . $e->getMessage());
-        }
-    });
-    
-    switch ($frequency) {
-        case 'daily':
-            $backupTask->dailyAt('02:00');
-            Log::info('Backup scheduler: DAILY at 2:00 AM');
-            break;
-        case 'weekly':
-            $backupTask->weekly()->mondays()->at('02:00');
-            Log::info('Backup scheduler: WEEKLY on Mondays at 2:00 AM');
-            break;
-        case 'monthly':
-            $backupTask->monthlyOn(1, '02:00');
-            Log::info('Backup scheduler: MONTHLY on the 1st at 2:00 AM');
-            break;
-    }
-}
+// Not an arrow function on purpose: the scheduler counts a task that
+// returns false as failed, and runIfDue() returns false whenever no
+// backup is due - most of the time.
+Schedule::call(function () {
+    app(BackupScheduler::class)->runIfDue();
+})
+    ->everyFifteenMinutes()
+    ->name('backup-catch-up')
+    ->withoutOverlapping();

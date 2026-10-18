@@ -10,7 +10,9 @@ use App\Models\User;
 use App\Jobs\SendAnnouncementPush;
 use App\Notifications\AnnouncementPosted;
 use App\Services\HtmlSanitizer;
+use App\Services\ImageCompressor;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
@@ -28,9 +30,10 @@ class AnnouncementController extends Controller
     /**
      * Photos shown inline as a swipeable gallery. Raster formats only (no
      * SVG - it can carry script) and served through image() with a fixed
-     * content type rather than straight off the public disk.
+     * content type rather than straight off the public disk. Up to 10 MB:
+     * they are shrunk on upload (ImageCompressor), so a phone photo is fine.
      */
-    private const IMAGE_RULES = 'image|mimes:jpg,jpeg,png,webp|max:5120';
+    private const IMAGE_RULES = 'image|mimes:jpg,jpeg,png,webp|max:10240';
     private const MAX_IMAGES = 10;
 
     public function index()
@@ -46,8 +49,7 @@ class AnnouncementController extends Controller
         $data = $this->validated($request, $sanitizer);
 
         if ($request->hasFile('attachment')) {
-            $data['attachment_path'] = $request->file('attachment')->store('announcements', 'public');
-            $data['attachment_original_name'] = $request->file('attachment')->getClientOriginalName();
+            $data = $this->storeAttachment($request->file('attachment')) + $data;
         }
 
         $data['created_by'] = Auth::id();
@@ -82,8 +84,7 @@ class AnnouncementController extends Controller
                 Storage::disk('public')->delete($announcement->attachment_path);
             }
 
-            $data['attachment_path'] = $request->file('attachment')->store('announcements', 'public');
-            $data['attachment_original_name'] = $request->file('attachment')->getClientOriginalName();
+            $data = $this->storeAttachment($request->file('attachment')) + $data;
         }
 
         $announcement->update($data);
@@ -162,14 +163,36 @@ class AnnouncementController extends Controller
     private function saveImages(Request $request, Announcement $announcement): void
     {
         $order = (int) $announcement->images()->max('sort_order');
+        $compressor = app(ImageCompressor::class);
 
         foreach ($request->file('images', []) as $file) {
             AnnouncementImage::create([
                 'announcement_id' => $announcement->id,
-                'path' => $file->store('announcements/images', 'public'),
+                'path' => $compressor->store($file, 'announcements/images', ImageCompressor::ANNOUNCEMENT_IMAGE),
                 'sort_order' => ++$order,
             ]);
         }
+    }
+
+    /**
+     * Stores an attachment - an image one shrunk like the gallery photos,
+     * a PDF or Word file as it is. Its download name follows the stored
+     * type, so a PNG saved as a JPEG downloads as .jpg.
+     *
+     * @return array{attachment_path: string, attachment_original_name: string}
+     */
+    private function storeAttachment(UploadedFile $file): array
+    {
+        $path = app(ImageCompressor::class)->store($file, 'announcements', ImageCompressor::ANNOUNCEMENT_ATTACHMENT);
+        $name = $file->getClientOriginalName();
+
+        $storedExtension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        if (strtolower(pathinfo($name, PATHINFO_EXTENSION)) !== $storedExtension
+            && in_array($storedExtension, ['jpg', 'png'], true)) {
+            $name = pathinfo($name, PATHINFO_FILENAME) . '.' . $storedExtension;
+        }
+
+        return ['attachment_path' => $path, 'attachment_original_name' => $name];
     }
 
     /**

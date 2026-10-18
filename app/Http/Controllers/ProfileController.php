@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
+use App\Services\ImageCompressor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -27,7 +28,8 @@ class ProfileController extends Controller
         $request->validate([
             'name'             => 'required|string|max:255',
             'email'            => 'required|email|unique:users,email,'.$user->id,
-            'profile_photo'    => 'nullable|image|max:2048',
+            // Up to 10 MB: shrunk to avatar size on upload (ImageCompressor).
+            'profile_photo'    => 'nullable|image|max:10240',
             'current_password' => 'nullable|required_with:password|current_password',
             'password'         => 'nullable|min:6|confirmed',
         ]);
@@ -43,7 +45,7 @@ class ProfileController extends Controller
                 Storage::disk('public')->delete($user->profile_photo);
             }
 
-            $user->profile_photo = $request->file('profile_photo')->store('profile-photos', 'public');
+            $user->profile_photo = app(ImageCompressor::class)->store($request->file('profile_photo'), 'profile-photos', ImageCompressor::PHOTO);
             $changedPhoto = true;
         }
 

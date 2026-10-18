@@ -140,7 +140,7 @@
         <div class="field-group">
             <label>Photos (optional)</label>
             <input type="file" name="images[]" class="form-control photo-input" accept=".jpg,.jpeg,.png,.webp" multiple>
-            <small style="color:var(--text-3);">Up to 10 photos, 5MB each. Swipe the preview to check them; tap &times; to remove one.</small>
+            <small style="color:var(--text-3);">Up to 10 photos, 10MB each (large photos are shrunk automatically). Swipe the preview to check them; tap &times; to remove one.</small>
             <div class="photo-preview"></div>
         </div>
         <div class="field-group">
@@ -207,14 +207,14 @@
                                 <div class="existing-photos">
                                     @foreach($an->images as $img)
                                         <label class="existing-photo">
-                                            <img src="{{ route('announcements.image', $img->id) }}" alt="">
+                                            <img loading="lazy" decoding="async" src="{{ route('announcements.image', $img->id) }}" alt="">
                                             <span><input type="checkbox" name="remove_images[]" value="{{ $img->id }}"> Remove</span>
                                         </label>
                                     @endforeach
                                 </div>
                             @endif
                             <input type="file" name="images[]" class="form-control photo-input" accept=".jpg,.jpeg,.png,.webp" multiple>
-                            <small style="color:var(--text-3);">Add more photos (10 max, 5MB each).</small>
+                            <small style="color:var(--text-3);">Add more photos (10 max, 10MB each).</small>
                             <div class="photo-preview"></div>
                         </div>
                         <div class="field-group">
@@ -325,7 +325,7 @@ function setupPhotoPicker(input) {
         const problems = [];
         const ok = Array.from(input.files).filter(function (f) {
             if (! /^image\/(jpeg|png|webp)$/.test(f.type)) { problems.push(f.name + ' is not a JPG, PNG or WebP photo'); return false; }
-            if (f.size > 5 * 1024 * 1024) { problems.push(f.name + ' is over 5MB'); return false; }
+            if (f.size > 10 * 1024 * 1024) { problems.push(f.name + ' is over 10MB'); return false; }
             return true;
         });
 

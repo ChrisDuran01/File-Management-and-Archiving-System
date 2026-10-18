@@ -974,7 +974,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function poll() {
         fetch("{{ route('backup.restore.progress') }}", { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-            .then(res => res.json())
+            .then(res => {
+                // Sign-ins are kept across a restore, but an account that
+                // doesn't exist (or isn't a SuperAdmin) in the restored
+                // backup loses this page. Say so instead of sitting at 0%.
+                if (res.status === 401 || res.status === 403 || res.status === 419) {
+                    return {
+                        stage: 'error',
+                        percent: 100,
+                        message: 'This account was signed out by the restore. Sign in again and open Backups to see how it went.',
+                    };
+                }
+                return res.json();
+            })
             .then(data => {
                 render(data);
                 if ((data.stage === 'done' || data.stage === 'error') && !doneHandled) {

@@ -2,7 +2,11 @@
 
 namespace App\Providers;
 
+use App\Models\Folder;
+use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Http\Middleware\TrustProxies;
+use Illuminate\Queue\Events\JobProcessing;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -22,6 +26,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Folder keeps "is a SuperAdmin?" / "folders given to this user"
+        // answers for one request or one job; start each one empty so a
+        // long-running queue worker never answers from an old copy.
+        Event::listen([RequestHandled::class, JobProcessing::class], fn () => Folder::forgetAccessAnswers());
+
         // A reverse proxy or HTTPS tunnel in front of the app (config/app.php,
         // TRUSTED_PROXIES): believe its X-Forwarded-* headers, so generated
         // URLs are https on the address the visitor actually used.

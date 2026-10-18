@@ -20,8 +20,8 @@
          because 5.3's JS positions static dropdowns via a [data-bs-popper]
          attribute that beta1's CSS resolves with the wrong alignment. --}}
     <link href='{{ asset('vendor/bootstrap/bootstrap.min.css') }}' rel='stylesheet'>
-    <link href='https://cdn.jsdelivr.net/npm/boxicons@latest/css/boxicons.min.css' rel='stylesheet'>
-    <link href='https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css' rel="stylesheet">
+    <link href='https://cdn.jsdelivr.net/npm/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <link href='https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.2/font/bootstrap-icons.css' rel="stylesheet">
 
 </head>
 <style>
