@@ -1,5 +1,45 @@
 <?php
 
+/*
+| Where the files officers upload live - see the 'cloud' disk below.
+| Moving from Supabase to Backblaze B2 (October 2026): FILES_CLOUD=supabase
+| until every file has been copied (php artisan files:move-to-backblaze),
+| then FILES_CLOUD=b2. Switching back is the same one line, and Supabase
+| keeps its copy until the move is confirmed.
+*/
+$supabaseFiles = [
+    'driver' => 'supabase',
+    'key' => env('SUPABASE_SERVICE_KEY'),
+    'bucket' => env('SUPABASE_BUCKET'),
+    'endpoint' => env('SUPABASE_URL'),
+    'url' => null,
+    'public' => true,
+    'defaultUrlGeneration' => null,
+    'defaultUrlGenerationOptions' => [
+        'download' => false,
+        'transform' => [],
+    ],
+    'signedUrlExpires' => 3600,
+];
+
+$backblazeFiles = [
+    'driver' => 's3',
+    'key' => env('FILES_B2_KEY_ID'),
+    'secret' => env('FILES_B2_APPLICATION_KEY'),
+    'region' => env('FILES_B2_REGION', env('BACKUP_B2_REGION')),
+    'bucket' => env('FILES_B2_BUCKET'),
+    'endpoint' => env('FILES_B2_ENDPOINT', env('BACKUP_B2_ENDPOINT')),
+    'use_path_style_endpoint' => false,
+    // Only send/check checksums where S3 requires them - the SDK's newer
+    // default adds headers some S3-compatible stores reject.
+    'request_checksum_calculation' => 'when_required',
+    'response_checksum_validation' => 'when_required',
+    // Failures come back as false/null, like the Supabase disk - code such
+    // as FolderArchiver relies on a failed upload not throwing midway.
+    'throw' => false,
+    'report' => true,
+];
+
 return [
 
     /*
@@ -62,26 +102,15 @@ return [
 
         /*
         | The single disk every controller/service in this app talks to for
-        | user-uploaded documents. Swapping cloud providers later means
-        | replacing just this block (and installing a different Flysystem
-        | adapter package if the new provider needs one) - application code
-        | always calls Storage::disk('cloud') and never a provider name
-        | directly, so nothing else needs to change.
+        | user-uploaded documents - application code always calls
+        | Storage::disk('cloud'), never a provider. Which provider it is comes
+        | from FILES_CLOUD (see the top of this file).
         */
-        'cloud' => [
-            'driver' => 'supabase',
-            'key' => env('SUPABASE_SERVICE_KEY'),
-            'bucket' => env('SUPABASE_BUCKET'),
-            'endpoint' => env('SUPABASE_URL'),
-            'url' => null,
-            'public' => true,
-            'defaultUrlGeneration' => null,
-            'defaultUrlGenerationOptions' => [
-                'download' => false,
-                'transform' => [],
-            ],
-            'signedUrlExpires' => 3600,
-        ],
+        'cloud' => env('FILES_CLOUD', 'supabase') === 'b2' ? $backblazeFiles : $supabaseFiles,
+
+        // Both, by name, for the move between them (files:move-to-backblaze).
+        'supabase' => $supabaseFiles,
+        'b2_files' => $backblazeFiles,
 
         /*
         | Off-site copy of the backup ZIPs, on Backblaze B2 through its S3 API.

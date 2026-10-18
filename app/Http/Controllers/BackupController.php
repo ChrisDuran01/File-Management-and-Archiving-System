@@ -14,6 +14,8 @@ use App\Models\SiteSetting;
 use App\Models\User;
 use App\Notifications\BackupFailed;
 use App\Notifications\RestoreFailed;
+use App\Services\CloudFileUploader;
+use App\Services\FileResponse;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
@@ -22,7 +24,6 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
-use Symfony\Component\Mime\MimeTypes;
 use Symfony\Component\Process\Process;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\HandlerStack;
@@ -141,7 +142,7 @@ class BackupController extends Controller
             // ==============================
 
             $this->setProgress('listing', 2, 'Fetching file list from cloud storage…');
-            $files = $this->fetchAllSupabaseFiles();
+            $files = $this->listCloudFiles();
 
             if ($files === null) {
                 $zip->close();
@@ -1093,19 +1094,30 @@ class BackupController extends Controller
     }
 
     /**
-     * List every real file on the cloud disk, at any depth, paginated.
+     * List every real file on the cloud disk, at any depth - except the old
+     * backups/ folder (backing up backups would grow without bound).
      *
-     * This is the one place that still talks to Supabase's REST API directly
-     * instead of going through Storage::disk('cloud'): the installed Flysystem
-     * adapter's listContents() hardcodes a 100-item page with no way for
-     * callers to page past it, which would silently truncate backups on any
-     * bucket with more than 100 objects. Every other operation in this class
-     * goes through the disk abstraction - if a future provider's adapter
-     * paginates properly, this method is the only one that needs replacing.
+     * On Supabase this talks to its REST API directly: that Flysystem
+     * adapter's listContents() hardcodes a 100-item page with no way to page
+     * past it, which would silently truncate backups of any bucket with more
+     * than 100 objects. Backblaze (S3) lists properly through the disk.
      */
-    private function fetchAllSupabaseFiles(): ?array
+    private function listCloudFiles(): ?array
     {
-        return $this->fetchFilesAtPrefix('');
+        if (FileResponse::cloudIsSupabase()) {
+            return $this->fetchFilesAtPrefix('');
+        }
+
+        try {
+            return collect(Storage::disk('cloud')->allFiles())
+                ->reject(fn (string $path) => str_starts_with($path, 'backups/'))
+                ->map(fn (string $path) => ['name' => $path])
+                ->values()
+                ->all();
+        } catch (\Throwable $e) {
+            Log::error('Failed to list files for backup: ' . $e->getMessage());
+            return null;
+        }
     }
 
     /**
@@ -1127,13 +1139,13 @@ class BackupController extends Controller
         $limit  = 1000;
         $offset = 0;
 
-        $bucket  = env('SUPABASE_BUCKET');
-        $listUrl = env('SUPABASE_URL') . '/storage/v1/object/list/' . $bucket;
+        $disk    = config('filesystems.disks.cloud');
+        $listUrl = rtrim((string) $disk['endpoint'], '/') . '/storage/v1/object/list/' . $disk['bucket'];
 
         do {
             $response = Http::timeout(60)->withHeaders([
-                'Authorization' => 'Bearer ' . env('SUPABASE_SERVICE_KEY'),
-                'apikey'        => env('SUPABASE_SERVICE_KEY'),
+                'Authorization' => 'Bearer ' . $disk['key'],
+                'apikey'        => $disk['key'],
             ])->post($listUrl, [
                 'limit'  => $limit,
                 'offset' => $offset,
@@ -1283,9 +1295,10 @@ class BackupController extends Controller
      * memory usage per file is unchanged from before - only the waiting
      * happens in parallel now, not the buffering.
      *
-     * Talks to the Supabase Storage REST API directly (same endpoint the
-     * Flysystem adapter's readStream() hits) since Guzzle's Pool needs
-     * request-level control the Storage facade doesn't expose.
+     * Guzzle's Pool needs request-level control the Storage facade doesn't
+     * expose, so each file is fetched by URL: on Supabase its REST endpoint
+     * (with the service key), on Backblaze a link signed right here (and no
+     * Authorization header - B2 refuses a signed link that also carries one).
      */
     private function downloadFilesIntoZip(ZipArchive $zip, array $files, int $totalFiles, array $entryNames = []): array
     {
@@ -1309,7 +1322,8 @@ class BackupController extends Controller
             return $stats;
         }
 
-        $bucket = env('SUPABASE_BUCKET');
+        $disk       = config('filesystems.disks.cloud');
+        $onSupabase = FileResponse::cloudIsSupabase();
 
         // Per-request retries for transient errors (timeouts, 5xx) - a 404
         // means the file is genuinely gone, so it isn't worth retrying.
@@ -1327,26 +1341,34 @@ class BackupController extends Controller
             fn ($retries) => self::RETRY_DELAY_MS
         ));
 
-        $client = new GuzzleClient([
-            'base_uri' => rtrim(env('SUPABASE_URL'), '/') . '/storage/v1/',
+        $client = new GuzzleClient($onSupabase ? [
+            'base_uri' => rtrim((string) $disk['endpoint'], '/') . '/storage/v1/',
             'handler'  => $stack,
             'timeout'  => self::DOWNLOAD_TIMEOUT,
             'headers'  => [
-                'Authorization' => 'Bearer ' . env('SUPABASE_SERVICE_KEY'),
-                'apikey'        => env('SUPABASE_SERVICE_KEY'),
+                'Authorization' => 'Bearer ' . $disk['key'],
+                'apikey'        => $disk['key'],
             ],
+        ] : [
+            'handler'  => $stack,
+            'timeout'  => self::DOWNLOAD_TIMEOUT,
         ]);
+
+        // Two hours: long enough for a slow backup to reach the last file.
+        $urlFor = $onSupabase
+            ? fn (string $name) => 'object/' . $disk['bucket'] . '/' . $name
+            : fn (string $name) => FileResponse::cloudLink($name, 120);
 
         $tempPaths = [];
         foreach ($toFetch as $name) {
             $tempPaths[$name] = tempnam(sys_get_temp_dir(), 'bkp_');
         }
 
-        $requests = function () use ($client, $bucket, $toFetch, $tempPaths) {
+        $requests = function () use ($client, $urlFor, $toFetch, $tempPaths) {
             foreach ($toFetch as $name) {
                 $tmpPath = $tempPaths[$name];
-                yield $name => function (array $opts) use ($client, $bucket, $name, $tmpPath) {
-                    return $client->getAsync('object/' . $bucket . '/' . $name, array_merge($opts, [
+                yield $name => function (array $opts) use ($client, $urlFor, $name, $tmpPath) {
+                    return $client->getAsync($urlFor($name), array_merge($opts, [
                         'sink' => $tmpPath,
                     ]));
                 };
@@ -1475,13 +1497,20 @@ class BackupController extends Controller
     }
 
     /**
-     * Puts one restored file back in the Supabase bucket at its original
-     * path, overwriting whatever is there. Sent with the file's own type
-     * (PDF, Word, image...) - Supabase serves it back with that type, and
-     * the previews and signed links depend on it.
+     * Puts one restored file back in cloud storage at its original path,
+     * overwriting whatever is there, with the file's own type (PDF, Word,
+     * image...) - the storage serves it back with that type, and previews
+     * and signed links depend on it.
+     *
+     * Backblaze overwrites on a normal upload (CloudFileUploader); Supabase
+     * needs its REST API's x-upsert, which its Flysystem adapter doesn't send.
      */
     private function uploadFileToCloud(string $localPath, string $cloudPath): bool
     {
+        if (! FileResponse::cloudIsSupabase()) {
+            return app(CloudFileUploader::class)->upload($cloudPath, $localPath);
+        }
+
         $disk   = config('filesystems.disks.cloud');
         $url    = rtrim((string) $disk['endpoint'], '/') . '/storage/v1/object/' . $disk['bucket'] . '/' . ltrim($cloudPath, '/');
         $type   = self::contentTypeFor($cloudPath);
@@ -1527,12 +1556,10 @@ class BackupController extends Controller
         return false;
     }
 
-    /** The type a file should be served with, from its extension. */
+    /** The type a file should be served with - the same short list FileResponse serves. */
     public static function contentTypeFor(string $path): string
     {
-        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-
-        return MimeTypes::getDefault()->getMimeTypes($extension)[0] ?? 'application/octet-stream';
+        return FileResponse::contentTypeFor($path);
     }
 
     /**

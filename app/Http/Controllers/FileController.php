@@ -1,7 +1,6 @@
 <?php
 namespace App\Http\Controllers;
 
-use App\Jobs\CacheFileLocally;
 use App\Jobs\ExtractFileOcrText;
 use App\Jobs\SendDocumentPush;
 use App\Models\ActivityLog;
@@ -11,10 +10,9 @@ use App\Models\OfficerTerm;
 use App\Models\User;
 use App\Notifications\FileUploadedToYourFolder;
 use App\Services\CloudFileUploader;
-use App\Services\SupabaseSignedUpload;
+use App\Services\FileResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -40,6 +38,13 @@ class FileController extends Controller
     {
         set_time_limit(0);
 
+        // The upload toast (Admin/partials/upload-script) asks for JSON so a
+        // refused file shows as failed; plain form posts (the phone app) get
+        // the usual redirect with a flash message.
+        $reply = fn (string $type, string $message, int $status = 200, array $extra = []) => $request->expectsJson()
+            ? response()->json(['message' => $message] + $extra, $status)
+            : back()->with($type, $message);
+
         // Validate incoming files (max 1GB each, matches php.ini upload_max_filesize)
         $request->validate([
             'files.*'   => 'file|max:1048576|mimes:' . self::ALLOWED_MIMES,
@@ -48,12 +53,12 @@ class FileController extends Controller
 
         // Ensure files exist in request
         if (! $request->hasFile('files')) {
-            return back()->with('error', 'No file selected');
+            return $reply('error', 'No file selected', 422);
         }
 
         // Folders stored under a past school year are read-only
         if ($request->folder_id && Folder::find($request->folder_id)?->is_archived) {
-            return back()->with('error', 'This folder is stored under a past school year and is read-only.');
+            return $reply('error', 'This folder is stored under a past school year and is read-only.', 422);
         }
 
         // Fetch existing filenames once instead of running a duplicate-check
@@ -162,141 +167,17 @@ class FileController extends Controller
         if ($localOnlyNames) {
             $count = count($localOnlyNames);
 
-            return back()->with('success',
+            return $reply('success',
                 count($rows) . ' file(s) uploaded. ' . $count . ' ' . ($count === 1 ? 'couldn\'t' : 'couldn\'t')
                 . ' reach cloud storage right now and ' . ($count === 1 ? 'was' : 'were')
                 . ' saved locally instead - still fully usable, and will sync to the cloud automatically'
-                . ' once the connection recovers: ' . implode(', ', $localOnlyNames)
+                . ' once the connection recovers: ' . implode(', ', $localOnlyNames),
+                200,
+                ['cloudPending' => true]
             );
         }
 
-        return back()->with('success', 'Files uploaded successfully!');
-    }
-
-    /**
-     * Step 1 of the direct-to-cloud upload flow: resolves each filename
-     * against existing names in the target folder (same dedup logic as
-     * store()'s STEP 1, run once for the whole batch so two files sharing a
-     * name in the same batch don't race each other) and returns a signed
-     * Supabase upload URL for each. The browser PUTs the actual bytes
-     * straight to that URL - this endpoint never touches file contents.
-     */
-    public function prepareUpload(Request $request, SupabaseSignedUpload $signer)
-    {
-        $request->validate([
-            'filenames'   => 'required|array|min:1',
-            'filenames.*' => 'string',
-            'folder_id'   => 'nullable|exists:folders,id',
-        ]);
-
-        if ($request->folder_id && Folder::find($request->folder_id)?->is_archived) {
-            return response()->json(['error' => 'This folder is stored under a past school year and is read-only.'], 422);
-        }
-
-        $existingNames = File::where(function ($q) use ($request) {
-                if ($request->folder_id) {
-                    $q->where('folder_id', $request->folder_id);
-                } else {
-                    $q->whereNull('folder_id');
-                }
-            })
-            ->pluck('filename')
-            ->flip()
-            ->all();
-
-        $results = [];
-
-        foreach ($request->filenames as $originalName) {
-            $name      = pathinfo($originalName, PATHINFO_FILENAME);
-            $extension = pathinfo($originalName, PATHINFO_EXTENSION);
-
-            $count       = 0;
-            $newFileName = $originalName;
-
-            while (isset($existingNames[$newFileName])) {
-                $count++;
-                $newFileName = $name . " ($count)." . $extension;
-            }
-            $existingNames[$newFileName] = true;
-
-            $cloudPath = time() . '_' . Str::slug($name) . '_' . $count . '_' . uniqid() . '.' . $extension;
-            $uploadUrl = $signer->createUrl($cloudPath);
-
-            if ($uploadUrl) {
-                // Binds this cloudPath to the requesting user so confirmUpload()
-                // can't be called with a cloudPath the client merely guessed or
-                // copied from somewhere else (e.g. another user's file, an
-                // archive, a backup) - it must be one this session was actually
-                // issued a signed PUT URL for. Single-use: confirmUpload()
-                // pulls (and removes) it.
-                Cache::put('pending_upload:' . $cloudPath, Auth::id(), now()->addHours(2));
-            }
-
-            $results[] = [
-                'originalName' => $originalName,
-                'newFileName'  => $uploadUrl ? $newFileName : null,
-                'cloudPath'    => $uploadUrl ? $cloudPath : null,
-                'uploadUrl'    => $uploadUrl,
-            ];
-        }
-
-        return response()->json(['files' => $results]);
-    }
-
-    /**
-     * Step 2 of the direct-to-cloud upload flow: called by the browser only
-     * after its direct PUT to Supabase (from prepareUpload()'s signed URL)
-     * has already succeeded - this just records the metadata. No file
-     * contents ever pass through this server for files uploaded this way.
-     */
-    public function confirmUpload(Request $request)
-    {
-        $request->validate([
-            'filename'  => 'required|string',
-            'cloudPath' => 'required|string',
-            'folder_id' => 'nullable|exists:folders,id',
-            'size'      => 'required|integer',
-        ]);
-
-        // The cloudPath must be one this session was actually issued by
-        // prepareUpload() - otherwise a client could claim any object path it
-        // knows or can compute (another user's file, a backup, an archive)
-        // as its own File record. Cache::pull is single-use.
-        $issuedTo = Cache::pull('pending_upload:' . $request->cloudPath);
-
-        if ($issuedTo === null || $issuedTo !== Auth::id()) {
-            abort(403, 'This upload was not issued to your session.');
-        }
-
-        $term = OfficerTerm::activeFor(Auth::id());
-
-        // 'cloud' (not 'both') until CacheFileLocally actually lands a local
-        // copy - marking it 'both' immediately would claim a redundant local
-        // copy that doesn't exist yet.
-        $file = File::create([
-            'filename'        => $request->filename,
-            'filepath'        => $request->cloudPath,
-            'local_path'      => null,
-            'folder_id'       => $request->folder_id,
-            'size'            => $request->size,
-            'storage_type'    => 'cloud',
-            'officer_term_id' => $term?->id,
-            'school_year'     => $term?->school_year,
-            'is_pending_approval' => $request->boolean('pending_approval'),
-        ]);
-
-        ExtractFileOcrText::dispatch($file->id, $request->boolean('scan_as_document'));
-        CacheFileLocally::dispatch($file->id);
-
-        ActivityLog::create([
-            'user_name'  => Auth::user()->name,
-            'activity'   => 'Uploaded file' . ($file->is_pending_approval ? ' (subject for approval)' : '') . ': ' . $file->filename,
-            'ip_address' => $request->ip(),
-        ]);
-
-        $this->notifyFolderCreator($request->folder_id, 1, $file->filename);
-
-        return response()->json(['id' => $file->id, 'filename' => $file->filename]);
+        return $reply('success', 'Files uploaded successfully!');
     }
 
     /**
@@ -322,36 +203,12 @@ class FileController extends Controller
     }
 
     /**
-     * A local-only file (its cloud upload never completed) has no cloud
-     * object to sign a URL for - serve its local copy instead, through
-     * raw() below. Also falls back to local for a 'both' file if the cloud
-     * call itself fails, so a temporary Supabase outage doesn't take
-     * previews down for files that already have a perfectly good local copy.
-     *
-     * Local copies are kept on the private `local` disk on purpose: on the
-     * `public` disk a plain /storage/... link opens the file for anyone
-     * holding it, with no login and no restricted-folder check. So the only
-     * way to those bytes is a route that checks access first.
-     */
-    private function resolvePreviewUrl(File $file): ?string
-    {
-        if ($file->storage_type !== 'local') {
-            try {
-                return Storage::disk('cloud')->getAdapter()->getSignedUrl($file->filepath, ['expiresIn' => 3600]);
-            } catch (\Throwable $e) {
-                Log::warning("Cloud signed URL failed for file {$file->id}, falling back to local: " . $e->getMessage());
-            }
-        }
-
-        return $file->local_path && Storage::disk('local')->exists($file->local_path)
-            ? route('files.raw', $file->id)
-            : null;
-    }
-
-    /**
      * Streams a file's local copy inline, for the preview page's
-     * img/iframe/video/audio when resolvePreviewUrl() had to fall back to
-     * it (also used by DocumentController). Same access rule as preview().
+     * img/iframe/video/audio when FileResponse::previewUrl() had to fall
+     * back to it (also used by DocumentController). Local copies are on the
+     * private disk on purpose - no plain /storage/... link - so this route,
+     * which checks access first, is the only way to them. Same access rule
+     * as preview().
      */
     public function raw($id)
     {
@@ -371,7 +228,7 @@ class FileController extends Controller
     }
 
     /**
-     * Same local-first fallback as resolvePreviewUrl(), but returning raw
+     * Same local-first fallback as FileResponse::previewUrl(), but returning raw
      * bytes - used for text preview and for download.
      */
     private function resolveFileContents(File $file): ?string
@@ -405,7 +262,7 @@ class FileController extends Controller
 
         $file->touchAccessed();
 
-        $signedUrl = $this->resolvePreviewUrl($file);
+        $signedUrl = FileResponse::previewUrl($file);
 
         if (! $signedUrl) {
             abort(500, 'Failed to generate preview URL');

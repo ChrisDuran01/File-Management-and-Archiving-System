@@ -7,7 +7,6 @@ use App\Services\CloudFileUploader;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -71,24 +70,43 @@ function approvalFile(array $attributes = []): File
     return $file->fresh();
 }
 
-test('a file uploaded with the box ticked is labelled as subject for approval', function () {
+test('a file uploaded with the box ticked is labelled as subject for approval, and the toast hears back', function () {
+    Storage::fake('local');
+    $this->mock(CloudFileUploader::class)->shouldReceive('upload')->andReturn(true);
+
     $user   = approvalOfficer();
     $folder = Folder::create(['name' => 'Proposals']);
-    Cache::put('pending_upload:draft_1.pdf', $user->id, now()->addHour());
-    Cache::put('pending_upload:final_1.pdf', $user->id, now()->addHour());
 
-    $this->actingAs($user)->postJson(route('files.confirmUpload'), [
-        'filename' => 'draft.pdf', 'cloudPath' => 'draft_1.pdf', 'size' => 100,
+    // The upload toast asks for JSON (Admin/partials/upload-script).
+    $this->actingAs($user)->postJson(route('files.store'), [
+        'files'     => [UploadedFile::fake()->create('draft.pdf', 10, 'application/pdf')],
         'folder_id' => $folder->id, 'pending_approval' => 1,
-    ])->assertOk();
+    ])->assertOk()->assertJson(['message' => 'Files uploaded successfully!']);
 
-    $this->actingAs($user)->postJson(route('files.confirmUpload'), [
-        'filename' => 'final.pdf', 'cloudPath' => 'final_1.pdf', 'size' => 100,
-        'folder_id' => $folder->id, 'pending_approval' => 0,
+    $this->actingAs($user)->postJson(route('files.store'), [
+        'files'     => [UploadedFile::fake()->create('final.pdf', 10, 'application/pdf')],
+        'folder_id' => $folder->id,
     ])->assertOk();
 
     expect(File::where('filename', 'draft.pdf')->first()->is_pending_approval)->toBeTrue()
         ->and(File::where('filename', 'final.pdf')->first()->is_pending_approval)->toBeFalse();
+});
+
+test('a refused upload is reported as failed to the toast, not as saved', function () {
+    $user   = approvalOfficer();
+    $folder = Folder::create(['name' => 'Old year', 'is_archived' => true]);
+
+    $this->actingAs($user)->postJson(route('files.store'), [
+        'files'     => [UploadedFile::fake()->create('virus.exe', 10, 'application/octet-stream')],
+        'folder_id' => $folder->id,
+    ])->assertStatus(422);
+
+    $this->actingAs($user)->postJson(route('files.store'), [
+        'files'     => [UploadedFile::fake()->create('minutes.pdf', 10, 'application/pdf')],
+        'folder_id' => $folder->id,
+    ])->assertStatus(422)->assertJson(['message' => 'This folder is stored under a past school year and is read-only.']);
+
+    expect(File::count())->toBe(0);
 });
 
 test('the server-relayed upload path carries the label too', function () {

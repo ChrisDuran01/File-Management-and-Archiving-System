@@ -8,7 +8,7 @@ use App\Models\Announcement;
 use App\Models\DisplayOfficer;
 use App\Models\OfficerTerm;
 use App\Models\SiteSetting;
-use Illuminate\Support\Facades\Storage;
+use App\Services\FileResponse;
 use Illuminate\Support\Str;
 
 class StudentController extends Controller
@@ -191,7 +191,7 @@ class StudentController extends Controller
         }
 
         try {
-            $signedUrl = Storage::disk('cloud')->getAdapter()->getSignedUrl($file->filepath, ['expiresIn' => 3600]);
+            $signedUrl = FileResponse::cloudLink($file->filepath);
         } catch (\Throwable) {
             return response()->json(['error' => 'Failed to generate preview URL'], 500);
         }

@@ -5,11 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\ActivityLog;
 use App\Models\Document;
 use App\Models\File;
+use App\Services\FileResponse;
 use App\Models\Folder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 class DocumentController extends Controller
 {
@@ -65,7 +64,7 @@ class DocumentController extends Controller
     {
         abort_unless($document->isAccessibleBy(Auth::user()), 403, 'This document is in a restricted folder you don\'t have access to.');
 
-        $signedUrl = $document->file ? $this->resolvePreviewUrl($document->file) : null;
+        $signedUrl = $document->file ? FileResponse::previewUrl($document->file) : null;
         $document->file?->touchAccessed();
 
         $documentTypes = ScanReviewController::DOCUMENT_TYPES;
@@ -139,26 +138,5 @@ class DocumentController extends Controller
         ]);
 
         return redirect()->route('documents.index')->with('success', 'Document moved to Trash. It can be restored from there within ' . config('trash.retention_days') . ' days.');
-    }
-
-    /**
-     * Signed cloud URL for the document's PDF, falling back to its local
-     * copy, served through FileController::raw() (which checks access - the
-     * local copy is on the private disk, with no public URL of its own).
-     * Copied from FileController::resolvePreviewUrl().
-     */
-    private function resolvePreviewUrl(File $file): ?string
-    {
-        if ($file->storage_type !== 'local') {
-            try {
-                return Storage::disk('cloud')->getAdapter()->getSignedUrl($file->filepath, ['expiresIn' => 3600]);
-            } catch (\Throwable $e) {
-                Log::warning("Cloud signed URL failed for file {$file->id}, falling back to local: " . $e->getMessage());
-            }
-        }
-
-        return $file->local_path && Storage::disk('local')->exists($file->local_path)
-            ? route('files.raw', $file->id)
-            : null;
     }
 }

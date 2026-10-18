@@ -20,22 +20,38 @@ class CloudFileUploader
 
     public function upload(string $cloudPath, string $localFullPath): bool
     {
-        $contents = file_get_contents($localFullPath);
         $attempt = 0;
 
         while ($attempt < self::RETRIES) {
             $attempt++;
+            $stream = fopen($localFullPath, 'r');
 
             try {
-                Storage::disk('cloud')->put($cloudPath, $contents);
+                // The cloud disk reports a failed write by returning false
+                // ('throw' => false), not by throwing - so the answer is
+                // checked rather than assumed. Stored under the same short
+                // list of types FileResponse serves: a link straight to the
+                // cloud copy is served with whatever type it was stored as.
+                $stored = $stream && Storage::disk('cloud')->writeStream($cloudPath, $stream, [
+                    'ContentType' => FileResponse::contentTypeFor($cloudPath),
+                    'mimetype'    => FileResponse::contentTypeFor($cloudPath),
+                ]);
 
-                return true;
+                if ($stored) {
+                    return true;
+                }
+
+                Log::warning("Cloud upload attempt {$attempt} failed for {$cloudPath}: the storage refused it.");
             } catch (\Throwable $e) {
                 Log::warning("Cloud upload attempt {$attempt} failed for {$cloudPath}: " . $e->getMessage());
-
-                if ($attempt < self::RETRIES) {
-                    usleep(self::RETRY_DELAY_MS * 1000);
+            } finally {
+                if (is_resource($stream)) {
+                    fclose($stream);
                 }
+            }
+
+            if ($attempt < self::RETRIES) {
+                usleep(self::RETRY_DELAY_MS * 1000);
             }
         }
 

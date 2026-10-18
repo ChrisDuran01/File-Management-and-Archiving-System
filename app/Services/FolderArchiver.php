@@ -154,7 +154,11 @@ class FolderArchiver
         $zipContent   = file_get_contents($tempZipPath);
         $archivePath  = "archives/$zipName";
 
-        Storage::disk('cloud')->put($archivePath, $zipContent);
+        // A failed cloud copy doesn't stop the archive - the ZIP above is
+        // already on this computer - but it must not pass unnoticed.
+        if (! Storage::disk('cloud')->put($archivePath, $zipContent)) {
+            Log::warning("Archive {$zipName} was saved on this computer but could not be copied to cloud storage.");
+        }
 
         FileFacade::delete($tempZipPath);
 

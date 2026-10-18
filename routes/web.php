@@ -116,8 +116,6 @@ Route::middleware(['auth', 'nocache'])->group(function () {
 
     // Files
     Route::post('/files', [FileController::class, 'store'])->name('files.store');
-    Route::post('/files/prepare-upload', [FileController::class, 'prepareUpload'])->name('files.prepareUpload');
-    Route::post('/files/confirm-upload', [FileController::class, 'confirmUpload'])->name('files.confirmUpload');
     Route::get('/files/{id}/preview', [FileController::class, 'preview'])->name('files.preview');
     Route::get('/files/{id}/raw', [FileController::class, 'raw'])->name('files.raw');
     Route::get('/files/{id}/download', [FileController::class, 'download'])->name('files.download');
