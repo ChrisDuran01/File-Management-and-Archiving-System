@@ -1,4 +1,5 @@
 @extends('SuperAdmin.homeSuperAdmin')
+@section('title', 'SG Officers')
 
 @section('content')
 
@@ -21,7 +22,7 @@
 
     /* ── Buttons ── */
     .btn-primary-custom {
-        background: var(--green);
+        background: var(--primary-fill);
         border: none;
         border-radius: var(--radius-sm);
         color: #fff;
@@ -426,7 +427,7 @@
 
 {{-- ── Page Header ── --}}
 <div class="page-header">
-    <h2>
+    <h1>
         <div class="page-title-icon">
             <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="6" cy="5" r="2.5" stroke="#058028" stroke-width="1.2"/>
@@ -435,7 +436,7 @@
             </svg>
         </div>
         SG Officers
-    </h2>
+    </h1>
 
     <div class="header-actions">
         <button type="button" class="btn-warning-custom" onclick="showArchiveModal()">
@@ -490,7 +491,7 @@
                         <td>
                             <div class="actions-cell">
                                 <a href="{{ route('officers.edit', $term->id) }}" class="tbl-btn edit">
-                                    <i class="fas fa-pen"></i> Edit
+                                    <i class="fas fa-pen" aria-hidden="true"></i> Edit<span class="sr-only"> {{ $term->user->name }}</span>
                                 </a>
 
                                 <form action="{{ route('officers.archiveOfficer', $term->id) }}" method="POST" style="margin:0;">
@@ -498,7 +499,7 @@
                                     @method('PATCH')
                                     <button type="button" class="tbl-btn end-term"
                                         onclick="confirmEndTerm(this.form, '{{ addslashes($term->user->name) }}')">
-                                        <i class="fas fa-clock"></i> End Term
+                                        <i class="fas fa-clock" aria-hidden="true"></i> End Term<span class="sr-only"> for {{ $term->user->name }}</span>
                                     </button>
                                 </form>
                             </div>
@@ -571,7 +572,7 @@
                                     @method('PATCH')
                                     <button type="button" class="tbl-btn reactivate"
                                         onclick="confirmReactivate(this.form, '{{ addslashes($term->user->name) }}', {{ $term->position_id }})">
-                                        <i class="fas fa-rotate-left"></i> Reactivate
+                                        <i class="fas fa-rotate-left" aria-hidden="true"></i> Reactivate<span class="sr-only"> {{ $term->user->name }}</span>
                                     </button>
                                 </form>
 
@@ -604,11 +605,11 @@
 {{-- ── END TERM (BY SCHOOL YEAR) MODAL ── --}}
 @php $currentSchoolYears = $currentOfficers->pluck('school_year')->unique()->sort()->values(); @endphp
 <div id="archiveModal" class="modal-overlay" onclick="handleOverlayClick(event, 'archiveModal')">
-    <div class="modal-box">
-        <div class="modal-icon">
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="archiveModalTitle">
+        <div class="modal-icon" aria-hidden="true">
             <i class="fas fa-clock-rotate-left"></i>
         </div>
-        <h5>End Term</h5>
+        <h5 id="archiveModalTitle">End Term</h5>
         <p>Pick which school year's officers to move to Former Officers.</p>
 
         <form action="{{ route('officers.archiveAll') }}" method="POST" style="margin:0; text-align:left;">
@@ -637,7 +638,7 @@
             <div class="modal-actions">
                 <button type="button" onclick="closeModal('archiveModal')" class="modal-cancel">Cancel</button>
                 <button type="submit" class="modal-confirm">
-                    <i class="fas fa-check"></i> Yes, End Term
+                    <i class="fas fa-check" aria-hidden="true"></i> End term
                 </button>
             </div>
         </form>
@@ -646,11 +647,11 @@
 
 {{-- ── END SINGLE TERM MODAL ── --}}
 <div id="endTermModal" class="modal-overlay" onclick="handleOverlayClick(event, 'endTermModal')">
-    <div class="modal-box">
-        <div class="modal-icon">
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="endTermModalTitle">
+        <div class="modal-icon" aria-hidden="true">
             <i class="fas fa-clock"></i>
         </div>
-        <h5>End Officer's Term</h5>
+        <h5 id="endTermModalTitle">End Officer's Term</h5>
         <p>You are about to end the term of <b id="endTermName"></b>.</p>
         <div class="modal-warning">
             <i class="fas fa-triangle-exclamation"></i>
@@ -659,7 +660,7 @@
         <div class="modal-actions">
             <button onclick="closeModal('endTermModal')" class="modal-cancel">Cancel</button>
             <button type="button" class="modal-confirm" id="endTermConfirm" onclick="submitEndTerm()">
-                <i class="fas fa-check"></i> Confirm
+                <i class="fas fa-check" aria-hidden="true"></i> End term
             </button>
         </div>
     </div>
@@ -667,11 +668,11 @@
 
 {{-- ── REACTIVATE (NEW TERM) MODAL ── --}}
 <div id="reactivateModal" class="modal-overlay" onclick="handleOverlayClick(event, 'reactivateModal')">
-    <div class="modal-box">
-        <div class="modal-icon" style="background:var(--green-dim);">
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="reactivateModalTitle">
+        <div class="modal-icon" style="background:var(--green-dim);" aria-hidden="true">
             <i class="fas fa-rotate-left" style="color:var(--green);"></i>
         </div>
-        <h5>Reactivate Officer</h5>
+        <h5 id="reactivateModalTitle">Reactivate Officer</h5>
         <p>Start a new term for <b id="reactivateName"></b>.</p>
 
         <label for="reactivateSchoolYear" style="display:block; font-size:.78rem; font-weight:600; color:var(--text-2); margin:14px 0 6px;">
@@ -707,11 +708,11 @@
 
 {{-- ── DELETE MODAL ── --}}
 <div id="deleteModal" class="modal-overlay" onclick="handleOverlayClick(event, 'deleteModal')">
-    <div class="modal-box">
-        <div class="modal-icon" style="background:var(--red-dim);">
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
+        <div class="modal-icon" style="background:var(--red-dim);" aria-hidden="true">
             <i class="fas fa-trash" style="color:var(--red);"></i>
         </div>
-        <h5>Delete Record</h5>
+        <h5 id="deleteModalTitle">Delete Record</h5>
         <p>You are about to permanently delete the record of <b id="deleteOfficerName"></b>.</p>
         <div class="modal-warning">
             <i class="fas fa-triangle-exclamation"></i>
@@ -721,7 +722,7 @@
             <button onclick="closeModal('deleteModal')" class="modal-cancel">Cancel</button>
             <button type="button" class="modal-confirm" id="deleteConfirmBtn"
                 onclick="submitDelete()"
-                style="background:var(--red);">
+                style="background:var(--danger-fill);">
                 <i class="fas fa-trash"></i> Delete
             </button>
         </div>
@@ -733,14 +734,26 @@
     let _deleteForm  = null;
     let _reactivateForm = null;
 
+    // Opening a box moves focus into it and remembers what opened it, so
+    // closing (Cancel, Escape or a click outside) hands focus back there.
+    let _modalOpener = null;
+
+    function openModal(id) {
+        _modalOpener = document.activeElement;
+        const overlay = document.getElementById(id);
+        overlay.classList.add('active');
+        const first = overlay.querySelector('select, input:not([type=hidden]), .modal-cancel');
+        if (first) first.focus();
+    }
+
     function showArchiveModal() {
-        document.getElementById('archiveModal').classList.add('active');
+        openModal('archiveModal');
     }
 
     function confirmEndTerm(form, name) {
         _endTermForm = form;
         document.getElementById('endTermName').textContent = name;
-        document.getElementById('endTermModal').classList.add('active');
+        openModal('endTermModal');
     }
 
     function submitEndTerm() {
@@ -752,7 +765,7 @@
         document.getElementById('reactivateName').textContent = name;
         document.getElementById('reactivateSchoolYear').value = '';
         document.getElementById('reactivatePosition').value = currentPositionId;
-        document.getElementById('reactivateModal').classList.add('active');
+        openModal('reactivateModal');
     }
 
     function submitReactivate() {
@@ -784,7 +797,7 @@
     function confirmDelete(form, name) {
         _deleteForm = form;
         document.getElementById('deleteOfficerName').textContent = name;
-        document.getElementById('deleteModal').classList.add('active');
+        openModal('deleteModal');
     }
 
     function submitDelete() {
@@ -793,7 +806,15 @@
 
     function closeModal(id) {
         document.getElementById(id).classList.remove('active');
+        if (_modalOpener && document.contains(_modalOpener)) _modalOpener.focus();
+        _modalOpener = null;
     }
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        const open = document.querySelector('.modal-overlay.active');
+        if (open) closeModal(open.id);
+    });
 
     function handleOverlayClick(event, id) {
         if (event.target === document.getElementById(id)) {

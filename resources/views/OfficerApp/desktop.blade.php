@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>QSU SG Officers</title>
+    @include('partials.favicon')
     <style>
         html { height: 100%; }
         body {

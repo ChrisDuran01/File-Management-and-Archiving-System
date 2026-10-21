@@ -1,4 +1,5 @@
 @extends($layout ?? 'Admin.home')
+@section('title', 'Reports & Analytics')
 @section('content')
 
 @include('Admin.partials.theme')
@@ -28,13 +29,21 @@
     .group-head { font-size: 13px; font-weight: 600; color: var(--text-primary); margin: 26px 0 10px; display: flex; align-items: center; gap: 8px; }
     .group-head i { color: var(--seq-blue); }
 
-    /* Every panel leads with the question it answers, then the answer in
-       one sentence; the chart below is the evidence. */
-    .q { font-size: 15px; font-weight: 600; color: var(--text-primary); margin: 0 0 4px; line-height: 1.35; }
-    .q.sm { font-size: 13px; }
-    .a { font-size: 13px; color: var(--text-secondary); margin: 0 0 6px; line-height: 1.55; }
-    .a strong { color: var(--text-primary); font-weight: 600; }
-    .hint { font-size: 11px; color: var(--text-muted); margin: 0 0 14px; }
+    /* Every panel leads with the question it answers; the answer is the
+       finding, so it is the line that stands out. The chart below is the
+       evidence. No extra description lines - a definition goes in an (i)
+       tooltip, and a panel that ignores the selected period says so in a
+       small .scope tag. */
+    .q { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 0 0 6px; line-height: 1.35; }
+    .q.sm { font-size: 12px; }
+    .a { font-size: 15px; color: var(--text-primary); margin: 0 0 14px; line-height: 1.5; }
+    .a strong { font-weight: 700; }
+    .q .scope { margin-left: auto; padding: 1px 7px; border: 1px solid var(--border); border-radius: 4px; font-size: 11px; font-weight: 500; color: var(--text-muted); white-space: nowrap; }
+    .q .info { font-size: 12px; color: var(--text-muted); cursor: help; }
+    /* A panel that needs someone to act: an icon before the question (no
+       coloured edge - the user had it removed). */
+    .tone-warning .q .flag { color: var(--warning); }
+    .tone-critical .q .flag { color: #b3412f; }
 
     /* Tabs */
     .report-tabs { display: flex; gap: 4px; margin: 0 0 16px; border-bottom: 1px solid var(--border); }
@@ -205,9 +214,7 @@
 <div class="container-fluid py-3 skel-real">
     <div class="page-header">
         <div>
-            <h2>Reports &amp; Analytics</h2>
-            <p class="sub">Questions about the Student Government's records and its student page, answered from the data.</p>
-        </div>
+            <h1>Reports &amp; Analytics</h1>        </div>
     </div>
 
     <nav class="report-tabs" aria-label="Report sections">
@@ -255,7 +262,7 @@
         </a>
     </div>
     <p class="period-note">
-        {{ $periodLabel }} &middot; {{ $days }} {{ Str::plural('day', $days) }} &middot; changes compared with {{ $comparedWith }}
+        {{ $periodLabel }} &middot; compared with {{ $comparedWith }}
     </p>
 
 @if ($tab === 'records')
@@ -264,15 +271,34 @@
          (see ReportController::index) - their data isn't sent to an Admin, so
          every panel that uses it sits inside an $isSuperAdmin check. --}}
 
-    {{-- KPI ROW - three cards for an Admin, five for a SuperAdmin --}}
+    @php
+        // Which panels need someone to act - they get a coloured edge and an icon.
+        $failedBatches = (int) ($batchStatuses->firstWhere('key', 'failed')['total'] ?? 0);
+        $signs = $isSuperAdmin ? count($loginAnomalies['bruteForce']) + count($loginAnomalies['multiIp']) + count($loginAnomalies['newLocation']) : 0;
+        $tone = [
+            'pipeline'  => $failedBatches > 0 ? 'critical' : ($pipeline['awaiting'] > 0 ? 'warning' : null),
+            'stale'     => $staleFolders->isNotEmpty() ? 'warning' : null,
+            'integrity' => $preservation['fixity_failed'] > 0 ? 'critical' : ($preservation['fixity_unchecked'] > 0 ? 'warning' : null),
+            'ocr'       => $ocr['failed'] > 0 ? 'warning' : null,
+            'backups'   => ! $isSuperAdmin ? null
+                : (! $backups['last'] || $backups['last_age_hours'] > 24 * 7 ? 'critical'
+                : ($backups['last_age_hours'] > 48 || $backups['partial'] > 0 ? 'warning' : null)),
+            'security'  => ! $isSuperAdmin ? null
+                : (collect($loginAnomalies['bruteForce'])->contains(fn ($r) => $r->attempts >= 5) ? 'critical'
+                : ($signs > 0 ? 'warning' : null)),
+        ];
+        $toneClass = fn ($key) => $tone[$key] ? ' tone-' . $tone[$key] : '';
+        $flag = fn ($key) => $tone[$key] ? '<i class="fas fa-circle-exclamation flag" aria-hidden="true"></i><span class="sr-only">Needs attention:</span>' : '';
+    @endphp
+
+    {{-- KPI ROW - three cards for an Admin, five for a SuperAdmin. A change
+         line only when there is something to compare with. --}}
     <div class="metric-grid" style="--kpis: {{ count($kpis) }};">
         @foreach ($kpis as $k)
             <div class="metric-card">
                 <p class="label">{{ $k['label'] }}</p>
                 <p class="value">{{ number_format($k['value']) }}</p>
-                @if ($k['delta'] === null)
-                    <p class="delta">{{ $k['previous'] === 0 && $k['value'] > 0 ? 'none in the comparison period' : 'no change data' }}</p>
-                @else
+                @if ($k['delta'] !== null)
                     <p class="delta {{ $k['delta'] > 0 ? 'up' : ($k['delta'] < 0 ? 'down' : '') }}">
                         {{ $k['delta'] > 0 ? '↑' : ($k['delta'] < 0 ? '↓' : '→') }} {{ abs($k['delta']) }}% vs {{ number_format($k['previous']) }}
                     </p>
@@ -286,14 +312,12 @@
         <div class="card-panel">
             <h3 class="q">Is the archive being kept up to date?</h3>
             <p class="a">{!! $answers['trend'] !!}</p>
-            <p class="hint">Files uploaded{{ $isSuperAdmin ? ', documents digitized and logged actions' : ' and documents digitized' }} per {{ $buckets['unit'] }}.</p>
             <div class="chart-box"><canvas id="trendChart"></canvas></div>
         </div>
         @if ($isSuperAdmin)
         <div class="card-panel">
             <h3 class="q">What do officers spend their time on?</h3>
             <p class="a">{!! $answers['categories'] !!}</p>
-            <p class="hint">Logged actions by category.</p>
             @php $catMax = $activityByCategory->max('total') ?: 1; @endphp
             @forelse ($activityByCategory as $i => $row)
                 <div class="rank-row">
@@ -310,21 +334,22 @@
 
     {{-- DIGITIZATION --}}
     <div class="group-head"><i class="fas fa-file-import"></i> Digitization pipeline</div>
-    <div class="card-panel">
-        <h3 class="q">Is digitization keeping up?</h3>
-        <p class="a" style="margin-bottom:14px;">{!! $answers['pipeline'] !!}</p>
+    <div class="card-panel{{ $toneClass('pipeline') }}">
+        <h3 class="q">{!! $flag('pipeline') !!}Is digitization keeping up?</h3>
+        <p class="a">{!! $answers['pipeline'] !!}</p>
+        @php $hours = $pipeline['turnaround']; @endphp
         <div class="mini-grid">
-            <div class="mini"><p class="k">Scan batches</p><p class="v">{{ number_format($pipeline['batches']) }}</p><p class="h">{{ number_format($pipeline['pages']) }} pages scanned</p></div>
-            <div class="mini"><p class="k">Filed</p><p class="v">{{ number_format($pipeline['filed']) }}</p><p class="h">{{ number_format($pipeline['docs_from_scans']) }} documents created</p></div>
-            <div class="mini"><p class="k">Success rate</p><p class="v">{{ $pipeline['success_rate'] !== null ? $pipeline['success_rate'].'%' : '—' }}</p><p class="h">filed vs failed batches</p></div>
-            <div class="mini"><p class="k">Avg. turnaround</p><p class="v">{{ $pipeline['turnaround'] !== null ? $pipeline['turnaround'].' h' : '—' }}</p><p class="h">ingest to filed</p></div>
-            <div class="mini"><p class="k">Waiting for review</p><p class="v" @if($pipeline['awaiting'] > 0) style="color:#b08900;" @endif>{{ number_format($pipeline['awaiting']) }}</p><p class="h">right now, any date</p></div>
+            <div class="mini"><p class="k">Scan batches</p><p class="v">{{ number_format($pipeline['batches']) }}</p><p class="h">{{ number_format($pipeline['pages']) }} pages</p></div>
+            <div class="mini"><p class="k">Filed</p><p class="v">{{ number_format($pipeline['filed']) }}</p><p class="h">{{ number_format($pipeline['docs_from_scans']) }} documents</p></div>
+            <div class="mini"><p class="k">Success rate</p><p class="v">{{ $pipeline['success_rate'] !== null ? $pipeline['success_rate'].'%' : '—' }}</p></div>
+            <div class="mini"><p class="k">Scan to filed</p><p class="v">{{ $hours === null ? '—' : ($hours < 1 ? max(1, (int) round($hours * 60)).' min' : $hours.' h') }}</p></div>
+            <div class="mini"><p class="k">Waiting for review</p><p class="v" @if($pipeline['awaiting'] > 0) style="color:var(--warning);" @endif>{{ number_format($pipeline['awaiting']) }}</p></div>
         </div>
 
         <div class="row-2">
             <div>
                 <h4 class="q sm">Did any scan batches fail?</h4>
-                <p class="a" style="margin-bottom:12px;">{!! $answers['batches'] !!}</p>
+                <p class="a">{!! $answers['batches'] !!}</p>
                 @php $batchTotal = $batchStatuses->sum('total'); @endphp
                 @if ($batchTotal > 0)
                     <div class="prop-bar">
@@ -341,7 +366,7 @@
             </div>
             <div>
                 <h4 class="q sm">What kinds of records are being digitized?</h4>
-                <p class="a" style="margin-bottom:12px;">{!! $answers['types'] !!}</p>
+                <p class="a">{!! $answers['types'] !!}</p>
                 @php $typeMax = $documentTypes->max('total') ?: 1; @endphp
                 @foreach ($documentTypes as $i => $t)
                     <div class="rank-row" style="margin-bottom:9px;">
@@ -357,26 +382,20 @@
     {{-- USAGE PATTERNS - who works when, from the Activity Logs. SuperAdmin-only. --}}
     @if ($isSuperAdmin)
     <div class="group-head"><i class="fas fa-clock"></i> Usage patterns</div>
-    <div class="row-2">
+    <div class="row-3">
         <div class="card-panel">
             <h3 class="q">When in the day do officers work?</h3>
             <p class="a">{!! $answers['hours'] !!}</p>
-            <p class="hint">Logged actions by hour of day.</p>
             <div class="chart-box short"><canvas id="hourChart"></canvas></div>
         </div>
         <div class="card-panel">
             <h3 class="q">Which days are busiest?</h3>
             <p class="a">{!! $answers['weekdays'] !!}</p>
-            <p class="hint">Logged actions by day of week.</p>
             <div class="chart-box short"><canvas id="weekdayChart"></canvas></div>
         </div>
-    </div>
-
-    <div class="row-2">
         <div class="card-panel">
             <h3 class="q">Is the work shared across officers?</h3>
             <p class="a">{!! $answers['officers'] !!}</p>
-            <p class="hint">Logged actions per person.</p>
             @php $max = $activeOfficers->max('total') ?: 1; @endphp
             @foreach ($activeOfficers as $officer)
                 <div class="rank-row">
@@ -386,21 +405,6 @@
                 </div>
             @endforeach
         </div>
-        <div class="card-panel">
-            <h3 class="q">What happened most recently?</h3>
-            <p class="a" style="margin-bottom:10px;">{!! $answers['latest'] !!}</p>
-            <table class="rtable">
-                <tbody>
-                    @foreach ($recentActivity as $log)
-                        <tr>
-                            <td style="width:34%; font-weight:500;">{{ $log->user_name }}</td>
-                            <td style="color:var(--text-secondary);">{{ \Illuminate\Support\Str::limit($log->activity, 60) }}</td>
-                            <td style="color:var(--text-muted); white-space:nowrap; font-size:12px;">{{ $log->created_at->diffForHumans(null, true, true) }}</td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
     </div>
     @endif
 
@@ -408,15 +412,13 @@
     <div class="group-head"><i class="fas fa-hard-drive"></i> Storage &amp; library</div>
     <div class="row-2-wide">
         <div class="card-panel">
-            <h3 class="q">Will storage run out?</h3>
+            <h3 class="q">Will storage run out? <span class="scope">Last 6 months</span></h3>
             <p class="a">{!! $answers['storage'] !!}</p>
-            <p class="hint">Total stored at the end of each month, with a dashed trend projection. Always the last 6 months.</p>
             <div class="chart-box"><canvas id="storageChart"></canvas></div>
         </div>
         <div class="card-panel">
-            <h3 class="q">Where is the storage going?</h3>
+            <h3 class="q">Where is the storage going? <span class="scope">All time</span></h3>
             <p class="a">{!! $answers['folders'] !!}</p>
-            <p class="hint">Largest folders by storage used, all time.</p>
             @php $fMax = $topFolders->max('bytes') ?: 1; @endphp
             @foreach ($topFolders as $f)
                 <div class="rank-row">
@@ -430,9 +432,8 @@
 
     <div class="row-2">
         <div class="card-panel">
-            <h3 class="q">What is the library made of?</h3>
+            <h3 class="q">What is the library made of? <span class="scope">All time</span></h3>
             <p class="a">{!! $answers['fileTypes'] !!}</p>
-            <p class="hint">Share of all files by type.</p>
             @php $typeColors = ['var(--cat-1)', 'var(--cat-2)', 'var(--cat-3)', 'var(--cat-4)']; @endphp
             <div class="prop-bar">
                 @foreach ($fileTypes as $i => $type)
@@ -447,9 +448,9 @@
                 @endforeach
             </div>
         </div>
-        <div class="card-panel">
-            <h3 class="q">Which folders have gone quiet?</h3>
-            <p class="a" style="margin-bottom:12px;">{!! $answers['stale'] !!}</p>
+        <div class="card-panel{{ $toneClass('stale') }}">
+            <h3 class="q">{!! $flag('stale') !!}Which folders have gone quiet?</h3>
+            <p class="a">{!! $answers['stale'] !!}</p>
             @foreach ($staleFolders as $folder)
                 <div class="rank-row" style="margin-bottom:10px;">
                     <span class="rank-name" style="width:auto; flex:1;">{{ $folder['name'] }}</span>
@@ -462,22 +463,18 @@
     {{-- PRESERVATION & HEALTH --}}
     <div class="group-head"><i class="fas fa-shield-heart"></i> Preservation &amp; health</div>
     <div class="{{ $isSuperAdmin ? 'row-3' : 'row-2' }}">
-        <div class="card-panel">
-            <h3 class="q">Are archived records still intact?</h3>
-            <p class="a" style="margin-bottom:10px;">{!! $answers['integrity'] !!}</p>
-            <div class="stat-line"><span>Archives stored</span><span class="n">{{ number_format($preservation['archives']) }}</span></div>
-            <div class="stat-line"><span>Archived in this period</span><span class="n">{{ number_format($preservation['archived_period']) }}</span></div>
+        <div class="card-panel{{ $toneClass('integrity') }}">
+            <h3 class="q">{!! $flag('integrity') !!}Are archived records still intact?</h3>
+            <p class="a">{!! $answers['integrity'] !!}</p>
             <div class="stat-line"><span>Verified intact</span><span class="n"><span class="status-chip ok">{{ $preservation['fixity_ok'] }}</span></span></div>
             <div class="stat-line"><span>Failed verification</span><span class="n"><span class="status-chip {{ $preservation['fixity_failed'] > 0 ? 'critical' : 'ok' }}">{{ $preservation['fixity_failed'] }}</span></span></div>
             <div class="stat-line"><span>Not yet checked</span><span class="n">{{ $preservation['fixity_unchecked'] }}</span></div>
-            <p class="section-sub" style="margin:10px 0 0;">Last check: {{ $preservation['last_fixity'] ? $preservation['last_fixity']->diffForHumans() : 'never' }}</p>
+            <div class="stat-line"><span>Last check</span><span class="n">{{ $preservation['last_fixity'] ? $preservation['last_fixity']->diffForHumans() : 'never' }}</span></div>
         </div>
         @if ($isSuperAdmin)
-        <div class="card-panel">
-            <h3 class="q">Are backups running?</h3>
-            <p class="a" style="margin-bottom:10px;">{!! $answers['backups'] !!}</p>
-            <div class="stat-line"><span>Runs in this period</span><span class="n">{{ $backups['total'] }}</span></div>
-            <div class="stat-line"><span>Successful</span><span class="n"><span class="status-chip ok">{{ $backups['success'] }}</span></span></div>
+        <div class="card-panel{{ $toneClass('backups') }}">
+            <h3 class="q">{!! $flag('backups') !!}Are backups running?</h3>
+            <p class="a">{!! $answers['backups'] !!}</p>
             <div class="stat-line"><span>Local only / partial</span><span class="n"><span class="status-chip {{ $backups['partial'] > 0 ? 'warning' : 'ok' }}">{{ $backups['partial'] }}</span></span></div>
             <div class="stat-line"><span>Last backup</span>
                 <span class="n">
@@ -490,13 +487,10 @@
             </div>
         </div>
         @endif
-        <div class="card-panel">
-            <h3 class="q">Can every file be found by its text?</h3>
-            <p class="a" style="margin-bottom:10px;">{!! $answers['ocr'] !!}</p>
-            <div class="prop-bar" style="height:8px;"><div class="prop-seg" style="width:{{ $ocr['coverage'] ?? 0 }}%; background:var(--seq-blue);"></div></div>
-            <div class="stat-line"><span>Text extracted</span><span class="n">{{ number_format($ocr['done']) }}</span></div>
-            <div class="stat-line"><span>Pending</span><span class="n">{{ number_format($ocr['pending']) }}</span></div>
-            <div class="stat-line"><span>Failed</span><span class="n">{{ number_format($ocr['failed']) }}</span></div>
+        <div class="card-panel{{ $toneClass('ocr') }}">
+            <h3 class="q">{!! $flag('ocr') !!}Can every file be found by its text?</h3>
+            <p class="a">{!! $answers['ocr'] !!}</p>
+            <div class="prop-bar" style="height:8px;" role="img" aria-label="{{ $ocr['coverage'] ?? 0 }}% of files have searchable text"><div class="prop-seg" style="width:{{ $ocr['coverage'] ?? 0 }}%; background:var(--seq-blue);"></div></div>
         </div>
     </div>
 
@@ -610,10 +604,9 @@
     {{-- SECURITY: LOGIN ANOMALIES - pattern detection over activity_logs,
          not a raw count. SuperAdmin-only. --}}
     <div class="group-head"><i class="fas fa-shield-halved"></i> Security</div>
-    <div class="card-panel">
-        <h3 class="q">Is anyone trying to break in?</h3>
+    <div class="card-panel{{ $toneClass('security') }}">
+        <h3 class="q">{!! $flag('security') !!}Is anyone trying to break in? <span class="scope">Last 7 days</span></h3>
         <p class="a">{!! $answers['security'] ?? '' !!}</p>
-        <p class="hint">Sign-in patterns worth a human look, not just a failed-login count. Always the last 7 days, whatever period is selected.</p>
 
         <div class="row-3">
             <div>
@@ -670,7 +663,7 @@
     <p class="eng-intro">
         <i class="fas fa-user-shield"></i>
         <span>
-            Anonymous statistics from the public student page: no names, IP addresses or cookies, and nothing from signed-in officers.
+            Anonymous; officers' own visits aren't counted.
             @if ($e['since'])
                 Recording since {{ $e['since']->format('M j, Y') }}.
             @else
@@ -685,11 +678,8 @@
             <div class="metric-card">
                 <p class="label">{{ $k['label'] }}</p>
                 <p class="value">{{ number_format($k['value']) }}</p>
-                @if (! $e['comparable'])
-                    <p class="delta">{{ $e['since'] ? 'recording began '.$e['since']->format('M j') : 'not recording yet' }}</p>
-                @elseif ($k['delta'] === null)
-                    <p class="delta">{{ $k['value'] > 0 ? 'none in the comparison period' : 'none in either period' }}</p>
-                @else
+                {{-- A change line only when both periods were recorded. --}}
+                @if ($e['comparable'] && $k['delta'] !== null)
                     <p class="delta {{ $k['delta'] > 0 ? 'up' : ($k['delta'] < 0 ? 'down' : '') }}">
                         {{ $k['delta'] > 0 ? '↑' : ($k['delta'] < 0 ? '↓' : '→') }} {{ abs($k['delta']) }}% vs {{ number_format($k['previous']) }}
                     </p>
@@ -700,9 +690,9 @@
 
     <div class="row-2-wide">
         <div class="card-panel">
-            <h3 class="q">Are students visiting the student page?</h3>
+            <h3 class="q">Are students visiting the student page?
+                <i class="fas fa-circle-info info" tabindex="0" role="img" aria-label="A visit is one device opening the page on a given day; reloads don't count." title="A visit is one device opening the page on a given day; reloads don't count."></i></h3>
             <p class="a">{!! $e['visits']['answer'] !!}</p>
-            <p class="hint">A visit is one device opening the page on a given day; reloads don't count. Per {{ $e['visits']['unit'] }}.</p>
             @if (array_sum($e['visits']['visits']) > 0)
                 <div class="chart-box"><canvas id="engVisitsChart"></canvas></div>
             @endif
@@ -710,7 +700,7 @@
         <div class="stack">
             <div class="card-panel">
                 <h3 class="q">Do students use phones or computers?</h3>
-                <p class="a" style="margin-bottom:12px;">{!! $e['devices']['answer'] !!}</p>
+                <p class="a">{!! $e['devices']['answer'] !!}</p>
                 @if ($e['devices']['total'] > 0)
                     <div class="prop-bar">
                         @foreach ($e['devices']['rows'] as $i => $d)
@@ -728,9 +718,9 @@
             </div>
             <div class="card-panel">
                 <h3 class="q">Do notifications bring students back?</h3>
-                <p class="a" style="margin-bottom:10px;">{!! $e['notifications']['answer'] !!}</p>
-                <div class="stat-line"><span>Devices getting alerts now</span><span class="n">{{ number_format($e['notifications']['active']) }}</span></div>
-                <div class="stat-line"><span>Visits from a notification tap</span><span class="n">{{ number_format($e['notifications']['from_push']) }}</span></div>
+                <p class="a">{!! $e['notifications']['answer'] !!}</p>
+                <div class="stat-line"><span>Turned on in this period</span><span class="n">{{ number_format($e['notifications']['on']) }}</span></div>
+                <div class="stat-line"><span>Turned off in this period</span><span class="n">{{ number_format($e['notifications']['off']) }}</span></div>
             </div>
         </div>
     </div>
@@ -738,7 +728,6 @@
     <div class="card-panel">
         <h3 class="q">When are students on the page, and when should we post?</h3>
         <p class="a">{!! $e['timing']['answer'] !!}</p>
-        <p class="hint">Page visits by day and hour. Darker means more visits.</p>
         @php
             $days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
             $hourName = fn ($h) => $h === 0 ? '12 AM' : ($h === 12 ? '12 PM' : ($h % 12).($h < 12 ? ' AM' : ' PM'));
@@ -767,9 +756,9 @@
 
     <div class="row-2">
         <div class="card-panel">
-            <h3 class="q">Which announcements reached the most students?</h3>
+            <h3 class="q">Which announcements reached the most students?
+                <i class="fas fa-circle-info info" tabindex="0" role="img" aria-label="Reach counts devices where the announcement stayed on screen for at least a second." title="Reach counts devices where the announcement stayed on screen for at least a second."></i></h3>
             <p class="a">{!! $e['announcements']['answer'] !!}</p>
-            <p class="hint">Reach = devices where the announcement stayed on screen for a second. Top 8 in this period.</p>
             @php $anMax = max(1, collect($e['announcements']['rows'])->max('views')); @endphp
             @foreach ($e['announcements']['rows'] as $row)
                 <div class="rank-row">
@@ -789,9 +778,9 @@
             @endforeach
         </div>
         <div class="card-panel">
-            <h3 class="q">How quickly do students see a new announcement?</h3>
+            <h3 class="q">How quickly do students see a new announcement?
+                <i class="fas fa-circle-info info" tabindex="0" role="img" aria-label="Views of announcements posted in this period, by time since posting." title="Views of announcements posted in this period, by time since posting."></i></h3>
             <p class="a">{!! $e['reach']['answer'] !!}</p>
-            <p class="hint">Share of all views of announcements posted in this period, by time since posting.</p>
             @if ($e['reach']['enough'])
                 <div class="chart-box short"><canvas id="engReachChart"></canvas></div>
             @endif
@@ -802,7 +791,6 @@
         <div class="card-panel">
             <h3 class="q">Which documents do students use?</h3>
             <p class="a">{!! $e['documents']['answer'] !!}</p>
-            <p class="hint">Previews and downloads of public documents. Top 8 in this period.</p>
             @php $docMax = max(1, collect($e['documents']['rows'])->max(fn ($r) => $r['previews'] + $r['downloads'])); @endphp
             @foreach ($e['documents']['rows'] as $row)
                 <div class="rank-row">
@@ -821,8 +809,12 @@
         <div class="card-panel">
             <h3 class="q">What are students searching for but not finding?</h3>
             <p class="a">{!! $e['searches']['answer'] !!}</p>
+            @php
+                // When every search found nothing, both lists are the same - show one.
+                $sameLists = collect($e['searches']['top'])->pluck('term')->all() === collect($e['searches']['missing'])->pluck('term')->all();
+            @endphp
             @if ($e['searches']['total'] > 0)
-                <div class="row-2" style="margin-top:14px;">
+                <div @class(['row-2' => ! $sameLists])>
                     <div>
                         <p class="section-title">Found nothing</p>
                         <table class="rtable">
@@ -835,7 +827,7 @@
                             </tbody>
                         </table>
                     </div>
-                    <div>
+                    <div @if ($sameLists) hidden @endif>
                         <p class="section-title">Searched most</p>
                         <table class="rtable">
                             <tbody>

@@ -11,6 +11,7 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="referrer" content="no-referrer">
   <title>@yield('title') · QSU Student Government</title>
+  @include('partials.favicon')
   {{-- What a chat app shows when the link is pasted: never the file's name. --}}
   <meta property="og:title" content="A file shared by QSU Student Government">
   <meta property="og:description" content="Open the link to view or download it.">
@@ -21,7 +22,7 @@
       --green-dark: #0B4128;
       --green: #1F6E4A;
       --ink: #1C3A2F;
-      --muted: #6b7a75;
+      --muted: #5b6a65;
       --border: #E4E9E6;
       --bg: #F3F6F4;
     }
@@ -95,7 +96,7 @@
     .gone h1 { font-family: 'Poppins', sans-serif; font-size: 1.3rem; margin-bottom: .5rem; }
     .gone p { color: var(--muted); font-size: .92rem; line-height: 1.5; }
 
-    .footer { margin-top: 1.75rem; font-size: .78rem; color: #9AA8A3; text-align: center; }
+    .footer { margin-top: 1.75rem; font-size: .78rem; color: #5b6a65; text-align: center; }
     .footer a { color: inherit; }
 
     @media (max-width: 480px) {

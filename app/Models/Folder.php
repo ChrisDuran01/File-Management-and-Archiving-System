@@ -2,6 +2,7 @@
 namespace App\Models;
 
 use App\Models\File;
+use App\Support\StudentPageCache;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
@@ -166,6 +167,7 @@ class Folder extends Model
 
         Document::whereIn('file_id', $fileIds)->update(['deleted_at' => now()]);
         File::whereIn('id', $fileIds)->update(['deleted_at' => now()]);
+        StudentPageCache::forget(); // the bulk update above skips model events
 
         $this->delete();
     }
@@ -184,5 +186,6 @@ class Folder extends Model
 
         File::withTrashed()->whereIn('id', $fileIds)->update(['deleted_at' => null]);
         Document::withTrashed()->whereIn('file_id', $fileIds)->update(['deleted_at' => null]);
+        StudentPageCache::forget(); // the bulk update above skips model events
     }
 }

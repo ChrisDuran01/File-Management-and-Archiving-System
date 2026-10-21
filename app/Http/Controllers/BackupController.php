@@ -16,6 +16,7 @@ use App\Notifications\BackupFailed;
 use App\Notifications\RestoreFailed;
 use App\Services\CloudFileUploader;
 use App\Services\FileResponse;
+use App\Support\StudentPageCache;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
@@ -477,6 +478,11 @@ class BackupController extends Controller
                 if (file_exists($tmp)) @unlink($tmp);
             }
             $this->tempFiles = [];
+
+            // Finished or failed part-way, the database may no longer match
+            // the student page's cached copy. rescue(): a problem here must
+            // not turn a finished restore into a failed job.
+            rescue(fn () => StudentPageCache::forget());
         }
     }
 

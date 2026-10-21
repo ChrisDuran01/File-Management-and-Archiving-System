@@ -1,4 +1,5 @@
 @extends($layout ?? 'Admin.home')
+@section('title', $folders->name)
 @section('content')
 
 @include('Admin.partials.theme')
@@ -137,6 +138,8 @@
     .file-icon.default { background: var(--primary-dim); color: var(--primary); }
 
     .file-name-text { font-weight: 500; color: var(--text-1); }
+    a.file-name-link { text-decoration: none; }
+    a.file-name-link:hover { color: var(--text-1); text-decoration: underline; }
     .file-ext-badge {
         font-family: 'DM Mono', monospace;
         font-size: .7rem;
@@ -252,7 +255,7 @@
     border-radius: 12px;
     padding: 2.5rem 1rem;
     text-align: center;
-    color: #888;
+    color: var(--text-3);
     font-size: 14px;
     cursor: pointer;
     transition: border-color 0.2s, background 0.2s;
@@ -302,10 +305,10 @@
     <div class="skel skel-text" style="width:150px; margin-bottom:1rem;"></div>
 
     <div class="page-header">
-        <h2>
+        <h1>
             <div class="skel skel-circle" style="width:20px; height:20px; display:inline-block; margin-right:8px; vertical-align:middle;"></div>
             <div class="skel skel-text" style="width:160px; display:inline-block; vertical-align:middle;"></div>
-        </h2>
+        </h1>
     </div>
 
     <div class="skel skel-text" style="width:70px; margin-bottom:20px;"></div>
@@ -354,7 +357,7 @@
 
 {{-- ── Header ─────────────────────────────────────────── --}}
 <div class="page-header">
-    <h2><i class="fas fa-folder-open me-2" style="color:var(--primary);"></i>{{ $folders->name }}</h2>
+    <h1><i class="fas fa-folder-open me-2" style="color:var(--primary);"></i>{{ $folders->name }}</h1>
 </div>
 
 @if($folders->is_archived)
@@ -450,10 +453,12 @@
 
                 <td  onclick="window.location='{{ route('files.preview', $file->id) }}'">
                     <div class="file-name-cell">
-                        <div class="file-icon {{ $iconClass }}">
+                        <div class="file-icon {{ $iconClass }}" aria-hidden="true">
                             <i class="fas {{ $iconName }}"></i>
                         </div>
-                        <span class="file-name-text">{{ $name }}</span>
+                        {{-- A real link, so the file can be opened from the keyboard
+                             too (the row's onclick only serves the mouse). --}}
+                        <a href="{{ route('files.preview', $file->id) }}" class="file-name-text file-name-link">{{ $name }}</a>
                         <span class="file-ext-badge">{{ $ext }}</span>
                         @include('Admin.partials.approval-badge', ['file' => $file])
                     </div>
@@ -464,9 +469,10 @@
                  {{-- ✅ ACTION MENU --}}
     <td style="text-align: right; position: relative; width: 50px; vertical-align: middle;">
     <div class="dropdown folder-menu-btn" style="display: inline-block;">
-                <button class="btn btn-sm" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false"
+                <button type="button" class="btn btn-sm" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false"
+                        aria-label="More actions for {{ $file->filename }}"
                         onclick="event.stopPropagation()">
-                    <i class="bi bi-three-dots-vertical"></i>
+                    <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end shadow-sm"
                     style="border-radius:10px; font-size:13px; min-width:130px;">
@@ -560,7 +566,7 @@
                 <td colspan="4">
                     <div class="empty-state">
                         <i class="fas fa-folder-open"></i>
-                        <p>This folder is empty. Upload a file to get started.</p>
+                        <p>No files yet. Click the <strong>+</strong> button to upload one.</p>
                     </div>
                 </td>
             </tr>
@@ -576,8 +582,8 @@
     <div class="modal-content">
 
       <div class="modal-header">
-        <h5 class="modal-title">File Access Control</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h5 class="modal-title">{{ $file->is_public ? 'Make private' : 'Make public' }}: {{ $file->filename }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
 
       <div class="modal-body">
@@ -623,11 +629,11 @@
     <div class="fab-options">
 
         <div class="fab-option" id="fabOptUpload">
-            <span class="fab-label">Upload files</span>
-            <button class="fab-mini upload"
+            <span class="fab-label" aria-hidden="true">Upload files</span>
+            <button type="button" class="fab-mini upload" aria-label="Upload files"
                     data-bs-toggle="modal" data-bs-target="#uploadModal"
                     onclick="closeFab()">
-                <i class="fas fa-upload"></i>
+                <i class="fas fa-upload" aria-hidden="true"></i>
             </button>
         </div>
 
@@ -641,8 +647,9 @@
         </div>-->
 
     </div>
-    <button class="fab-main" id="fabMain" onclick="toggleFab()">
-        <i class="fas fa-plus"></i>
+    <button type="button" class="fab-main" id="fabMain" onclick="toggleFab()"
+            aria-label="Add" aria-expanded="false" aria-controls="fabOptUpload">
+        <i class="fas fa-plus" aria-hidden="true"></i>
     </button>
 </div>
 
@@ -660,18 +667,22 @@
 
                 <div class="modal-header">
                     <h5 class="modal-title">
-                        <i class="fas fa-upload me-2 text-primary"></i>Upload Files
+                        <i class="fas fa-upload me-2 text-primary" aria-hidden="true"></i>Upload Files
                     </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
                 <div class="modal-body">
 
+                    {{-- role/tabindex + the keydown handler in setupDragDrop()
+                         make the drop zone work from the keyboard too. --}}
                     <div class="upload-zone"
                          id="uploadZone"
+                         role="button" tabindex="0"
+                         aria-label="Choose files to upload, or drag and drop them here"
                          onclick="document.getElementById('fileInput').click()">
 
-                        <i class="fas fa-cloud-upload-alt"></i>
+                        <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
                         <div style="font-weight:500; color:#555; margin-bottom:4px;">
                             Click to browse
                         </div>
@@ -688,6 +699,7 @@
 
                     <div id="fileNameList"
                          class="mt-2"
+                         aria-live="polite"
                          style="font-size:12px; color:#666;">
                     </div>
 
@@ -727,7 +739,7 @@
     <div style="background:#fff; border:1px solid #e5e5e5; border-radius:12px; box-shadow:0 8px 30px rgba(0,0,0,0.15); overflow:hidden;">
         <div style="padding:10px 14px; border-bottom:1px solid #f0f0f0; font-weight:600; font-size:13px; display:flex; justify-content:space-between; align-items:center;">
             <span><i class="fas fa-cloud-upload-alt me-1" style="color:#058028;"></i> Uploading</span>
-            <button type="button" id="uploadToastClose" style="border:none; background:none; color:#999; cursor:pointer; font-size:16px; line-height:1;" aria-label="Close">&times;</button>
+            <button type="button" id="uploadToastClose" style="border:none; background:none; color:var(--text-2); cursor:pointer; font-size:16px; line-height:1;" aria-label="Close">&times;</button>
         </div>
         <div id="uploadToastList" style="max-height:280px; overflow-y:auto;"></div>
     </div>
@@ -742,7 +754,7 @@
       {{-- Header --}}
       <div class="modal-header">
         <h5 class="modal-title">Rename File</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
 
       @php
@@ -761,9 +773,10 @@
             @csrf
 
             <div class="mb-3">
-                <label class="form-label">New Name</label>
+                <label class="form-label" for="newFileName{{ $file->id }}">New name</label>
                 <input type="text"
                        name="new_name"
+                       id="newFileName{{ $file->id }}"
                        class="form-control"
                        value="{{ $nameWithoutExt }}"
                        required>
@@ -775,7 +788,7 @@
                 </button>
 
                 <button type="submit" class="btn btn-primary">
-                    Rename
+                    Save name
                 </button>
             </div>
         </form>
@@ -794,7 +807,7 @@
 .upload-toast-row:last-child { border-bottom: none; }
 .upload-toast-row .row-top { display:flex; justify-content:space-between; font-size:12px; color:#333; margin-bottom:4px; gap:8px; }
 .upload-toast-row .row-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:200px; }
-.upload-toast-row .row-status { color:#888; white-space:nowrap; flex-shrink:0; }
+.upload-toast-row .row-status { color:var(--text-3); white-space:nowrap; flex-shrink:0; }
 .upload-toast-row .row-track { height:6px; border-radius:4px; background:#eee; overflow:hidden; }
 .upload-toast-row .row-bar { height:100%; width:0%; background:#058028; transition:width .15s ease; }
 .upload-toast-row .row-bar.is-indeterminate {
@@ -809,7 +822,7 @@
     to   { background-position: 0 0; }
 }
 .upload-toast-row .row-cancel-btn {
-    border: none; background: none; color: #aaa; cursor: pointer;
+    border: none; background: none; color: var(--text-2); cursor: pointer;
     font-size: 11px; padding: 0; flex-shrink: 0; line-height: 1;
 }
 .upload-toast-row .row-cancel-btn:hover { color: #c0392b; }
@@ -821,12 +834,14 @@ let fabOpen = false;
 function toggleFab() {
     fabOpen = !fabOpen;
     document.getElementById('fabMain').classList.toggle('open', fabOpen);
+    document.getElementById('fabMain').setAttribute('aria-expanded', fabOpen ? 'true' : 'false');
     document.querySelectorAll('.fab-option').forEach(o => o.classList.toggle('show', fabOpen));
 }
 
 function closeFab() {
     fabOpen = false;
     document.getElementById('fabMain').classList.remove('open');
+    document.getElementById('fabMain').setAttribute('aria-expanded', 'false');
     document.querySelectorAll('.fab-option').forEach(o => o.classList.remove('show'));
 }
 
@@ -924,6 +939,14 @@ window.addEventListener('drop', e => e.preventDefault());
         if (e.dataTransfer.files && e.dataTransfer.files.length) {
             input.files = e.dataTransfer.files;
             showFileNames(input);
+        }
+    });
+
+    // Enter or Space on the focused zone opens the file picker, like a button.
+    zone.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            input.click();
         }
     });
 })('uploadZone', 'fileInput');

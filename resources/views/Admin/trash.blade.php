@@ -1,4 +1,5 @@
 @extends($layout ?? 'Admin.home')
+@section('title', 'Trash')
 @section('content')
 
 @include('Admin.partials.theme')
@@ -22,10 +23,10 @@
     .item-name { font-weight:600; }
     .item-meta { font-size:.76rem; color:var(--text-3); }
 
-    .btn-flat { background:var(--brand); color:#fff; border:none; border-radius:var(--radius-sm); padding:7px 14px; font-size:.8rem; font-weight:600; cursor:pointer; text-decoration:none; display:inline-block; }
+    .btn-flat { background:var(--primary-fill); color:#fff; border:none; border-radius:var(--radius-sm); padding:7px 14px; font-size:.8rem; font-weight:600; cursor:pointer; text-decoration:none; display:inline-block; }
     .btn-flat.ghost { background:var(--card); color:var(--text-2); border:1.5px solid var(--border); }
     .btn-flat.danger { background:var(--danger-dim); color:var(--danger); border:1.5px solid #fecaca; }
-    .btn-flat.danger-solid { background:var(--danger); color:#fff; }
+    .btn-flat.danger-solid { background:var(--danger-fill); color:#fff; }
     .actions form { display:inline; }
 
     .type-icon { width:32px; height:32px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; font-size:13px; margin-right:10px; }
@@ -79,7 +80,7 @@
 
 <div class="page-header">
     <div>
-        <h2><i class="fas fa-trash-alt me-2" style="color:var(--brand);font-size:1.1rem;"></i>Trash</h2>
+        <h1><i class="fas fa-trash-alt me-2" style="color:var(--brand);font-size:1.1rem;"></i>Trash</h1>
         <p class="sub">
             Deleted items are kept here for {{ $retentionDays }} days, then removed permanently.
             {{ $total }} item(s) in the Trash.
@@ -125,7 +126,7 @@
                     <td class="actions" style="text-align:right;">
                         <form method="POST" action="{{ route('trash.restore', ['folder', $folder->id]) }}">
                             @csrf
-                            <button type="submit" class="btn-flat ghost"><i class="fas fa-undo me-1"></i> Restore</button>
+                            <button type="submit" class="btn-flat ghost"><i class="fas fa-undo me-1" aria-hidden="true"></i> Restore<span class="sr-only"> {{ $folder->name }}</span></button>
                         </form>
                         @if ($isSuperAdmin)
                         <form method="POST" action="{{ route('trash.destroy', ['folder', $folder->id]) }}"
@@ -134,7 +135,7 @@
                               data-confirm-ok="Delete forever">
                             @csrf
                             @method('DELETE')
-                            <button type="submit" class="btn-flat danger"><i class="fas fa-times me-1"></i> Delete forever</button>
+                            <button type="submit" class="btn-flat danger"><i class="fas fa-times me-1" aria-hidden="true"></i> Delete forever<span class="sr-only"> {{ $folder->name }}</span></button>
                         </form>
                         @endif
                     </td>
@@ -164,7 +165,7 @@
                     <td class="actions" style="text-align:right;">
                         <form method="POST" action="{{ route('trash.restore', ['file', $file->id]) }}">
                             @csrf
-                            <button type="submit" class="btn-flat ghost"><i class="fas fa-undo me-1"></i> Restore</button>
+                            <button type="submit" class="btn-flat ghost"><i class="fas fa-undo me-1" aria-hidden="true"></i> Restore<span class="sr-only"> {{ $file->filename }}</span></button>
                         </form>
                         @if ($isSuperAdmin)
                         <form method="POST" action="{{ route('trash.destroy', ['file', $file->id]) }}"
@@ -173,7 +174,7 @@
                               data-confirm-ok="Delete forever">
                             @csrf
                             @method('DELETE')
-                            <button type="submit" class="btn-flat danger"><i class="fas fa-times me-1"></i> Delete forever</button>
+                            <button type="submit" class="btn-flat danger"><i class="fas fa-times me-1" aria-hidden="true"></i> Delete forever<span class="sr-only"> {{ $file->filename }}</span></button>
                         </form>
                         @endif
                     </td>
@@ -204,7 +205,7 @@
                     <td class="actions" style="text-align:right;">
                         <form method="POST" action="{{ route('trash.restore', ['document', $document->id]) }}">
                             @csrf
-                            <button type="submit" class="btn-flat ghost"><i class="fas fa-undo me-1"></i> Restore</button>
+                            <button type="submit" class="btn-flat ghost"><i class="fas fa-undo me-1" aria-hidden="true"></i> Restore<span class="sr-only"> {{ $document->title }}</span></button>
                         </form>
                         @if ($isSuperAdmin)
                         <form method="POST" action="{{ route('trash.destroy', ['document', $document->id]) }}"
@@ -213,7 +214,7 @@
                               data-confirm-ok="Delete forever">
                             @csrf
                             @method('DELETE')
-                            <button type="submit" class="btn-flat danger"><i class="fas fa-times me-1"></i> Delete forever</button>
+                            <button type="submit" class="btn-flat danger"><i class="fas fa-times me-1" aria-hidden="true"></i> Delete forever<span class="sr-only"> {{ $document->title }}</span></button>
                         </form>
                         @endif
                     </td>

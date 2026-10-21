@@ -1,4 +1,5 @@
 @extends('SuperAdmin.homeSuperAdmin')
+@section('title', 'Backup Management')
 @section('content')
 
 @include('Admin.partials.theme')
@@ -96,7 +97,7 @@
     .bm-select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(5,128,40,.15); }
 
     .bm-btn-primary {
-        background: var(--primary);
+        background: var(--primary-fill);
         border: none;
         border-radius: var(--radius-sm);
         color: #fff;
@@ -451,7 +452,7 @@
 
 {{-- ── Page Header ── --}}
 <div class="page-header">
-    <h2>
+    <h1>
         <div class="page-title-icon">
             <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M8 2C5.24 2 3 4.24 3 7c0 .34.04.67.1.99C2.43 8.4 2 9.15 2 10c0 1.66 1.34 3 3 3h7c1.38 0 2.5-1.12 2.5-2.5 0-1.3-.99-2.37-2.26-2.49C12.08 5.09 10.24 2 8 2z"
@@ -461,7 +462,7 @@
             </svg>
         </div>
         Backup Management
-    </h2>
+    </h1>
 </div>
 
 {{-- ── Stat Cards ── --}}
@@ -491,29 +492,32 @@
 
 {{-- ── Settings Card ── --}}
 <div class="bm-settings-card">
-    <span class="bm-settings-label">Auto backup</span>
+    <span class="bm-settings-label" id="autoBackupLabel">Auto backup</span>
 
     <div class="bm-toggle-wrap">
         <form method="POST" action="{{ route('backup.toggle') }}" id="toggleForm">
             @csrf
             <label class="bm-toggle">
+                {{-- role="switch": read as "Auto backup, switch, on/off" --}}
                 <input type="checkbox"
                        name="backup_enabled"
                        id="backupToggle"
+                       role="switch"
+                       aria-labelledby="autoBackupLabel"
                        onchange="toggleAutoBackup(this)"
                        {{ $backupEnabled ? 'checked' : '' }}>
-                <span class="bm-slider"></span>
+                <span class="bm-slider" aria-hidden="true"></span>
             </label>
         </form>
-        <span class="bm-toggle-text">{{ $backupEnabled ? 'Enabled' : 'Disabled' }}</span>
+        <span class="bm-toggle-text" aria-hidden="true">{{ $backupEnabled ? 'Enabled' : 'Disabled' }}</span>
     </div>
 
     <div class="bm-sep"></div>
-    <span class="bm-settings-label" style="font-size:12px;color:var(--text-2);">Frequency</span>
+    <label for="backupFrequency" class="bm-settings-label" style="font-size:12px;color:var(--text-2);margin:0;">Frequency</label>
 
     <form method="POST" action="{{ route('backup.frequency') }}" id="freqForm">
         @csrf
-        <select name="frequency" class="bm-select" onchange="document.getElementById('freqForm').submit()">
+        <select name="frequency" id="backupFrequency" class="bm-select" onchange="document.getElementById('freqForm').submit()">
             <option value="daily"   {{ $frequency == 'daily'   ? 'selected' : '' }}>Every day</option>
             <option value="weekly"  {{ $frequency == 'weekly'  ? 'selected' : '' }}>Weekly</option>
             <option value="monthly" {{ $frequency == 'monthly' ? 'selected' : '' }}>Monthly</option>
@@ -545,9 +549,9 @@
 
 {{-- ── Backup Progress Modal ── --}}
 <div class="bm-progress-overlay" id="backupProgressModal">
-    <div class="bm-progress-card">
+    <div class="bm-progress-card" role="dialog" aria-modal="true" aria-labelledby="backupProgressTitle">
         <div class="bm-progress-header">
-            <div class="bm-progress-icon" id="backupProgressIcon">
+            <div class="bm-progress-icon" id="backupProgressIcon" aria-hidden="true">
                 <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M8 2C5.24 2 3 4.24 3 7c0 .34.04.67.1.99C2.43 8.4 2 9.15 2 10c0 1.66 1.34 3 3 3h7c1.38 0 2.5-1.12 2.5-2.5 0-1.3-.99-2.37-2.26-2.49C12.08 5.09 10.24 2 8 2z"
                           stroke="#058028" stroke-width="1.1" stroke-linejoin="round"/>
@@ -555,14 +559,15 @@
                           stroke="#058028" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
             </div>
-            <span>Creating backup</span>
+            <span id="backupProgressTitle">Creating backup</span>
         </div>
 
-        <div class="bm-progress-track">
+        <div class="bm-progress-track" aria-hidden="true">
             <div class="bm-progress-bar" id="backupProgressBar" style="width:0%;"></div>
         </div>
 
-        <div class="bm-progress-meta">
+        {{-- Read out as each step's message changes --}}
+        <div class="bm-progress-meta" role="status">
             <span class="bm-progress-msg" id="backupProgressMsg">Starting backup…</span>
             <span class="bm-progress-pct" id="backupProgressPct">0%</span>
         </div>
@@ -575,22 +580,22 @@
 
 {{-- ── Restore Progress Modal ── --}}
 <div class="bm-progress-overlay" id="restoreProgressModal">
-    <div class="bm-progress-card">
+    <div class="bm-progress-card" role="dialog" aria-modal="true" aria-labelledby="restoreProgressTitle">
         <div class="bm-progress-header">
-            <div class="bm-progress-icon">
+            <div class="bm-progress-icon" aria-hidden="true">
                 <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M2 8a6 6 0 1 1 1.76 4.24" stroke="#C0392B" stroke-width="1.1" stroke-linecap="round"/>
                     <path d="M2 4v4h4" stroke="#C0392B" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
             </div>
-            <span>Restoring system</span>
+            <span id="restoreProgressTitle">Restoring system</span>
         </div>
 
-        <div class="bm-progress-track">
+        <div class="bm-progress-track" aria-hidden="true">
             <div class="bm-progress-bar" id="restoreProgressBar" style="width:0%;background:#C0392B;"></div>
         </div>
 
-        <div class="bm-progress-meta">
+        <div class="bm-progress-meta" role="status">
             <span class="bm-progress-msg" id="restoreProgressMsg">Starting restore…</span>
             <span class="bm-progress-pct" id="restoreProgressPct">0%</span>
         </div>
@@ -607,21 +612,20 @@
 <div class="bm-filters-card">
     <div class="bm-filters-row">
         <div class="bm-filter-group" style="flex:2;min-width:160px;">
-            <span class="bm-filter-label">Search</span>
+            <label class="bm-filter-label" for="searchInput">Search</label>
             <div class="bm-input-wrap">
-                <svg class="bm-input-icon" viewBox="0 0 14 14" fill="none">
+                <svg class="bm-input-icon" viewBox="0 0 14 14" fill="none" aria-hidden="true">
                     <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" stroke-width="1.3"/>
                     <line x1="9" y1="9" x2="13" y2="13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
                 </svg>
                 <input class="bm-input" type="text" id="searchInput"
-                       placeholder="Search by name or status…"
-                       oninput="applyFilters()">
+                       placeholder="Search by name or status…">
             </div>
         </div>
 
         <div class="bm-filter-group">
-            <span class="bm-filter-label">Status</span>
-            <select class="bm-select" style="width:100%;" id="statusFilter" onchange="applyFilters()">
+            <label class="bm-filter-label" for="statusFilter">Status</label>
+            <select class="bm-select" style="width:100%;" id="statusFilter">
                 <option value="all">All status</option>
                 <option value="Success">Success</option>
                 <option value="Failed">Failed</option>
@@ -630,8 +634,8 @@
         </div>
 
         <div class="bm-filter-group">
-            <span class="bm-filter-label">Date range</span>
-            <select class="bm-select" style="width:100%;" id="dateFilter" onchange="applyFilters()">
+            <label class="bm-filter-label" for="dateFilter">Date range</label>
+            <select class="bm-select" style="width:100%;" id="dateFilter">
                 <option value="all">All time</option>
                 <option value="today">Today</option>
                 <option value="yesterday">Yesterday</option>
@@ -642,8 +646,8 @@
         </div>
 
         <div style="display:flex;align-items:flex-end;">
-            <button class="bm-btn-secondary" id="resetFilters" onclick="resetFilters()">
-                Reset
+            <button type="button" class="bm-btn-secondary" id="resetFilters" onclick="resetFilters()">
+                Clear filters
             </button>
         </div>
     </div>
@@ -700,8 +704,9 @@
 
                     <td style="text-align:right">
                         <div class="bm-action-cell">
-                            <a href="{{ route('backup.download', $backup->id) }}" class="bm-dl-btn">
-                                <svg viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <a href="{{ route('backup.download', $backup->id) }}" class="bm-dl-btn"
+                               aria-label="Download {{ $backup->name }}">
+                                <svg viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                                     <path d="M6 1v6M6 7L3.5 4.5M6 7l2.5-2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
                                     <path d="M1.5 9.5V10a.5.5 0 00.5.5h8a.5.5 0 00.5-.5v-.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
                                 </svg>
@@ -714,8 +719,9 @@
                                   data-confirm="The database and every file are replaced with the contents of “{{ $backup->name }}”.&#10;&#10;This OVERWRITES all current data and cannot be undone."
                                   data-confirm-ok="Restore system">
                                 @csrf
-                                <button type="submit" class="bm-restore-btn">
-                                    <svg viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <button type="submit" class="bm-restore-btn"
+                                        aria-label="Restore the system from {{ $backup->name }}">
+                                    <svg viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                                         <path d="M1.5 6a4.5 4.5 0 1 1 1.32 3.18" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
                                         <path d="M1.5 3v3h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
                                     </svg>
@@ -816,7 +822,9 @@ document.addEventListener('DOMContentLoaded', function () {
         applyFilters();
     };
 
-    searchInput.addEventListener('keyup', applyFilters);
+    // Wired here only (not also as oninput/onchange attributes, which ran
+    // every filter twice). 'input' rather than 'keyup' also catches a paste.
+    searchInput.addEventListener('input', applyFilters);
     statusFilter.addEventListener('change', applyFilters);
     dateFilter.addEventListener('change', applyFilters);
 

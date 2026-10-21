@@ -160,7 +160,7 @@ class EngagementReport
 
         $answer = 'Students visit most on '.$this->b(self::WEEKDAYS[$bestDay]).' and between '
             .$this->b($this->hourLabel($bestStart).' and '.$this->hourLabel($bestStart + 3))
-            .' ('.round($bestSum / $total * 100).'% of visits). Posting just before then puts announcements in front of the most students.';
+            .' ('.round($bestSum / $total * 100).'% of visits). Post just before then.';
 
         return ['grid' => $grid, 'max' => max(1, max(array_map('max', $grid))), 'enough' => true, 'answer' => $answer];
     }
@@ -202,16 +202,13 @@ class EngagementReport
         $off = (int) ($counts['notify_off'] ?? 0);
         $share = $visitTotals['loads'] > 0 ? (int) round($visitTotals['from_push'] / $visitTotals['loads'] * 100) : null;
 
-        $answer = $this->b(number_format($active)).' '.($active === 1 ? 'device gets' : 'devices get').' a notification for every new announcement and public document';
-        if ($on || $off) {
-            $answer .= ' ('.$on.' turned it on, '.$off.' turned it off in this period)';
-        }
-        $answer .= '.';
+        // Turned on / off counts are shown as numbers under the answer.
+        $answer = $this->b(number_format($active)).' '.($active === 1 ? 'device gets' : 'devices get').' alerts for new announcements and documents.';
 
         if ($visitTotals['from_push'] > 0) {
-            $answer .= ' '.$this->b($share.'%').' of visits came from tapping a notification.';
+            $answer .= ' '.$this->b($share.'%').' of visits came from tapping one.';
         } elseif ($active > 0 && $visitTotals['loads'] > 0) {
-            $answer .= ' No visit came from a notification tap in this period yet.';
+            $answer .= ' No visit came from an alert in this period yet.';
         }
 
         return ['active' => $active, 'on' => $on, 'off' => $off, 'from_push' => $visitTotals['from_push'], 'share' => $share, 'answer' => $answer];
@@ -295,9 +292,11 @@ class EngagementReport
         }
         $withinThreeDays = (int) round(array_sum(array_slice($counts, 0, 4)) / $total * 100);
 
-        $answer = 'Half of all views come '.$this->b(self::HALF_SEEN[$half]).' of posting, and '
-            .$this->b($withinThreeDays.'%').' within 3 days.'
-            .($withinThreeDays >= 75 ? ' Post at least 3 days before an event so most students see it in time.' : ' Students keep finding posts for days, so reminders still help.');
+        // Bucket 3 is "within 3 days" itself - don't say the same window twice.
+        $answer = 'Half of all views come '.$this->b(self::HALF_SEEN[$half]).' of posting'
+            .($half === 3 ? '' : ', and '.$this->b($withinThreeDays.'%').' within 3 days')
+            .'.'
+            .($withinThreeDays >= 75 ? ' Post at least 3 days before an event.' : ' Students keep finding posts for days, so reminders help.');
 
         return ['labels' => self::DELAY_LABELS, 'percent' => $percent, 'enough' => true, 'answer' => $answer];
     }

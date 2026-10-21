@@ -1,4 +1,5 @@
 @extends($layout ?? 'Admin.home')
+@section('title', 'Document Templates')
 @section('content')
 
 @include('Admin.partials.theme')
@@ -31,7 +32,7 @@
         cursor: pointer; transition: all .15s;
     }
     .pill-btn:hover { border-color: var(--primary); color: var(--primary); }
-    .pill-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .pill-btn.active { background: var(--primary-fill); border-color: var(--primary-fill); color: #fff; }
 
     /* Form fields */
     .field-group { margin-bottom: 16px; }
@@ -142,8 +143,8 @@
 
 <div class="page-header">
     <div>
-        <h2><i class="fas fa-file-signature me-2" style="color:var(--primary);font-size:1.1rem;"></i>Document Templates</h2>
-        <p class="sub">Pick a template, fill the form, and the system generates a formatted document — then saves it into the records list.</p>
+        <h1><i class="fas fa-file-signature me-2" style="color:var(--primary);font-size:1.1rem;"></i>Document Templates</h1>
+        <p class="sub">Fill in a template to generate a formatted PDF. Each one is saved under "Saved to records".</p>
     </div>
     <a href="{{ route('letterheads.index') }}" class="pill-btn" style="text-decoration:none;">
         <i class="fas fa-stamp me-1"></i> Manage letterheads
@@ -159,9 +160,10 @@
 @endphp
 
 <div class="card-panel">
-    <div class="pill-row" id="templatePills">
+    <div class="pill-row" id="templatePills" role="group" aria-label="Choose a template">
         @foreach($templates as $index => $tpl)
-            <button type="button" class="pill-btn {{ $index === 0 ? 'active' : '' }}" data-template-id="{{ $tpl->id }}">
+            <button type="button" class="pill-btn {{ $index === 0 ? 'active' : '' }}" data-template-id="{{ $tpl->id }}"
+                    aria-pressed="{{ $index === 0 ? 'true' : 'false' }}">
                 {{ $categoryLabels[$tpl->category] ?? ucfirst($tpl->category) }}
             </button>
         @endforeach
@@ -180,7 +182,7 @@
                 <div id="fieldsContainer"></div>
 
                 <div class="field-group" id="letterheadGroup" style="display:none;">
-                    <label><i class="fas fa-stamp me-1"></i> Letterhead</label>
+                    <label for="letterheadSelect"><i class="fas fa-stamp me-1" aria-hidden="true"></i> Letterhead</label>
                     <div class="d-flex gap-2 align-items-center">
                         <select name="letterhead_id" id="letterheadSelect" class="form-control form-select">
                             <option value="">— No letterhead (plain layout) —</option>
@@ -189,16 +191,16 @@
                             @endforeach
                         </select>
                         <a href="#" id="letterheadPreviewLink" target="_blank" class="pill-btn" style="display:none; text-decoration:none; white-space:nowrap;">
-                            <i class="fas fa-eye me-1"></i> Preview
+                            <i class="fas fa-eye me-1" aria-hidden="true"></i> Preview letterhead<span class="sr-only"> (opens in a new tab)</span>
                         </a>
                     </div>
                     @if($letterheads->isEmpty())
-                        <div class="field-hint">No letterheads saved yet — <a href="{{ route('letterheads.index') }}">add one</a> to dress up Resolutions.</div>
+                        <div class="field-hint">No letterheads saved yet — <a href="{{ route('letterheads.index') }}">add one</a> to use on Resolutions.</div>
                     @endif
                 </div>
 
                 <div class="field-group">
-                    <label><i class="fas fa-folder me-1"></i> Save to folder</label>
+                    <label for="folderSelect"><i class="fas fa-folder me-1" aria-hidden="true"></i> Save to folder</label>
                     <select name="folder_id" id="folderSelect" class="form-control form-select">
                         <option value="">— Choose a folder —</option>
                         @foreach($folders as $folder)
@@ -314,9 +316,11 @@ function buildForm(templateId) {
 
         const label = document.createElement('label');
         label.textContent = labelFor(key);
+        label.htmlFor = 'tplField-' + key;
         group.appendChild(label);
 
         const input = document.createElement(isLongField(key) ? 'textarea' : 'input');
+        input.id = 'tplField-' + key;
         input.name = `fields[${key}]`;
         input.dataset.key = key;
         input.className = 'form-control';
@@ -441,10 +445,18 @@ function suggestFolder() {
     }
 }
 
-document.querySelectorAll('.pill-btn').forEach(btn => {
+// Only the template choices: "Manage letterheads" and the letterhead
+// Preview link share the .pill-btn look, and clicking Preview used to run
+// this too - which emptied the form being filled in.
+const templatePills = document.querySelectorAll('#templatePills .pill-btn');
+templatePills.forEach(btn => {
     btn.addEventListener('click', () => {
-        document.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+        templatePills.forEach(b => {
+            b.classList.remove('active');
+            b.setAttribute('aria-pressed', 'false');
+        });
         btn.classList.add('active');
+        btn.setAttribute('aria-pressed', 'true');
         templateIdInput.value = btn.dataset.templateId;
         buildForm(btn.dataset.templateId);
     });

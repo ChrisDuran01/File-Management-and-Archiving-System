@@ -13,12 +13,12 @@
         position: fixed; right: 1.5rem; bottom: 1.5rem; z-index: 1090;
         display: flex; align-items: center; gap: 9px;
         padding: 11px 16px 11px 13px; border: none; border-radius: 999px;
-        background: var(--primary); color: #fff;
+        background: var(--primary-fill); color: #fff;
         font: 600 13px/1 'Inter', sans-serif; cursor: pointer;
         box-shadow: 0 6px 20px rgba(0,0,0,.18);
         transition: transform .15s ease, background .15s ease, box-shadow .15s ease;
     }
-    .hb-launcher:hover { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 10px 26px rgba(0,0,0,.22); }
+    .hb-launcher:hover { background: var(--primary-fill-hover); transform: translateY(-2px); box-shadow: 0 10px 26px rgba(0,0,0,.22); }
     .hb-launcher i { font-size: 1.15rem; }
     .hb-launcher.hb-hidden { display: none; }
 
@@ -71,7 +71,7 @@
 
     .hb-log { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
     .hb-msg { max-width: 85%; font-size: .82rem; line-height: 1.5; border-radius: 12px; padding: 9px 12px; word-wrap: break-word; }
-    .hb-msg.user { align-self: flex-end; background: var(--primary); color: #fff; border-bottom-right-radius: 4px; }
+    .hb-msg.user { align-self: flex-end; background: var(--primary-fill); color: #fff; border-bottom-right-radius: 4px; }
     .hb-msg.bot  { align-self: flex-start; background: var(--surface); color: var(--text-1); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
     .hb-msg.bot strong { font-weight: 600; }
     .hb-msg.bot ol, .hb-msg.bot ul { margin: 4px 0 0; padding-left: 18px; }
@@ -95,7 +95,7 @@
     .hb-form input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-dim); }
     .hb-form button {
         flex-shrink: 0; width: 38px; border: none; border-radius: 50%;
-        background: var(--primary); color: #fff; cursor: pointer; font-size: 1rem;
+        background: var(--primary-fill); color: #fff; cursor: pointer; font-size: 1rem;
     }
     .hb-form button:disabled { opacity: .5; cursor: default; }
 
@@ -205,7 +205,7 @@
     function greet() {
         log.innerHTML = '';
         if (!history.length) {
-            bubble('bot', "Hi! Ask me anything about using QSU-FMAS — folders, uploading, the scan inbox, archives, announcements, and so on.");
+            bubble('bot', "Ask how to do something in QSU-FMAS, for example how to archive a folder or make a file public.");
             return;
         }
         history.forEach(function (t) { bubble(t.role === 'model' ? 'bot' : 'user', t.text); });

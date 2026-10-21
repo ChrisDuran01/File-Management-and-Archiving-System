@@ -1,4 +1,5 @@
 @extends($layout ?? 'Admin.home')
+@section('title', 'Site Content')
 @section('content')
 
 @include('Admin.partials.theme')
@@ -57,7 +58,7 @@
     .hint { font-size: .76rem; color: var(--text-3); margin-top: 4px; }
 
     .btn-primary-flat {
-        background: var(--primary); color: #fff; border: none; border-radius: var(--radius-sm);
+        background: var(--primary-fill); color: #fff; border: none; border-radius: var(--radius-sm);
         padding: 10px 20px; font-size: .86rem; font-weight: 600; cursor: pointer;
     }
     .btn-primary-flat:hover { background: #145029; }
@@ -100,7 +101,7 @@
 
 <div class="page-header">
     <div>
-        <h2><i class="fas fa-file-alt me-2" style="color:var(--primary);font-size:1.1rem;"></i>Site Content</h2>
+        <h1><i class="fas fa-file-alt me-2" style="color:var(--primary);font-size:1.1rem;"></i>Site Content</h1>
         <p class="sub">The SG logo, QSU Hymn, Vision, and Mission shown on the public student dashboard. Any Admin or Officer can update these.</p>
     </div>
 </div>
@@ -119,8 +120,8 @@
         @endif
 
         <div class="field-group">
-            <label>Replace logo</label>
-            <input type="file" name="logo" class="form-control" accept="image/*">
+            <label for="site-logo">Replace logo</label>
+            <input id="site-logo" type="file" name="logo" class="form-control" accept="image/*">
         </div>
     </div>
 
@@ -135,8 +136,8 @@
         @endif
 
         <div class="field-group">
-            <label>Replace hero background</label>
-            <input type="file" name="hero_background" class="form-control" accept="image/*">
+            <label for="site-hero-background">Replace hero background</label>
+            <input id="site-hero-background" type="file" name="hero_background" class="form-control" accept="image/*">
             <p class="hint">A wide photo (e.g. campus/building) works best - it will be cropped to fill the banner on any screen size.</p>
         </div>
     </div>
@@ -144,15 +145,15 @@
     <div class="card-panel">
         <div class="panel-label"><i class="fas fa-music"></i> QSU Hymn</div>
         <div class="field-group">
-            <textarea name="hymn" class="form-control" rows="8" placeholder="Hymn lyrics...">{{ old('hymn', $settings->hymn) }}</textarea>
+            <textarea name="hymn" class="form-control" rows="8" placeholder="Hymn lyrics..." aria-label="QSU Hymn lyrics">{{ old('hymn', $settings->hymn) }}</textarea>
         </div>
 
         @if($settings->hymn_image_path)
             <img loading="lazy" decoding="async" src="{{ asset('storage/'.$settings->hymn_image_path) }}" class="image-preview" alt="Current hymn image">
         @endif
         <div class="field-group">
-            <label>Or upload an already-designed image instead</label>
-            <input type="file" name="hymn_image" class="form-control" accept="image/*">
+            <label for="site-hymn-image">Or upload an already-designed image instead<span class="sr-only"> of the hymn text</span></label>
+            <input id="site-hymn-image" type="file" name="hymn_image" class="form-control" accept="image/*">
             <p class="hint">If you upload an image, it replaces the text above on the public dashboard.</p>
         </div>
     </div>
@@ -160,15 +161,15 @@
     <div class="card-panel">
         <div class="panel-label"><i class="fas fa-eye"></i> Vision</div>
         <div class="field-group">
-            <textarea name="vision" class="form-control" rows="5" placeholder="Vision statement...">{{ old('vision', $settings->vision) }}</textarea>
+            <textarea name="vision" class="form-control" rows="5" placeholder="Vision statement..." aria-label="Vision statement">{{ old('vision', $settings->vision) }}</textarea>
         </div>
 
         @if($settings->vision_image_path)
             <img loading="lazy" decoding="async" src="{{ asset('storage/'.$settings->vision_image_path) }}" class="image-preview" alt="Current vision image">
         @endif
         <div class="field-group">
-            <label>Or upload an already-designed image instead</label>
-            <input type="file" name="vision_image" class="form-control" accept="image/*">
+            <label for="site-vision-image">Or upload an already-designed image instead<span class="sr-only"> of the vision text</span></label>
+            <input id="site-vision-image" type="file" name="vision_image" class="form-control" accept="image/*">
             <p class="hint">If you upload an image, it replaces the text above on the public dashboard.</p>
         </div>
     </div>
@@ -176,15 +177,15 @@
     <div class="card-panel">
         <div class="panel-label"><i class="fas fa-bullseye"></i> Mission</div>
         <div class="field-group">
-            <textarea name="mission" class="form-control" rows="5" placeholder="Mission statement...">{{ old('mission', $settings->mission) }}</textarea>
+            <textarea name="mission" class="form-control" rows="5" placeholder="Mission statement..." aria-label="Mission statement">{{ old('mission', $settings->mission) }}</textarea>
         </div>
 
         @if($settings->mission_image_path)
             <img loading="lazy" decoding="async" src="{{ asset('storage/'.$settings->mission_image_path) }}" class="image-preview" alt="Current mission image">
         @endif
         <div class="field-group">
-            <label>Or upload an already-designed image instead</label>
-            <input type="file" name="mission_image" class="form-control" accept="image/*">
+            <label for="site-mission-image">Or upload an already-designed image instead<span class="sr-only"> of the mission text</span></label>
+            <input id="site-mission-image" type="file" name="mission_image" class="form-control" accept="image/*">
             <p class="hint">If you upload an image, it replaces the text above on the public dashboard.</p>
         </div>
     </div>
@@ -195,14 +196,15 @@
 
         @forelse($officers as $term)
             <div class="field-group" style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+                {{-- alt=""/aria-hidden: the officer's name is the label right beside it --}}
                 @if($term->display_photo)
-                    <img loading="lazy" decoding="async" src="{{ asset('storage/'.$term->display_photo) }}" alt="{{ $term->user->name }}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
+                    <img loading="lazy" decoding="async" src="{{ asset('storage/'.$term->display_photo) }}" alt="" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
                 @else
-                    <div style="width:56px;height:56px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;">{{ strtoupper(substr($term->user->name, 0, 1)) }}</div>
+                    <div aria-hidden="true" style="width:56px;height:56px;border-radius:50%;background:var(--primary-fill);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;">{{ strtoupper(substr($term->user->name, 0, 1)) }}</div>
                 @endif
                 <div style="flex:1; min-width:220px;">
-                    <label>{{ $term->user->name }} <span class="hint">- {{ $term->position->position_name ?? '' }}{{ $term->site_photo ? ' (custom photo)' : '' }}</span></label>
-                    <input type="file" name="officer_photos[{{ $term->id }}]" class="form-control" accept="image/*">
+                    <label for="officerPhoto-{{ $term->id }}"><span class="sr-only">Photo for </span>{{ $term->user->name }} <span class="hint">- {{ $term->position->position_name ?? '' }}{{ $term->site_photo ? ' (custom photo)' : '' }}</span></label>
+                    <input type="file" name="officer_photos[{{ $term->id }}]" id="officerPhoto-{{ $term->id }}" class="form-control" accept="image/*">
                     @if($term->site_photo)
                         <label class="hint"><input type="checkbox" name="remove_officer_photo[]" value="{{ $term->id }}"> Remove custom photo (use profile picture)</label>
                     @endif
@@ -225,9 +227,9 @@
     @foreach($displayOfficers as $person)
         <div class="field-group" style="display:flex; align-items:center; gap:14px;">
             @if($person->photo)
-                <img loading="lazy" decoding="async" src="{{ asset('storage/'.$person->photo) }}" alt="{{ $person->name }}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
+                <img loading="lazy" decoding="async" src="{{ asset('storage/'.$person->photo) }}" alt="" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
             @else
-                <div style="width:56px;height:56px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;">{{ strtoupper(substr($person->name, 0, 1)) }}</div>
+                <div aria-hidden="true" style="width:56px;height:56px;border-radius:50%;background:var(--primary-fill);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;">{{ strtoupper(substr($person->name, 0, 1)) }}</div>
             @endif
             <div style="flex:1;"><strong>{{ $person->name }}</strong> <span class="hint">- {{ $person->position_name }}</span></div>
             <form action="{{ route('site-settings.display-officers.destroy', $person) }}" method="POST"
@@ -236,7 +238,7 @@
                   data-confirm-ok="Remove">
                 @csrf
                 @method('DELETE')
-                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i> Remove</button>
+                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash" aria-hidden="true"></i> Remove<span class="sr-only"> {{ $person->name }}</span></button>
             </form>
         </div>
     @endforeach
@@ -244,16 +246,16 @@
     <form action="{{ route('site-settings.display-officers.store') }}" method="POST" enctype="multipart/form-data" style="margin-top:12px;">
         @csrf
         <div class="field-group">
-            <label>Name</label>
-            <input type="text" name="name" class="form-control" required maxlength="255">
+            <label for="dispOfficer-name">Name</label>
+            <input id="dispOfficer-name" type="text" name="name" class="form-control" required maxlength="255">
         </div>
         <div class="field-group">
-            <label>Position</label>
-            <input type="text" name="position_name" class="form-control" required maxlength="255" placeholder="e.g. Auditor">
+            <label for="dispOfficer-position-name">Position</label>
+            <input id="dispOfficer-position-name" type="text" name="position_name" class="form-control" required maxlength="255" placeholder="e.g. Auditor">
         </div>
         <div class="field-group">
-            <label>Photo (optional)</label>
-            <input type="file" name="photo" class="form-control" accept="image/*">
+            <label for="dispOfficer-photo">Photo (optional)</label>
+            <input id="dispOfficer-photo" type="file" name="photo" class="form-control" accept="image/*">
         </div>
         <button type="submit" class="btn-primary-flat"><i class="fas fa-plus me-1"></i> Add officer</button>
     </form>

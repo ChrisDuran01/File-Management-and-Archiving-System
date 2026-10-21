@@ -1,4 +1,5 @@
 @extends($layout ?? 'Admin.home')
+@section('title', 'Scan Inbox')
 @section('content')
 
 @include('Admin.partials.theme')
@@ -86,14 +87,15 @@
 
 <div class="page-header">
     <div>
-        <h2><i class="fas fa-inbox me-2" style="color:var(--brand);font-size:1.1rem;"></i>Scan Inbox</h2>
+        <h1><i class="fas fa-inbox me-2" style="color:var(--brand);font-size:1.1rem;"></i>Scan Inbox</h1>
         <p class="sub">Files scanned into the watched folder land here. Review the proposed split, fill in the details, and file each document.</p>
     </div>
     <div style="display:flex; align-items:center; gap:8px;">
         <button type="button" id="checkNowBtn" class="btn-sm-flat">
-            <i class="fas fa-arrows-rotate"></i> Check inbox now
+            <i class="fas fa-arrows-rotate" aria-hidden="true"></i> Check inbox now
         </button>
-        <span id="checkNowMsg" style="font-size:.78rem; color:var(--text-3);"></span>
+        {{-- role="status": the result ("2 new scans found") is read out --}}
+        <span id="checkNowMsg" role="status" style="font-size:.78rem; color:var(--text-3);"></span>
     </div>
 </div>
 
@@ -138,15 +140,18 @@
                     <td data-field="updated_at" style="color:var(--text-3);font-size:.8rem;">{{ optional($batch->updated_at)->diffForHumans() }}</td>
                     <td>
                         <div class="row-actions">
+                            {{-- The file name in .sr-only tells the rows' identical
+                                 buttons apart for screen readers. --}}
                             <a class="btn-sm-flat review {{ ($batch->isReadyForReview() || $batch->isFailed()) ? '' : 'is-disabled' }}"
+                               @unless ($batch->isReadyForReview() || $batch->isFailed()) aria-disabled="true" tabindex="-1" @endunless
                                data-action="review" href="{{ route('documents.scans.review', $batch) }}">
-                                <i class="fas fa-scissors"></i> Review
+                                <i class="fas fa-scissors" aria-hidden="true"></i> Review<span class="sr-only"> {{ $batch->original_filename }}</span>
                             </a>
 
                             @if ($batch->isFailed())
                                 <form method="POST" action="{{ route('documents.scans.reprocess', $batch) }}" style="display:inline;">
                                     @csrf
-                                    <button type="submit" class="btn-sm-flat"><i class="fas fa-rotate-right"></i> Reprocess</button>
+                                    <button type="submit" class="btn-sm-flat"><i class="fas fa-rotate-right" aria-hidden="true"></i> Reprocess<span class="sr-only"> {{ $batch->original_filename }}</span></button>
                                 </form>
                             @endif
 
@@ -156,7 +161,7 @@
                                   data-confirm-ok="Discard">
                                 @csrf
                                 @method('DELETE')
-                                <button type="submit" class="btn-sm-flat danger"><i class="fas fa-trash"></i></button>
+                                <button type="submit" class="btn-sm-flat danger"><i class="fas fa-trash" aria-hidden="true"></i> Discard<span class="sr-only"> {{ $batch->original_filename }}</span></button>
                             </form>
                         </div>
                     </td>
@@ -197,6 +202,14 @@
         if (reviewLink) {
             const canReview = b.status === 'ready_for_review' || b.status === 'failed';
             reviewLink.classList.toggle('is-disabled', !canReview);
+            // .is-disabled only blocks the mouse; these keep Tab and Enter off it too.
+            if (canReview) {
+                reviewLink.removeAttribute('aria-disabled');
+                reviewLink.removeAttribute('tabindex');
+            } else {
+                reviewLink.setAttribute('aria-disabled', 'true');
+                reviewLink.setAttribute('tabindex', '-1');
+            }
         }
     }
 
@@ -217,7 +230,19 @@
             .catch(() => { /* transient - try again next tick */ });
     }
 
-    setInterval(poll, 3000);
+    // A tab in the background stops asking (this page asks every 3s);
+    // coming back to it asks straight away.
+    const POLL_MS = 3000;
+    let pollTimer = document.hidden ? null : setInterval(poll, POLL_MS);
+
+    document.addEventListener('visibilitychange', function () {
+        clearInterval(pollTimer);
+        pollTimer = null;
+        if (!document.hidden) {
+            poll();
+            pollTimer = setInterval(poll, POLL_MS);
+        }
+    });
 
     const checkNowBtn = document.getElementById('checkNowBtn');
     const checkNowMsg = document.getElementById('checkNowMsg');

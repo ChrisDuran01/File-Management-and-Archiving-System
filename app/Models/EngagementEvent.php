@@ -39,13 +39,28 @@ class EngagementEvent extends Model
 
     /**
      * Nothing is recorded for signed-in officers (their testing would skew
-     * the numbers) or for browsers that ask not to be tracked.
+     * the numbers), for browsers that ask not to be tracked, or for search
+     * engine and link-preview crawlers, which load the public pages (and
+     * may run their scripts) once the sitemap lists them.
      */
     public static function trackingAllowed(Request $request): bool
     {
         return ! $request->user()
             && $request->header('DNT') !== '1'
-            && $request->header('Sec-GPC') !== '1';
+            && $request->header('Sec-GPC') !== '1'
+            && ! self::isCrawler($request->userAgent());
+    }
+
+    /**
+     * "bot/" rather than just "bot" catches Googlebot/2.1, bingbot/2.0,
+     * Applebot/0.1 and friends without matching phone names like "CUBOT".
+     */
+    public static function isCrawler(?string $userAgent): bool
+    {
+        return (bool) preg_match(
+            '~bot/|bot;|crawler|spider|facebookexternalhit|Google-InspectionTool|Lighthouse|HeadlessChrome~i',
+            (string) $userAgent
+        );
     }
 
     /** Coarse device category from the user agent - the string itself is never stored. */

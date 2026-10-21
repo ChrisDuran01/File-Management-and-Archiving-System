@@ -20,7 +20,7 @@
     --text-body: #475569;
     --primary: #058028;
     --primary-dark: #046322;
-    --primary-dim: #e6f4ea;
+    --primary-dim: #ebf6ee;   /* green text on it is 4.6:1 (WCAG AA) */
     --warning: #92400e;
     --warning-dim: #fff7e6;
     --danger: #b42318;

@@ -1,4 +1,5 @@
 @extends('SuperAdmin.homeSuperAdmin')
+@section('title', 'Edit Officer')
 
 @section('content')
 
@@ -25,25 +26,25 @@
 <div class="container card p-4 skel-real">
     @include('Admin.partials.back-link', ['backTo' => route('officers.index'), 'backLabel' => 'Officers'])
 
-    <div class="page-header"><h2>Edit Officer</h2></div>
+    <div class="page-header"><h1>Edit Officer</h1></div>
 
     <form action="{{ route('officers.update', $term->id) }}" method="POST">
         @csrf
         @method('PUT')
 
         <div class="mb-3">
-            <label>Name</label>
-            <input type="text" name="name" class="form-control" value="{{ $user->name }}">
+            <label for="officer-name">Name</label>
+            <input id="officer-name" type="text" name="name" class="form-control" value="{{ $user->name }}">
         </div>
 
         <div class="mb-3">
-            <label>Email</label>
-            <input type="email" name="email" class="form-control" value="{{ $user->email }}">
+            <label for="officer-email">Email</label>
+            <input id="officer-email" type="email" name="email" class="form-control" value="{{ $user->email }}">
         </div>
 
         <div class="mb-3">
-            <label>Position</label>
-            <select name="position_id" class="form-control">
+            <label for="officer-position-id">Position</label>
+            <select id="officer-position-id" name="position_id" class="form-control">
                 @foreach ($positions as $position)
                     <option value="{{ $position->id }}"
                         {{ $term->position_id == $position->id ? 'selected' : '' }}>

@@ -17,10 +17,12 @@
         --card: #ffffff;
         --border: #e8eaf0;
 
-        /* text */
+        /* text - every level is at least 4.5:1 (WCAG AA) on --card,
+           --surface and --primary-dim; --text-3 is the lightest gray
+           allowed for anything a person has to read */
         --text-1: #111827;
-        --text-2: #6b7280;
-        --text-3: #9ca3af;
+        --text-2: #4b5563;
+        --text-3: #646b78;
 
         /* the one accent */
         --primary: #058028;
@@ -28,9 +30,17 @@
         --primary-dim: #e9f5ee;
         --brand: #058028;
 
+        /* Backgrounds of filled controls that carry white text (buttons,
+           active pills, the user's chat bubble). Kept apart from --primary /
+           --danger because in dark mode those are bright for use as TEXT
+           on near-black, and white text on them fails contrast. */
+        --primary-fill: #058028;
+        --primary-fill-hover: #046322;
+        --danger-fill: #c81e1e;
+
         /* semantic (danger is the only other saturated color) */
-        --danger: #dc2626;   --danger-dim: #fef2f2;
-        --red: #dc2626;      --red-dim: #fef2f2;
+        --danger: #c81e1e;   --danger-dim: #fef2f2;
+        --red: #c81e1e;      --red-dim: #fef2f2;
         --success: #058028;  --success-dim: #e9f5ee;  --success-text: #046322;
         --warning: #b45309;  --warning-dim: #fffbeb;
         --amber: #b45309;    --amber-dim: #fffbeb;
@@ -65,13 +75,16 @@
     /* ===== Page header =====
        One shared contract for every Admin/SuperAdmin page's title block:
        <div class="page-header">
-           <div><h2>Title</h2><p class="sub">Optional one-line description</p></div>
+           <div><h1>Title</h1><p class="sub">Optional one-line description</p></div>
            {{-- optional action buttons/links --}}
        </div>
        Previously every page redeclared this with its own values (some as
        an h2, some h4, some a bare .page-title span, spacing anywhere from
        -15px to 24px) - centralizing it here is what makes every page's
-       header look and space the same without each one hand-maintaining it. */
+       header look and space the same without each one hand-maintaining it.
+       The title is the page's one <h1> (its main heading for screen
+       readers); the page's 'title' section uses the same words, so its
+       browser tab matches. */
     .page-header {
         display: flex;
         align-items: flex-start;
@@ -80,7 +93,7 @@
         gap: 12px;
         margin-bottom: 20px;
     }
-    .page-header h2 {
+    .page-header h1 {
         display: flex;
         align-items: center;
         gap: 8px;
@@ -92,8 +105,8 @@
     }
     .page-header .sub { font-size: .85rem; color: var(--text-2); margin: 0; }
 
-    /* Optional icon chip inside a page-header h2, e.g.
-       <h2><div class="page-title-icon"><svg>...</svg></div> Dashboard</h2> */
+    /* Optional icon chip inside a page-header h1, e.g.
+       <h1><div class="page-title-icon"><svg>...</svg></div> Dashboard</h1> */
     .page-title-icon {
         width: 32px;
         height: 32px;
@@ -135,17 +148,17 @@
 
     /* ===== Buttons ===== */
     .btn-flat {
-        background: var(--primary); color: #fff; border: none;
+        background: var(--primary-fill); color: #fff; border: none;
         border-radius: var(--radius-sm); padding: 9px 18px;
         font-size: .85rem; font-weight: 600; cursor: pointer;
         text-decoration: none; display: inline-block;
         transition: background .15s;
     }
-    .btn-flat:hover { background: var(--primary-dark); color: #fff; }
+    .btn-flat:hover { background: var(--primary-fill-hover); color: #fff; }
     .btn-flat.ghost { background: var(--card); color: var(--text-2); border: 1.5px solid var(--border); }
     .btn-flat.ghost:hover { background: var(--surface); color: var(--text-1); }
     .btn-flat.danger { background: var(--danger-dim); color: var(--danger); border: 1.5px solid #fecaca; }
-    .btn-flat.danger-solid { background: var(--danger); color: #fff; }
+    .btn-flat.danger-solid { background: var(--danger-fill); color: #fff; }
 
     /* ===== Generic data table ===== */
     .data-table { width: 100%; border-collapse: collapse; font-size: .86rem; }
@@ -164,7 +177,7 @@
         border-radius: 20px; background: var(--primary-dim); color: var(--primary-dark);
         display: inline-block;
     }
-    .chip.neutral { background: #f1f5f9; color: #64748b; }
+    .chip.neutral { background: #f1f5f9; color: #526071; }
     .chip.danger { background: var(--danger-dim); color: var(--danger); }
     .chip.warning { background: var(--warning-dim); color: var(--warning); }
 
@@ -216,9 +229,24 @@
     .skel-circle { border-radius: 50%; }
 
     /* Bootstrap accents that should follow the theme */
-    .btn-primary { background-color: var(--primary); border-color: var(--primary); }
-    .btn-primary:hover, .btn-primary:focus, .btn-primary:active { background-color: var(--primary-dark) !important; border-color: var(--primary-dark) !important; }
+    .btn-primary { background-color: var(--primary-fill); border-color: var(--primary-fill); }
+    .btn-primary:hover, .btn-primary:focus, .btn-primary:active { background-color: var(--primary-fill-hover) !important; border-color: var(--primary-fill-hover) !important; }
     .text-primary { color: var(--primary) !important; }
+    /* Bootstrap's yellow (#ffc107) is 1.6:1 on white - unreadable as text
+       ("Archive" and "Make Public" in the file menus use it). */
+    .text-warning { color: var(--warning) !important; }
+
+    /* Keyboard focus is always visible - several custom buttons reset
+       outline to none, which left keyboard users with no position. */
+    :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+    /* Text only screen readers hear, e.g. a file's name added to a
+       repeated "Restore" button. Same as Bootstrap's .visually-hidden. */
+    .sr-only {
+        position: absolute !important; width: 1px !important; height: 1px !important;
+        padding: 0 !important; margin: -1px !important; overflow: hidden !important;
+        clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important;
+    }
     a { color: var(--primary); }
     a:hover { color: var(--primary-dark); }
 
@@ -241,13 +269,18 @@
         /* text */
         --text-1: #ededec;
         --text-2: #a1a09a;
-        --text-3: #706f6c;
+        --text-3: #8a8984;
 
         /* the one accent - kept clean on the warm black */
         --primary: #35b14a;
         --primary-dark: #45c25a;
         --primary-dim: #13251a;
         --brand: #35b14a;
+
+        /* deeper fills so white button text stays readable (5:1+) */
+        --primary-fill: #1e7b34;
+        --primary-fill-hover: #1a7230;
+        --danger-fill: #c62828;
 
         /* semantics */
         --danger: #f75b4e;   --danger-dim: #241311;

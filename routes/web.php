@@ -27,6 +27,7 @@ use App\Http\Controllers\HelpBotController;
 use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\OfficerAppController;
 use App\Http\Controllers\ShareLinkController;
+use App\Http\Controllers\SeoController;
 
 /*
 |--------------------------------------------------------------------------
@@ -60,6 +61,24 @@ Route::get('stuDashboard', [StudentController::class, 'dashboard'])->name('stude
 Route::get('/files/{id}/previewStudentDashboard', [StudentController::class, 'previewStudentDashboard'])->name('files.previewStudentDashboard');
 Route::get('/announcements/{announcement}/download', [AnnouncementController::class, 'download'])->name('announcements.download');
 Route::get('/announcements/images/{image}', [AnnouncementController::class, 'image'])->name('announcements.image');
+
+// One announcement on its own page, for sharing as a link and for search
+// engines. Under stuDashboard so the installed app opens it in its own
+// window. The slug is optional: a wrong or missing one redirects.
+Route::get('stuDashboard/announcements/{announcement}/{slug?}', [StudentController::class, 'announcement'])->name('student.announcement');
+
+// For search engines and link previews (Messenger, Facebook): robots.txt
+// is served from here, not public/, so its Sitemap line has the real domain.
+Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->name('sitemap');
+Route::get('/robots.txt', [SeoController::class, 'robots'])->name('robots');
+Route::get('/share-card.jpg', [SeoController::class, 'shareCard'])->name('share.card');
+
+// The browser-tab icon, made from the Site Settings logo (App\Services\Favicon);
+// public/ has no favicon.ico, so requests reach this. Not held back by the
+// change-password and privacy-notice redirects, or the tabs of those very
+// pages would have no icon.
+Route::get('/favicon.ico', [SeoController::class, 'favicon'])->name('favicon')
+    ->withoutMiddleware([\App\Http\Middleware\EnsurePasswordIsChanged::class, \App\Http\Middleware\EnsurePrivacyNoticeAcknowledged::class]);
 
 // Browser push opt-in from the student page. Anonymous by design (no account),
 // so it's throttled and the controller only accepts known push-service hosts.

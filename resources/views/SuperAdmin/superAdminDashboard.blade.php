@@ -1,4 +1,5 @@
 @extends('SuperAdmin.homeSuperAdmin')
+@section('title', 'Dashboard')
 @section('content')
 
 @include('Admin.partials.theme')
@@ -247,8 +248,8 @@
 {{-- ── Header ── --}}
 <div class="page-header">
     <div>
-        <h2>{{ $greeting }}</h2>
-        <p class="sub">Here's what's happening in Libris · {{ now()->format('l, F j, Y') }}</p>
+        <h1>{{ $greeting }}</h1>
+        <p class="sub">{{ now()->format('l, F j, Y') }}</p>
     </div>
     <div class="dash-actions">
         <a href="/reports" class="btn-flat ghost"><i class="bi bi-bar-chart-line"></i> Reports</a>
@@ -334,9 +335,8 @@
             <header class="dash-card-head">
                 <div>
                     <h3>Recent activity</h3>
-                    <p>What officers did most recently</p>
                 </div>
-                <a href="/activityLogs" class="dash-card-link">View all</a>
+                <a href="/activityLogs" class="dash-card-link">View all activity</a>
             </header>
             <div class="dash-card-body is-list">
                 @if ($activities->isNotEmpty())
@@ -364,7 +364,6 @@
             <header class="dash-card-head">
                 <div>
                     <h3>Recent uploads</h3>
-                    <p>The latest files added to Libris</p>
                 </div>
                 <a href="/folders" class="dash-card-link">Open folders</a>
             </header>
@@ -397,7 +396,6 @@
             <header class="dash-card-head">
                 <div>
                     <h3>Needs attention</h3>
-                    <p>Things someone should look at</p>
                 </div>
                 @if (count($attention))
                     <span class="badge-soft {{ $attentionLevel }}">{{ count($attention) }}</span>
@@ -454,7 +452,6 @@
             <header class="dash-card-head">
                 <div>
                     <h3>Storage by type</h3>
-                    <p>Where the space goes</p>
                 </div>
             </header>
             <div class="dash-card-body">
@@ -476,7 +473,7 @@
                     <h3>Student page</h3>
                     <p>Last 7 days, anonymous</p>
                 </div>
-                <a href="/reports?tab=engagement" class="dash-card-link">Details</a>
+                <a href="/reports?tab=engagement" class="dash-card-link">See student engagement</a>
             </header>
             <div class="dash-card-body">
                 <div class="mini-grid">

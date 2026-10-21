@@ -1,4 +1,5 @@
 @extends('Admin.home')
+@section('title', filled($query) ? 'Search: "'.$query.'"' : 'Search Results')
 @section('content')
 
 @include('Admin.partials.theme')
@@ -246,7 +247,7 @@
 {{-- ── Header ──────────────────────────────────────────── --}}
 <div class="page-header">
     <div>
-        <h2><i class="fas fa-search me-2" style="color:var(--primary);font-size:1.1rem;"></i>Search Results</h2>
+        <h1><i class="fas fa-search me-2" style="color:var(--primary);font-size:1.1rem;"></i>Search Results</h1>
         <p class="sub">Results for <strong>"{{ $query }}"</strong></p>
     </div>
 </div>
@@ -351,7 +352,7 @@
         @endif
 
         {{-- ✅ Folder display --}}
-        <small style="color:#888; display:block; margin-top:4px;">
+        <small style="color:var(--text-3); display:block; margin-top:4px;">
             📁 {{ $file->folder->name ?? 'Root' }}
         </small>
 
@@ -453,7 +454,7 @@
             <span class="card-name">{{ $name }}</span>
             <span class="card-ext">{{ $ext }}</span>
 
-            <small style="color:#888; display:block; margin-top:4px; position:relative; z-index:1;">
+            <small style="color:var(--text-3); display:block; margin-top:4px; position:relative; z-index:1;">
                 <i class="fas fa-box-archive"></i> {{ $file->archive->folder_name }}
             </small>
 
@@ -486,7 +487,7 @@
             <div class="card-icon file"><i class="fas fa-file-lines"></i></div>
             <span class="card-name">{{ $document->title }}</span>
             @if($document->document_type)<span class="card-ext">{{ $document->document_type }}</span>@endif
-            <small style="color:#888; display:block; margin-top:4px;">
+            <small style="color:var(--text-3); display:block; margin-top:4px;">
                 @if($document->reference_no) {{ $document->reference_no }} &middot; @endif
                 {{ $document->folder->name ?? '—' }}
             </small>

@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#0f3d1f">
-    <meta name="description" content="Announcements, public documents and officers of the QSU Diffun Student Government.">
-    <title>QSU Student Government</title>
+    @include('Student.partials.seo')
+    @include('partials.favicon')
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     {{-- Installable as an app (optional - the website works the same without it). --}}

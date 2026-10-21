@@ -1,4 +1,5 @@
 @extends($layout ?? 'Admin.home')
+@section('title', 'Archives')
 @section('content')
 
 @include('Admin.partials.theme')
@@ -103,13 +104,17 @@
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        color: #888;
+        color: var(--text-2);
         font-size: 15px;
         transition: background 0.12s;
         opacity: 0;
         transition: opacity 0.15s, background 0.12s;
     }
     .archive-card:hover .card-menu-btn { opacity: 1; }
+    /* Also when the keyboard is on the card or its menu, and always on
+       touch screens, which have no hover. */
+    .archive-card:focus-within .card-menu-btn { opacity: 1; }
+    @media (hover: none) { .card-menu-btn { opacity: 1; } }
     .card-menu-btn:hover { background: #f0f0f0; color: #444; }
 
     .card-dropdown {
@@ -163,7 +168,7 @@
     }
     .card-zip-name {
         font-size: 12px;
-        color: #999;
+        color: var(--text-3);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -202,7 +207,7 @@
 
     .card-date {
         font-size: 11px;
-        color: #aaa;
+        color: var(--text-3);
         display: flex;
         align-items: center;
         gap: 4px;
@@ -229,14 +234,14 @@
     }
     .fixity-ok { color: #27500a; }
     .fixity-failed { color: #791f1f; }
-    .fixity-none { color: #aaa; }
+    .fixity-none { color: var(--text-3); }
 
     /* ── Empty State ── */
     .empty-state {
         grid-column: 1 / -1;
         text-align: center;
         padding: 4rem 1rem;
-        color: #bbb;
+        color: var(--text-3);
     }
     .empty-state i { font-size: 3.5rem; display: block; margin-bottom: 12px; opacity: 0.3; }
     .empty-state p { font-size: 14px; }
@@ -354,7 +359,7 @@
 
     {{-- Page Header --}}
     <div class="page-header">
-        <h2>Archives</h2>
+        <h1>Archives</h1>
         <div class="d-flex align-items-center gap-2">
             <form action="{{ route('archives.runAutoArchive') }}" method="POST" class="d-flex align-items-center gap-2"
                   data-confirm-title="Run the auto-archive check?"
@@ -398,8 +403,9 @@
                 </div>
 
                 <div class="card-menu-wrap">
-                    <button class="card-menu-btn" onclick="toggleDropdown(this)" type="button">
-                        <i class="fas fa-ellipsis-v"></i>
+                    <button class="card-menu-btn" onclick="toggleDropdown(this)" type="button"
+                            aria-label="More actions for {{ $archive->folder_name }}" aria-expanded="false">
+                        <i class="fas fa-ellipsis-v" aria-hidden="true"></i>
                     </button>
 
                     <div class="card-dropdown">
@@ -535,7 +541,7 @@
                     @csrf
                     <button type="button" class="btn-action secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn-action warn">
-                        <i class="fas fa-undo-alt"></i> Confirm Restore
+                        <i class="fas fa-undo-alt" aria-hidden="true"></i> Restore folder
                     </button>
                 </form>
             </div>
@@ -566,7 +572,7 @@
                     @method('DELETE')
                     <button type="button" class="btn-action secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn-action danger">
-                        <i class="fas fa-trash"></i> Confirm Delete
+                        <i class="fas fa-trash" aria-hidden="true"></i> Delete archive
                     </button>
                 </form>
             </div>
@@ -577,18 +583,35 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     /* ── Dropdown toggle ── */
+    // aria-expanded on each menu button follows its menu, so screen readers
+    // hear "expanded"/"collapsed".
+    function closeCardMenu(menu) {
+        menu.classList.remove('open');
+        menu.previousElementSibling?.setAttribute('aria-expanded', 'false');
+    }
+
     function toggleDropdown(btn) {
         const menu = btn.nextElementSibling;
         document.querySelectorAll('.card-dropdown.open').forEach(m => {
-            if (m !== menu) m.classList.remove('open');
+            if (m !== menu) closeCardMenu(m);
         });
         menu.classList.toggle('open');
+        btn.setAttribute('aria-expanded', menu.classList.contains('open') ? 'true' : 'false');
     }
 
     document.addEventListener('click', function(e) {
         if (!e.target.closest('.card-menu-wrap')) {
-            document.querySelectorAll('.card-dropdown.open').forEach(m => m.classList.remove('open'));
+            document.querySelectorAll('.card-dropdown.open').forEach(closeCardMenu);
         }
+    });
+
+    // Escape closes an open card menu and returns focus to its button.
+    document.addEventListener('keydown', function(e) {
+        if (e.key !== 'Escape') return;
+        document.querySelectorAll('.card-dropdown.open').forEach(m => {
+            closeCardMenu(m);
+            m.previousElementSibling?.focus();
+        });
     });
 
     /* ── Restore trigger ── */

@@ -1,4 +1,5 @@
 @extends($layout ?? 'Admin.home')
+@section('title', $archive->folder_name)
 @section('content')
 
 @include('Admin.partials.theme')
@@ -11,7 +12,7 @@
         align-items: center;
         gap: 6px;
         font-size: 13px;
-        color: #888;
+        color: var(--text-2);
         text-decoration: none;
         margin-bottom: 1.25rem;
         transition: color 0.15s;
@@ -47,10 +48,11 @@
         font-weight: 600;
         color: #1a1a1a;
         margin: 0 0 3px;
+        line-height: inherit;
     }
     .archive-header-meta {
         font-size: 12px;
-        color: #aaa;
+        color: var(--text-3);
         display: flex;
         gap: 12px;
         flex-wrap: wrap;
@@ -105,7 +107,7 @@
     .empty-state {
         text-align: center;
         padding: 3rem 1rem;
-        color: #bbb;
+        color: var(--text-3);
     }
     .empty-state i { font-size: 2.5rem; display: block; margin-bottom: 10px; opacity: 0.4; }
 
@@ -154,7 +156,7 @@
     <div class="archive-header">
         <div class="archive-header-icon"><i class="fas fa-box-archive"></i></div>
         <div class="archive-header-info">
-            <p class="archive-header-name">{{ $archive->folder_name }}</p>
+            <h1 class="archive-header-name">{{ $archive->folder_name }}</h1>
             <div class="archive-header-meta">
                 <span><i class="fas fa-file-archive"></i> {{ $archive->zip_name }}</span>
                 @if($archive->school_year)
@@ -173,7 +175,7 @@
             <a href="{{ route('archives.previewFile', ['id' => $archive->id, 'filename' => $filename]) }}" class="file-row">
                 <span class="file-row-icon"><i class="fas fa-file"></i></span>
                 <span class="file-row-name">{{ $filename }}</span>
-                <span style="font-size:11px; color:#aaa; text-transform:uppercase;">{{ $ext }}</span>
+                <span style="font-size:11px; color:var(--text-3); text-transform:uppercase;">{{ $ext }}</span>
                 <i class="fas fa-chevron-right file-row-chevron"></i>
             </a>
         @empty

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\StudentPageCache;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -79,6 +80,7 @@ class Document extends Model
     public function moveToTrash(): void
     {
         File::where('id', $this->file_id)->update(['deleted_at' => now()]);
+        StudentPageCache::forget(); // the bulk update above skips model events
         $this->delete();
     }
 

@@ -5,6 +5,14 @@ rem Double-click this file, or run it from the project folder. Keep the window o
 
 cd /d "%~dp0"
 
+sc query qsu-fmas-queue >nul 2>&1
+if not errorlevel 1 (
+    echo The queue worker already runs as a Windows service ^(install-services.bat^).
+    echo To make it pick up code or .env changes: php artisan queue:restart
+    pause
+    exit /b
+)
+
 rem Find openssl.cnf next to the php.exe that is on PATH (XAMPP: php\extras\ssl).
 for /f "delims=" %%i in ('where php') do (
     if not defined PHPDIR set "PHPDIR=%%~dpi"

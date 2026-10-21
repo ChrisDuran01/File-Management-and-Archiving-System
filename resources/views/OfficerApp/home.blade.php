@@ -11,7 +11,7 @@
 <header class="app-bar">
     <a href="{{ route('app.account') }}" class="avatar" aria-label="Your account">{{ Str::upper(Str::substr(Auth::user()->name, 0, 1)) }}</a>
     <div class="app-bar-text" style="margin-left: 4px">
-        <div class="app-bar-kicker">Welcome back</div>
+        <div class="app-bar-kicker">Signed in as</div>
         <div class="app-bar-title">{{ Str::before(Auth::user()->name, ' ') }}</div>
     </div>
     <a href="{{ route('app.notifications') }}" class="icon-btn raised" aria-label="Notifications{{ $unread ? ', ' . $unread . ' unread' : '' }}">

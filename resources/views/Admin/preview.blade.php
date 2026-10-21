@@ -1,4 +1,5 @@
 @extends($layout ?? 'Admin.home')
+@section('title', $file->filename)
 
 @section('content')
 
@@ -73,7 +74,7 @@
     align-items: center;
     gap: 6px;
     font-size: 13px;
-    color: #888;
+    color: var(--text-2);
     text-decoration: none;
     margin-bottom: 1.25rem;
     transition: color 0.15s;
@@ -112,10 +113,11 @@
     overflow: hidden;
     text-overflow: ellipsis;
     margin: 0 0 3px;
+    line-height: inherit;
 }
 .file-header-meta {
     font-size: 12px;
-    color: #aaa;
+    color: var(--text-3);
     display: flex;
     gap: 12px;
     flex-wrap: wrap;
@@ -314,7 +316,7 @@
 }
 .preview-none p {
     font-size: 13px;
-    color: #999;
+    color: var(--text-3);
     margin: 0;
     max-width: 320px;
 }
@@ -328,7 +330,7 @@
     border-bottom: 1px solid #f0f0f0;
     background: #fafafa;
     font-size: 12px;
-    color: #999;
+    color: var(--text-3);
 }
 .preview-toolbar-actions { display: flex; gap: 8px; }
 .tb-btn {
@@ -402,7 +404,7 @@
 
         {{-- File details --}}
         <div class="file-header-info">
-            <p class="file-header-name">{{ $file->filename }}</p>
+            <h1 class="file-header-name">{{ $file->filename }}</h1>
 
             <div class="file-header-meta">
                 <span><i class="fas fa-tag"></i> {{ strtoupper($ext) }}</span>

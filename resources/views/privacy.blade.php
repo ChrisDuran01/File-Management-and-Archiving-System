@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Privacy Notice</title>
+  @include('partials.favicon')
   <style>
     :root { --ink:#111; --muted:#6b6b6b; --border:#e5e5e5; --bg:#fafafa; --card:#fff; --accent:#1F6E4A; --accent-ink:#fff; --overlay:rgba(0,0,0,.45); }
     :root { color-scheme:light; }

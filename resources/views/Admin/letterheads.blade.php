@@ -1,4 +1,5 @@
 @extends($layout ?? 'Admin.home')
+@section('title', 'Letterheads')
 @section('content')
 
 @include('Admin.partials.theme')
@@ -9,7 +10,7 @@
     * { box-sizing: border-box; }
     body { background: var(--surface); font-family: 'Inter', sans-serif; color: var(--text-1); }
 
-    .back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #888; text-decoration: none; margin-bottom: 1rem; }
+    .back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); text-decoration: none; margin-bottom: 1rem; }
     .back-link:hover { color: var(--primary); }
 
     .card-panel {
@@ -31,7 +32,7 @@
     .upload-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
 
     .btn-primary-flat {
-        background: var(--primary); color: #fff; border: none; border-radius: var(--radius-sm);
+        background: var(--primary-fill); color: #fff; border: none; border-radius: var(--radius-sm);
         padding: 10px 20px; font-size: .86rem; font-weight: 600; cursor: pointer;
     }
     .btn-primary-flat:hover { background: #046322; }
@@ -126,8 +127,8 @@
 
 <div class="page-header">
     <div>
-        <h2><i class="fas fa-stamp me-2" style="color:var(--primary);font-size:1.1rem;"></i>Letterheads</h2>
-        <p class="sub">Upload the border, logo, seal, and footer images used to dress up generated Resolutions. Any Admin or Officer can add and manage these.</p>
+        <h1><i class="fas fa-stamp me-2" style="color:var(--primary);font-size:1.1rem;"></i>Letterheads</h1>
+        <p class="sub">The border, logo, seal and footer images printed on generated Resolutions. Any Admin or Officer can add and manage these.</p>
     </div>
 </div>
 
@@ -139,37 +140,37 @@
         <div class="row">
             <div class="col-md-6">
                 <div class="field-group">
-                    <label>Letterhead name</label>
-                    <input type="text" name="name" class="form-control" placeholder="e.g. SG 2025-2026 Letterhead" required>
+                    <label for="lhNew-name">Letterhead name</label>
+                    <input id="lhNew-name" type="text" name="name" class="form-control" placeholder="e.g. SG 2025-2026 Letterhead" required>
                 </div>
             </div>
             <div class="col-md-6">
                 <div class="field-group">
-                    <label>University name</label>
-                    <input type="text" name="university_name" class="form-control" placeholder="QUIRINO STATE UNIVERSITY">
+                    <label for="lhNew-university-name">University name</label>
+                    <input id="lhNew-university-name" type="text" name="university_name" class="form-control" placeholder="QUIRINO STATE UNIVERSITY">
                 </div>
             </div>
             <div class="col-md-6">
                 <div class="field-group">
-                    <label>Office name</label>
-                    <input type="text" name="office_name" class="form-control" placeholder="OFFICE OF THE STUDENT GOVERNMENT">
+                    <label for="lhNew-office-name">Office name</label>
+                    <input id="lhNew-office-name" type="text" name="office_name" class="form-control" placeholder="OFFICE OF THE STUDENT GOVERNMENT">
                 </div>
             </div>
             <div class="col-md-6">
                 <div class="field-group">
-                    <label>Address</label>
-                    <input type="text" name="address" class="form-control" placeholder="Diffun, Quirino">
+                    <label for="lhNew-address">Address</label>
+                    <input id="lhNew-address" type="text" name="address" class="form-control" placeholder="Diffun, Quirino">
                 </div>
             </div>
         </div>
 
         <div class="field-group">
-            <label>Images</label>
-            <div class="upload-grid">
-                <div><label style="font-weight:400;">Border / frame</label><input type="file" name="border_image" class="form-control" accept="image/*"></div>
-                <div><label style="font-weight:400;">Logo</label><input type="file" name="logo" class="form-control" accept="image/*"></div>
-                <div><label style="font-weight:400;">Seal</label><input type="file" name="seal" class="form-control" accept="image/*"></div>
-                <div><label style="font-weight:400;">Footer badges</label><input type="file" name="footer_image" class="form-control" accept="image/*"></div>
+            <label id="lhNew-images-label">Images</label>
+            <div class="upload-grid" role="group" aria-labelledby="lhNew-images-label">
+                <div><label for="lhNew-border-image" style="font-weight:400;">Border / frame</label><input id="lhNew-border-image" type="file" name="border_image" class="form-control" accept="image/*"></div>
+                <div><label for="lhNew-logo" style="font-weight:400;">Logo</label><input id="lhNew-logo" type="file" name="logo" class="form-control" accept="image/*"></div>
+                <div><label for="lhNew-seal" style="font-weight:400;">Seal</label><input id="lhNew-seal" type="file" name="seal" class="form-control" accept="image/*"></div>
+                <div><label for="lhNew-footer-image" style="font-weight:400;">Footer badges</label><input id="lhNew-footer-image" type="file" name="footer_image" class="form-control" accept="image/*"></div>
             </div>
         </div>
 
@@ -208,27 +209,27 @@
                             @csrf @method('PUT')
                             <div class="row">
                                 <div class="col-md-6">
-                                    <div class="field-group"><label>Letterhead name</label>
-                                        <input type="text" name="name" class="form-control" value="{{ $lh->name }}" required></div>
+                                    <div class="field-group"><label for="lh-name-{{ $lh->id }}">Letterhead name</label>
+                                        <input id="lh-name-{{ $lh->id }}" type="text" name="name" class="form-control" value="{{ $lh->name }}" required></div>
                                 </div>
                                 <div class="col-md-6">
-                                    <div class="field-group"><label>University name</label>
-                                        <input type="text" name="university_name" class="form-control" value="{{ $lh->university_name }}"></div>
+                                    <div class="field-group"><label for="lh-university-name-{{ $lh->id }}">University name</label>
+                                        <input id="lh-university-name-{{ $lh->id }}" type="text" name="university_name" class="form-control" value="{{ $lh->university_name }}"></div>
                                 </div>
                                 <div class="col-md-6">
-                                    <div class="field-group"><label>Office name</label>
-                                        <input type="text" name="office_name" class="form-control" value="{{ $lh->office_name }}"></div>
+                                    <div class="field-group"><label for="lh-office-name-{{ $lh->id }}">Office name</label>
+                                        <input id="lh-office-name-{{ $lh->id }}" type="text" name="office_name" class="form-control" value="{{ $lh->office_name }}"></div>
                                 </div>
                                 <div class="col-md-6">
-                                    <div class="field-group"><label>Address</label>
-                                        <input type="text" name="address" class="form-control" value="{{ $lh->address }}"></div>
+                                    <div class="field-group"><label for="lh-address-{{ $lh->id }}">Address</label>
+                                        <input id="lh-address-{{ $lh->id }}" type="text" name="address" class="form-control" value="{{ $lh->address }}"></div>
                                 </div>
                             </div>
                             <div class="upload-grid" style="margin-bottom:14px;">
-                                <div><label style="font-weight:400;font-size:.78rem;">Border / frame</label><input type="file" name="border_image" class="form-control" accept="image/*"></div>
-                                <div><label style="font-weight:400;font-size:.78rem;">Logo</label><input type="file" name="logo" class="form-control" accept="image/*"></div>
-                                <div><label style="font-weight:400;font-size:.78rem;">Seal</label><input type="file" name="seal" class="form-control" accept="image/*"></div>
-                                <div><label style="font-weight:400;font-size:.78rem;">Footer badges</label><input type="file" name="footer_image" class="form-control" accept="image/*"></div>
+                                <div><label for="lh-border-image-{{ $lh->id }}" style="font-weight:400;font-size:.78rem;">Border / frame</label><input id="lh-border-image-{{ $lh->id }}" type="file" name="border_image" class="form-control" accept="image/*"></div>
+                                <div><label for="lh-logo-{{ $lh->id }}" style="font-weight:400;font-size:.78rem;">Logo</label><input id="lh-logo-{{ $lh->id }}" type="file" name="logo" class="form-control" accept="image/*"></div>
+                                <div><label for="lh-seal-{{ $lh->id }}" style="font-weight:400;font-size:.78rem;">Seal</label><input id="lh-seal-{{ $lh->id }}" type="file" name="seal" class="form-control" accept="image/*"></div>
+                                <div><label for="lh-footer-image-{{ $lh->id }}" style="font-weight:400;font-size:.78rem;">Footer badges</label><input id="lh-footer-image-{{ $lh->id }}" type="file" name="footer_image" class="form-control" accept="image/*"></div>
                             </div>
                             <button type="submit" class="btn-primary-flat"><i class="fas fa-save me-1"></i> Save changes</button>
                         </form>
@@ -236,18 +237,21 @@
                 </div>
 
                 <div class="lh-actions">
+                    {{-- .sr-only adds the letterhead's name, so each card's
+                         identical buttons can be told apart by ear. --}}
                     <a href="{{ route('letterheads.preview', $lh->id) }}" target="_blank" class="edit">
-                        <i class="fas fa-eye"></i> Preview
+                        <i class="fas fa-eye" aria-hidden="true"></i> Preview<span class="sr-only"> {{ $lh->name }} (opens in a new tab)</span>
                     </a>
-                    <button type="button" class="edit" onclick="document.getElementById('edit-{{ $lh->id }}').classList.toggle('show')">
-                        <i class="fas fa-pen"></i> Edit
+                    <button type="button" class="edit" aria-expanded="false" aria-controls="edit-{{ $lh->id }}"
+                            onclick="this.setAttribute('aria-expanded', document.getElementById('edit-{{ $lh->id }}').classList.toggle('show'))">
+                        <i class="fas fa-pen" aria-hidden="true"></i> Edit<span class="sr-only"> {{ $lh->name }}</span>
                     </button>
                     <form action="{{ route('letterheads.destroy', $lh->id) }}" method="POST"
                           data-confirm-title="Delete this letterhead?"
                           data-confirm="Templates using it will fall back to the plain layout. This cannot be undone."
                           data-confirm-ok="Delete">
                         @csrf @method('DELETE')
-                        <button type="submit" class="danger"><i class="fas fa-trash"></i> Delete</button>
+                        <button type="submit" class="danger"><i class="fas fa-trash" aria-hidden="true"></i> Delete<span class="sr-only"> {{ $lh->name }}</span></button>
                     </form>
                 </div>
             </div>

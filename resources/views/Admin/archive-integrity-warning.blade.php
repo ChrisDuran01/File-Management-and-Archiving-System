@@ -1,4 +1,5 @@
 @extends($layout ?? 'Admin.home')
+@section('title', 'Integrity check failed')
 @section('content')
 
 @include('Admin.partials.theme')
@@ -14,13 +15,13 @@
         border-radius: 12px; padding: 32px; box-shadow: 0 4px 16px rgba(179,38,30,0.08);
     }
     .warning-icon { font-size: 2.5rem; color: var(--danger); margin-bottom: 14px; }
-    .warning-panel h2 { font-size: 1.2rem; font-weight: 700; margin-bottom: 10px; color: var(--danger); }
+    .warning-panel h1 { font-size: 1.2rem; font-weight: 700; margin-bottom: 10px; color: var(--danger); }
     .warning-panel p { font-size: 0.9rem; color: var(--text-2); line-height: 1.6; margin-bottom: 10px; }
     .warning-panel .archive-name { font-weight: 600; color: var(--text-1); }
 
     .btn-row { display: flex; gap: 10px; margin-top: 22px; flex-wrap: wrap; }
     .btn-anyway {
-        background: var(--danger); color: #fff; border: none; border-radius: 8px; padding: 10px 18px;
+        background: var(--danger-fill); color: #fff; border: none; border-radius: 8px; padding: 10px 18px;
         font-size: 0.85rem; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
     }
     .btn-anyway:hover { background: #93201a; color: #fff; }
@@ -53,7 +54,7 @@
 
 <div class="warning-panel skel-real">
     <div class="warning-icon"><i class="fas fa-triangle-exclamation"></i></div>
-    <h2>Integrity check failed</h2>
+    <h1>Integrity check failed</h1>
     <p>
         @if ($archive->checksum)
             <span class="archive-name">{{ $archive->folder_name }}</span> ({{ $archive->zip_name }}) does not match

@@ -14,7 +14,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>QSU-FMAS</title>
+    {{-- Each page names itself with @section('title', 'Trash'), so its tab
+         reads "Trash · QSU-FMAS" and open tabs can be told apart. --}}
+    <title>
+        @hasSection('title')
+            @yield('title') · QSU-FMAS
+        @else
+            QSU-FMAS
+        @endif
+    </title>
+    @include('partials.favicon')
     {{-- Bootstrap CSS version MUST match the 5.3.0 JS bundle the pages load:
          the old 5.0.0-beta1 CSS made dropdown-menu-end menus open off-screen,
          because 5.3's JS positions static dropdowns via a [data-bs-popper]
@@ -50,7 +59,7 @@
            item itself uses --accent-dim/--first-color-dark instead (see
            .nav_link.active below), not these overlay tokens. */
         --sidebar-line: rgba(255, 255, 255, .16);
-        --sidebar-text: rgba(255, 255, 255, .72);
+        --sidebar-text: rgba(255, 255, 255, .92);   /* .72 was 3.4:1 on the green - .92 is 4.6:1 */
         --sidebar-text-strong: #ffffff;
         --sidebar-hover-bg: rgba(255, 255, 255, .10);
         --white-color: #F7F6FB;
@@ -87,8 +96,22 @@
         z-index: var(--z-fixed);
         transition: .5s;
     }
-    .header_toggle{ color: var(--nav-text); font-size: 1.35rem; cursor: pointer; transition: color .2s; }
+    .header_toggle{
+        display: flex; padding: 4px; border: 0; border-radius: 8px; background: none;
+        color: var(--nav-text); font-size: 1.35rem; cursor: pointer; transition: color .2s;
+    }
     .header_toggle:hover{ color: var(--nav-text-strong); }
+
+    /* "Skip to main content": first thing a keyboard user reaches, hidden
+       until it has focus. */
+    .skip-link{
+        position: fixed; top: 8px; left: 8px; z-index: 3000;
+        padding: 10px 16px; border-radius: 8px;
+        background: var(--first-color); color: #fff; font-weight: 600; font-size: .9rem;
+        transform: translateY(-150%); transition: transform .15s;
+    }
+    .skip-link:focus{ transform: none; color: #fff; }
+    main:focus{ outline: none; }
     .header_actions{ display: flex; align-items: center; gap: 2px; }
     .header_actions .header-search{ margin-right: 14px; }
     .theme-toggle-btn{ font-size: 1.2rem; }
@@ -127,9 +150,12 @@
     .notif-head button{ background: none; border: none; color: var(--first-color); font-size: .75rem; font-weight: 600; cursor: pointer; }
     .notif-list{ max-height: 360px; overflow-y: auto; }
     .notif-item{
-        display: flex; gap: 10px; padding: 11px 14px;
-        border-bottom: 1px solid #f2f4f8; cursor: pointer; transition: background .12s;
+        display: flex; gap: 10px; padding: 11px 14px; width: 100%;
+        border: 0; border-bottom: 1px solid #f2f4f8; background: none;
+        font: inherit; color: inherit; text-align: left;
+        cursor: pointer; transition: background .12s;
     }
+    .notif-body, .notif-title, .notif-when{ display: block; }
     .notif-item:hover{ background: var(--nav-hover-bg); }
     .notif-item:last-child{ border-bottom: none; }
     .notif-item.unread{ background: #e9f5ee; }
@@ -143,8 +169,9 @@
         font-size: .75rem; color: var(--nav-text); overflow: hidden;
         display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     }
-    .notif-when{ font-size: .68rem; color: #9aa3b2; margin-top: 2px; }
-    .notif-empty{ padding: 30px 14px; text-align: center; color: #9aa3b2; font-size: .8rem; }
+    .notif-item:focus-visible{ outline: 2px solid var(--first-color); outline-offset: -2px; }
+    .notif-when{ font-size: .68rem; color: #646b78; margin-top: 2px; }
+    .notif-empty{ padding: 30px 14px; text-align: center; color: #646b78; font-size: .8rem; }
 
     /* ===== SIDEBAR (minimalist: white, hairline border, one green accent) ===== */
     .l-navbar{
@@ -241,7 +268,6 @@
         letter-spacing: .09em;
         text-transform: uppercase;
         color: var(--sidebar-text);
-        opacity: .8;
         white-space: nowrap;
         overflow: hidden;
     }
@@ -262,13 +288,14 @@
     html.sidebar-expanded #header,
     html.sidebar-expanded #body-pd{ padding-left: calc(var(--nav-width) + 1rem); }
 
-    /* Collapsed sidebar is icons-only: every text element is hidden and
-       fades in slightly after the width animation once the sidebar expands
-       (see the expanded rules inside the media query below). Collapsed
-       section headers render as a short centered hairline instead of text. */
+    /* Collapsed sidebar is icons-only: every text element is see-through
+       and fades in slightly after the width animation once the sidebar
+       expands (see the expanded rules inside the media query below).
+       Opacity only, never visibility:hidden - hidden text would leave each
+       icon link with no name for a screen reader. Collapsed section
+       headers render as a short centered hairline instead of text. */
     .nav_name, .nav_logo-name, .user-info, .user-caret{
         opacity: 0;
-        visibility: hidden;
         transition: opacity .2s ease .12s;
     }
     .nav_section{ visibility: hidden; position: relative; }
@@ -316,12 +343,20 @@
         display: flex;
         align-items: center;
         gap: .65rem;
+        width: 100%;
         padding: .8rem .55rem .55rem;
+        border: 0;
         border-top: 1px solid var(--sidebar-line);
+        background: none;
+        color: inherit;
+        font: inherit;
+        text-align: left;
         cursor: pointer;
         transition: background .15s;
         border-radius: 8px;
     }
+    .user-profile:focus-visible{ outline: 2px solid #fff; outline-offset: -2px; }
+    .nav_link:focus-visible, .nav_logo:focus-visible{ outline: 2px solid #fff; outline-offset: -2px; }
     .user-profile:hover{ background: var(--sidebar-hover-bg); }
 
     .user-profile img{
@@ -335,6 +370,7 @@
 
     .user-info{ display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
     .user-name{
+        display: block;
         font-weight: 600;
         color: var(--sidebar-text-strong);
         font-size: 13px;
@@ -343,6 +379,7 @@
         text-overflow: ellipsis;
     }
     .user-role{
+        display: block;
         font-size: 11px;
         color: var(--sidebar-text);
         white-space: nowrap;
@@ -404,7 +441,6 @@
         #nav-bar.show .user-info, html.sidebar-expanded #nav-bar .user-info,
         #nav-bar.show .user-caret, html.sidebar-expanded #nav-bar .user-caret{
             opacity: 1;
-            visibility: visible;
         }
         #nav-bar.show .nav_section, html.sidebar-expanded #nav-bar .nav_section{ visibility: visible; }
         #nav-bar.show .nav_section::after, html.sidebar-expanded #nav-bar .nav_section::after{ display: none; }
@@ -446,35 +482,26 @@
     }
 </style>
 <body id="body-pd">
+    <a href="#main-content" class="skip-link">Skip to main content</a>
     <header class="header" id="header">
-        <div class="header_toggle"> <i class='bx bx-menu' id="header-toggle"></i> </div>
+        <button type="button" class="header_toggle" id="header-toggle"
+                aria-label="Expand menu" aria-expanded="false" aria-controls="nav-bar">
+            <i class='bx bx-menu' aria-hidden="true"></i>
+        </button>
 
         <div class="header_actions">
             @include('partials.header-search')
             @include('partials.theme-toggle')
 
-            <div class="notif-bell">
-                <button type="button" class="notif-btn" id="notifBtn" aria-label="Notifications">
-                    <i class='bx bx-bell'></i>
-                    <span class="notif-badge" id="notifBadge"></span>
-                </button>
-                <div class="notif-panel" id="notifPanel">
-                    <div class="notif-head">
-                        <span>Notifications</span>
-                        <button type="button" id="notifMarkAll">Mark all read</button>
-                    </div>
-                    <div class="notif-list" id="notifList">
-                        <div class="notif-empty">No notifications yet.</div>
-                    </div>
-                </div>
-            </div>
+            @include('partials.notification-bell')
         </div>
     </header>
     <div class="l-navbar" id="nav-bar">
-        <nav class="nav">
+        <nav class="nav" aria-label="Main menu">
             <div class="nav_top">
-                <a href="#" class="nav_logo">
-                    <img src="{{ asset('images/SG-logo.png') }}" alt="QSU-FMAS" class="nav_logo-icon"
+                {{-- alt="" because the name is written right beside it --}}
+                <a href="/superAdminDashboard" class="nav_logo">
+                    <img src="{{ asset('images/SG-logo.png') }}" alt="" class="nav_logo-icon"
                          onerror="this.onerror=null; this.src='https://placehold.co/64x64?text=SG';">
                     <span class="nav_logo-name">QSU-FMAS</span>
                 </a>
@@ -557,10 +584,30 @@
 
             <div class="user-menu">
 
+                {{-- The menu comes after its button so Tab reaches it next;
+                     CSS still opens it above the button. --}}
+                <button type="button" class="user-profile" id="profileToggle"
+                        aria-haspopup="true" aria-expanded="false" aria-controls="userDropdown">
+
+                    {{-- alt="" because the name is written right beside it --}}
+                    <img src="{{ Auth::user()->profile_photo
+                            ? asset('storage/'.Auth::user()->profile_photo)
+                            : 'https://ui-avatars.com/api/?name='.urlencode(Auth::user()->name) }}"
+                         alt="">
+
+                    <span class="user-info">
+                        <span class="user-name">{{ Auth::user()->name }}</span>
+                        <span class="user-role">Super Administrator</span>
+                    </span>
+
+                    <i class='bx bx-chevron-up user-caret' aria-hidden="true"></i>
+
+                </button>
+
                 <div class="user-dropdown" id="userDropdown">
 
                     <a href="/profile">
-                        <i class='bx bx-user'></i>
+                        <i class='bx bx-user' aria-hidden="true"></i>
                         Profile
                     </a>
 
@@ -568,28 +615,13 @@
                         @csrf
                         <a href="#"
                            class="signout"
+                           role="button"
                            onclick="event.preventDefault();
                                     document.getElementById('logout-form').submit();">
-                            <i class='bx bx-log-out'></i>
+                            <i class='bx bx-log-out' aria-hidden="true"></i>
                             Sign Out
                         </a>
                     </form>
-
-                </div>
-
-                <div class="user-profile" id="profileToggle">
-
-                    <img src="{{ Auth::user()->profile_photo
-                            ? asset('storage/'.Auth::user()->profile_photo)
-                            : 'https://ui-avatars.com/api/?name='.urlencode(Auth::user()->name) }}"
-                         alt="profile">
-
-                    <div class="user-info">
-                        <div class="user-name">{{ Auth::user()->name }}</div>
-                        <div class="user-role">Super Administrator</div>
-                    </div>
-
-                    <i class='bx bx-chevron-up user-caret'></i>
 
                 </div>
 
@@ -597,7 +629,9 @@
         </nav>
     </div>
 
+    <main id="main-content" tabindex="-1">
     @yield('content')
+    </main>
 
 <script>document.addEventListener("DOMContentLoaded", function(event) {
 
@@ -610,6 +644,13 @@ headerpd = document.getElementById(headerId)
 // Validate that all variables exist
 if(toggle && nav && bodypd && headerpd){
 
+const icon = toggle.querySelector('i')
+// The button says what it will do next, and aria-expanded says the state.
+const syncToggleLabel = (isExpanded) => {
+    toggle.setAttribute('aria-expanded', isExpanded ? 'true' : 'false')
+    toggle.setAttribute('aria-label', isExpanded ? 'Collapse menu' : 'Expand menu')
+}
+
 // Sync the real element classes to whatever was persisted, so the very
 // next click toggles from the correct baseline (CSS already painted this
 // state instantly via the sidebar-expanded class on <html>).
@@ -617,16 +658,17 @@ let expanded = false;
 try { expanded = localStorage.getItem('sidebarExpanded') === '1' } catch(e) {}
 if (expanded) {
     nav.classList.add('show')
-    toggle.classList.add('bx-x')
+    icon.classList.add('bx-x')
     bodypd.classList.add('body-pd')
     headerpd.classList.add('body-pd')
 }
+syncToggleLabel(expanded)
 
 toggle.addEventListener('click', ()=>{
 // show navbar
 nav.classList.toggle('show')
 // change icon
-toggle.classList.toggle('bx-x')
+icon.classList.toggle('bx-x')
 // add padding to body
 bodypd.classList.toggle('body-pd')
 // add padding to header
@@ -634,11 +676,15 @@ headerpd.classList.toggle('body-pd')
 
 // Persist so the expanded/collapsed state survives navigating to a new page
 const isExpanded = nav.classList.contains('show')
+syncToggleLabel(isExpanded)
 document.documentElement.classList.toggle('sidebar-expanded', isExpanded)
 try { localStorage.setItem('sidebarExpanded', isExpanded ? '1' : '0') } catch(e) {}
 })
 }
 }
+
+// Screen readers announce the highlighted menu item as the current page.
+document.querySelectorAll('.nav_link.active').forEach(l => l.setAttribute('aria-current', 'page'))
 
 showNavbar('header-toggle','nav-bar','body-pd','header')
 
@@ -660,91 +706,27 @@ linkColor.forEach(l=> l.addEventListener('click', colorLink))
     const profileToggle = document.getElementById("profileToggle");
     const userDropdown = document.getElementById("userDropdown");
 
+    const setUserMenu = function (open) {
+        userDropdown.classList.toggle("show", open);
+        profileToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    };
+
     profileToggle.addEventListener("click", function (e) {
         e.stopPropagation();
-        userDropdown.classList.toggle("show");
+        setUserMenu(!userDropdown.classList.contains("show"));
     });
 
     document.addEventListener("click", function () {
-        userDropdown.classList.remove("show");
+        setUserMenu(false);
     });
-</script>
 
-<script>
-// Notification bell: polls the JSON endpoint for the unread badge + recent
-// list (same pattern as the backup progress poller), marks items read on
-// click, then follows their link.
-(function () {
-    const btn = document.getElementById('notifBtn'),
-          panel = document.getElementById('notifPanel'),
-          list = document.getElementById('notifList'),
-          badge = document.getElementById('notifBadge'),
-          markAll = document.getElementById('notifMarkAll');
-    if (!btn || !panel || !list || !badge) return;
-
-    const csrf = document.querySelector('meta[name="csrf-token"]').content;
-
-    function esc(s) { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
-
-    function render(data) {
-        badge.textContent = data.unread > 99 ? '99+' : data.unread;
-        badge.classList.toggle('on', data.unread > 0);
-
-        if (!data.notifications.length) {
-            list.innerHTML = '<div class="notif-empty">No notifications yet.</div>';
-            return;
+    // Escape closes the menu and puts focus back on its button.
+    document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && userDropdown.classList.contains("show")) {
+            setUserMenu(false);
+            profileToggle.focus();
         }
-
-        list.innerHTML = data.notifications.map(n =>
-            '<div class="notif-item' + (n.read ? '' : ' unread') + '" data-id="' + esc(n.id) + '" data-link="' + esc(n.link) + '">' +
-                '<div class="notif-ico" style="background:' + esc(n.color) + '1a;color:' + esc(n.color) + ';"><i class="' + esc(n.icon) + '"></i></div>' +
-                '<div class="notif-body">' +
-                    '<div class="notif-title">' + esc(n.title) + '</div>' +
-                    '<div class="notif-msg">' + esc(n.message) + '</div>' +
-                    '<div class="notif-when">' + esc(n.when) + '</div>' +
-                '</div>' +
-            '</div>'
-        ).join('');
-    }
-
-    function poll() {
-        fetch("{{ route('notifications.index') }}", { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-            .then(r => r.json()).then(render).catch(() => {});
-    }
-
-    list.addEventListener('click', function (e) {
-        const item = e.target.closest('.notif-item');
-        if (!item) return;
-        fetch("{{ route('notifications.read') }}", {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
-            body: JSON.stringify({ id: item.dataset.id }),
-        }).finally(() => {
-            if (item.dataset.link && item.dataset.link !== '#') window.location = item.dataset.link;
-        });
     });
-
-    markAll.addEventListener('click', function () {
-        fetch("{{ route('notifications.read') }}", {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
-            body: '{}',
-        }).then(poll);
-    });
-
-    btn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        panel.classList.toggle('open');
-        if (panel.classList.contains('open')) poll();
-    });
-
-    document.addEventListener('click', function (e) {
-        if (!panel.contains(e.target)) panel.classList.remove('open');
-    });
-
-    poll();
-    setInterval(poll, 30000);
-})();
 </script>
 
 @include('partials.toasts')

@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Reset Password · QSU Student Government</title>
+  @include('partials.favicon')
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -51,7 +52,7 @@
       font-size: 0.8rem;
     }
     .req-list li {
-      color: #9ca3af;
+      color: #5b6a65;
       margin-bottom: 0.2rem;
       transition: color 0.15s;
     }
@@ -69,8 +70,6 @@
 
   <div class="change-card">
     <h3><i class="fas fa-lock-open me-2"></i>Reset Your Password</h3>
-    <p class="subtitle mb-4">Choose a new password for your account.</p>
-
     @if ($errors->any())
       <div class="alert alert-danger">
         <ul class="mb-0">
@@ -86,12 +85,12 @@
       <input type="hidden" name="token" value="{{ $token }}">
 
       <div class="mb-3">
-        <label class="form-label">Email address</label>
-        <input type="email" name="email" class="form-control" value="{{ old('email', $email) }}" required autofocus autocomplete="email">
+        <label for="pw-email" class="form-label">Email address</label>
+        <input id="pw-email" type="email" name="email" class="form-control" value="{{ old('email', $email) }}" required autofocus autocomplete="email">
       </div>
 
       <div class="mb-2">
-        <label class="form-label">New Password</label>
+        <label for="newPassword" class="form-label">New Password</label>
         <input type="password" name="password" id="newPassword" class="form-control" required minlength="8" autocomplete="new-password">
       </div>
 
@@ -103,8 +102,8 @@
       </ul>
 
       <div class="mb-4">
-        <label class="form-label">Confirm New Password</label>
-        <input type="password" name="password_confirmation" class="form-control" required minlength="8" autocomplete="new-password">
+        <label for="pw-password-confirmation" class="form-label">Confirm New Password</label>
+        <input id="pw-password-confirmation" type="password" name="password_confirmation" class="form-control" required minlength="8" autocomplete="new-password">
       </div>
 
       <button type="submit" class="btn-change">

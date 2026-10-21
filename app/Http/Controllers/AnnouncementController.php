@@ -212,10 +212,13 @@ class AnnouncementController extends Controller
             'images' => 'nullable|array|max:'.self::MAX_IMAGES,
             'images.*' => self::IMAGE_RULES,
             'remove_images' => 'nullable|array',
+            'hide_from_search' => 'nullable|boolean',
         ]);
 
         $data = $request->only(['title', 'body']);
         $data['body'] = $sanitizer->clean($data['body']);
+        // An unticked checkbox sends nothing, which means "show in search".
+        $data['hide_from_search'] = $request->boolean('hide_from_search');
 
         if (trim(strip_tags($data['body'])) === '') {
             throw \Illuminate\Validation\ValidationException::withMessages([

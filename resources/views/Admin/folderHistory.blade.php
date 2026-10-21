@@ -1,4 +1,5 @@
 @extends($layout ?? 'Admin.home')
+@section('title', 'School Year '.$year)
 @section('content')
 
 @include('Admin.partials.theme')
@@ -33,7 +34,7 @@
     align-items: center;
     gap: 10px;
     margin: 2rem 0 1rem;
-    color: #999;
+    color: var(--text-3);
     font-size: 13px;
     font-weight: 500;
     text-transform: uppercase;
@@ -79,7 +80,7 @@
     white-space: nowrap;
     max-width: 100%;
 }
-.file-meta { font-size: 11px; color: #aaa; margin-top: 2px; }
+.file-meta { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 
 /* ===== DARK MODE (most classes handled by partials/theme shared block) ===== */
 [data-theme="dark"] .folder-card,
@@ -118,7 +119,7 @@
 {{-- Page Header --}}
 <div class="page-header">
     <div>
-        <h2>School Year {{ $year }}</h2>
+        <h1>School Year {{ $year }}</h1>
         <p class="sub">Read-only view of folders and files stored under this school year</p>
     </div>
     <a href="{{ route('folders.index') }}" class="btn btn-light">

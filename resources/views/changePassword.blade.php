@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Change Password · QSU Student Government</title>
+  @include('partials.favicon')
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -67,21 +68,21 @@
       @csrf
 
       <div class="mb-3">
-        <label class="form-label">Temporary / Current Password</label>
-        <input type="password" name="current_password" class="form-control" required autofocus>
+        <label for="pw-current-password" class="form-label">Temporary / Current Password</label>
+        <input id="pw-current-password" type="password" name="current_password" class="form-control" required autofocus>
       </div>
 
       <div class="mb-1">
-        <label class="form-label">New Password</label>
-        <input type="password" name="password" class="form-control" required minlength="8" autocomplete="new-password">
+        <label for="pw-password" class="form-label">New Password</label>
+        <input id="pw-password" type="password" name="password" class="form-control" required minlength="8" autocomplete="new-password">
       </div>
       <p class="text-muted mb-3" style="font-size:0.78rem;">
         At least 8 characters, with upper &amp; lower case letters, a number, and a symbol.
       </p>
 
       <div class="mb-4">
-        <label class="form-label">Confirm New Password</label>
-        <input type="password" name="password_confirmation" class="form-control" required minlength="8" autocomplete="new-password">
+        <label for="pw-password-confirmation" class="form-label">Confirm New Password</label>
+        <input id="pw-password-confirmation" type="password" name="password_confirmation" class="form-control" required minlength="8" autocomplete="new-password">
       </div>
 
       <button type="submit" class="btn-change">

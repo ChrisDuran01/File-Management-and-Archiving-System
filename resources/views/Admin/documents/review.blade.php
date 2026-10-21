@@ -1,4 +1,5 @@
 @extends($layout ?? 'Admin.home')
+@section('title', 'Review & File — batch #'.$batch->id)
 @section('content')
 
 @include('Admin.partials.theme')
@@ -19,10 +20,10 @@
     .rv-topbar select:focus { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-dim); outline:none; }
     .rv-spacer { flex:1; }
     .btn-save {
-        background:var(--brand); color:#fff; border:none; border-radius:var(--radius-sm);
+        background:var(--primary-fill); color:#fff; border:none; border-radius:var(--radius-sm);
         padding:11px 22px; font-size:.9rem; font-weight:600; cursor:pointer;
     }
-    .btn-save:hover { background:#433aa0; }
+    .btn-save:hover { background:var(--primary-fill-hover); }
     .btn-save[disabled] { opacity:.5; cursor:not-allowed; }
     .btn-cancel { border:1.5px solid var(--border); background:var(--card); color:var(--text-2); border-radius:var(--radius-sm); padding:11px 18px; font-size:.88rem; font-weight:600; text-decoration:none; }
 
@@ -146,7 +147,7 @@
 <div class="skel-real">
 <div class="page-header">
     <div>
-        <h2><i class="fas fa-scissors me-2" style="color:var(--brand);"></i>Review &amp; File — batch #{{ $batch->id }}</h2>
+        <h1><i class="fas fa-scissors me-2" style="color:var(--brand);"></i>Review &amp; File — batch #{{ $batch->id }}</h1>
         <p class="sub">{{ $batch->original_filename }} &middot; {{ $batch->page_count ?? '?' }} page(s)
             @if($batch->detected_separators && $batch->detected_separators !== 'none')
                 &middot; split proposed from <strong>{{ $batch->detected_separators }}</strong> separators
@@ -171,7 +172,7 @@
 <form id="reviewForm" onsubmit="return false;">
     <div class="rv-topbar">
         <div>
-            <label>File into folder</label>
+            <label for="targetFolder">File into folder</label>
             <select id="targetFolder">
                 <option value="">— choose a folder —</option>
                 @foreach ($folders as $folder)
@@ -181,10 +182,11 @@
         </div>
         <div class="rv-spacer"></div>
         <a href="{{ route('documents.scans.index') }}" class="btn-cancel">Cancel</a>
-        <button type="button" id="saveBtn" class="btn-save">Save <span id="saveCount"></span></button>
+        {{-- The label ("File 3 documents") is set by labelSave() below. --}}
+        <button type="button" id="saveBtn" class="btn-save">File documents</button>
     </div>
 
-    <div id="formAlert" class="rv-alert err" style="display:none;"></div>
+    <div id="formAlert" class="rv-alert err" role="alert" style="display:none;"></div>
 
     <div class="rv-grid">
         <div class="rv-pages" id="pagesCol"></div>
@@ -241,7 +243,14 @@
     // ---- rendering -------------------------------------------------------
     const pagesCol = document.getElementById('pagesCol');
     const segmentsCol = document.getElementById('segmentsCol');
-    const saveCount = document.getElementById('saveCount');
+    const saveBtn = document.getElementById('saveBtn');
+
+    // The save button names exactly what it will do. (It used to hold a
+    // count <span> that 'Save ' wiped out after a failed save.)
+    let segmentCount = 0;
+    function labelSave() {
+        saveBtn.textContent = 'File ' + segmentCount + ' document' + (segmentCount === 1 ? '' : 's');
+    }
 
     function renderPages(segments) {
         const segOf = {};
@@ -252,25 +261,34 @@
             if (segOf[p] !== undefined && (p === 1 || segOf[p - 1] !== segOf[p])) {
                 const lbl = document.createElement('div');
                 lbl.className = 'seg-label';
-                lbl.textContent = 'Segment ' + (segOf[p] + 1);
+                // Same word as the form on the right ("Document 2").
+                lbl.textContent = 'Document ' + (segOf[p] + 1);
                 pagesCol.appendChild(lbl);
             }
 
             const wrap = document.createElement('div');
             wrap.className = 'thumb-wrap' + (included[p] ? (' seg-' + ((segOf[p] ?? 0) % 6)) : ' excluded');
+            const excludeLabel = (included[p] ? 'Leave out page ' : 'Put back page ') + p;
             wrap.innerHTML =
-                '<span class="pg-num">p' + p + '</span>' +
-                '<button type="button" class="pg-exclude" title="' + (included[p] ? 'Exclude this page' : 'Include this page') + '">' +
-                    '<i class="fas ' + (included[p] ? 'fa-eye' : 'fa-eye-slash') + '"></i></button>' +
-                '<img loading="lazy" src="' + PAGE_URL(p) + '" alt="page ' + p + '">';
+                '<span class="pg-num" aria-hidden="true">p' + p + '</span>' +
+                '<button type="button" class="pg-exclude" title="' + excludeLabel + '" aria-label="' + excludeLabel + '">' +
+                    '<i class="fas ' + (included[p] ? 'fa-eye' : 'fa-eye-slash') + '" aria-hidden="true"></i></button>' +
+                '<img loading="lazy" src="' + PAGE_URL(p) + '" alt="Page ' + p + (included[p] ? '' : ' (left out)') + '">';
             wrap.querySelector('.pg-exclude').addEventListener('click', () => { included[p] = !included[p]; render(); });
             pagesCol.appendChild(wrap);
 
             if (p < PAGE_COUNT) {
+                // The button names the action, not the current state: "Split
+                // here" starts a new document after this page, "Undo split"
+                // joins the two back together.
                 const gap = document.createElement('div');
-                gap.className = 'gap' + (splitAfter.has(p) ? ' is-split' : '');
-                gap.innerHTML = '<span class="line"></span><button type="button"><i class="fas fa-scissors"></i> ' +
-                    (splitAfter.has(p) ? 'split' : 'join') + '</button><span class="line"></span>';
+                const isSplit = splitAfter.has(p);
+                gap.className = 'gap' + (isSplit ? ' is-split' : '');
+                gap.innerHTML = '<span class="line"></span><button type="button" aria-label="' +
+                    (isSplit ? 'Undo split: join page ' + p + ' and page ' + (p + 1) + ' into one document'
+                             : 'Split here: start a new document at page ' + (p + 1)) +
+                    '"><i class="fas fa-scissors" aria-hidden="true"></i> ' +
+                    (isSplit ? 'Undo split' : 'Split here') + '</button><span class="line"></span>';
                 gap.querySelector('button').addEventListener('click', () => {
                     if (splitAfter.has(p)) splitAfter.delete(p); else splitAfter.add(p);
                     render();
@@ -306,7 +324,8 @@
 
     function renderSegments(segments) {
         segmentsCol.innerHTML = '';
-        saveCount.textContent = '(' + segments.length + ' document' + (segments.length === 1 ? '' : 's') + ')';
+        segmentCount = segments.length;
+        if (!saveBtn.disabled) labelSave();
 
         segments.forEach((s, idx) => {
             const g = segData[idx] || guessFor(s.start);
@@ -327,6 +346,16 @@
                     '<div><label>Status</label><select name="status">' + opt(STATUSES, g.status || 'filed') + '</select></div>' +
                     '<div class="full"><label>Notes</label><textarea name="notes">' + esc(g.notes || '') + '</textarea></div>' +
                 '</div>';
+            // Tie each label to its field (screen readers then read "Reference
+            // no." on focus, and clicking a label focuses its field).
+            card.querySelectorAll('.seg-fields > div').forEach(cell => {
+                const field = cell.querySelector('input,select,textarea');
+                const label = cell.querySelector('label');
+                if (!field || !label) return;
+                field.id = 'seg' + idx + '-' + field.name;
+                label.htmlFor = field.id;
+                if (field.name === 'title' || field.name === 'date_received') field.setAttribute('aria-required', 'true');
+            });
             card.querySelectorAll('input,select,textarea').forEach(el =>
                 el.addEventListener('input', () => fieldsFromDom(idx)));
             segmentsCol.appendChild(card);
@@ -344,7 +373,6 @@
 
     // ---- save ----------------------------------------------------------
     const alertBox = document.getElementById('formAlert');
-    const saveBtn = document.getElementById('saveBtn');
 
     saveBtn.addEventListener('click', () => {
         captureAll();
@@ -394,12 +422,11 @@
                 showAlert(data.message || 'Something went wrong filing this batch.');
             }
             saveBtn.disabled = false;
-            saveBtn.textContent = 'Save ';
             render();
         })
         .catch(() => {
             showAlert('Network error — nothing was filed. Try again.');
-            saveBtn.disabled = false; saveBtn.textContent = 'Save ';
+            saveBtn.disabled = false;
             render();
         });
     });

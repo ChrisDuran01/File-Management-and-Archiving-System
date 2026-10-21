@@ -1,4 +1,5 @@
 @extends('Admin.home')
+@section('title', 'My Profile')
 
 @section('content')
 
@@ -51,9 +52,7 @@
 
     <div class="page-header">
         <div>
-            <h2>My Profile</h2>
-            <p class="sub">Manage your account information</p>
-        </div>
+            <h1>My Profile</h1>        </div>
     </div>
 
     <div class="card profile-card p-4" style="max-width: 600px;">
@@ -65,27 +64,27 @@
             <div class="d-flex align-items-center gap-3 mb-4">
                 <img class="profile-photo-preview"
                      src="{{ $user->profile_photo ? asset('storage/'.$user->profile_photo) : 'https://ui-avatars.com/api/?name='.urlencode($user->name) }}"
-                     alt="profile photo" id="photoPreview">
+                     alt="Your current profile photo" id="photoPreview">
 
                 <div>
-                    <label class="form-label mb-1">Profile Photo</label>
+                    <label for="photoInput" class="form-label mb-1">Profile Photo</label>
                     <input type="file" name="profile_photo" accept="image/*" class="form-control" id="photoInput">
                 </div>
             </div>
 
             <div class="mb-3">
-                <label class="form-label">Name</label>
-                <input type="text" name="name" class="form-control" value="{{ old('name', $user->name) }}" required>
+                <label for="profile-name" class="form-label">Name</label>
+                <input id="profile-name" type="text" name="name" class="form-control" value="{{ old('name', $user->name) }}" required>
             </div>
 
             <div class="mb-3">
-                <label class="form-label">Email</label>
-                <input type="email" name="email" class="form-control" value="{{ old('email', $user->email) }}" required>
+                <label for="profile-email" class="form-label">Email</label>
+                <input id="profile-email" type="email" name="email" class="form-control" value="{{ old('email', $user->email) }}" required>
             </div>
 
             <div class="mb-3">
-                <label class="form-label">Role</label>
-                <input type="text" class="form-control" value="{{ $user->activeOfficerTerm?->position?->position_name ?? 'Administrator' }}" disabled>
+                <label class="form-label" for="profile-role">Role</label>
+                <input type="text" id="profile-role" class="form-control" value="{{ $user->activeOfficerTerm?->position?->position_name ?? 'Administrator' }}" disabled>
             </div>
 
             <hr>
@@ -93,18 +92,18 @@
             <p class="text-muted mb-2">Leave the password fields blank to keep your current password.</p>
 
             <div class="mb-3">
-                <label class="form-label">Current Password</label>
-                <input type="password" name="current_password" class="form-control">
+                <label for="profile-current-password" class="form-label">Current Password</label>
+                <input id="profile-current-password" type="password" name="current_password" class="form-control">
             </div>
 
             <div class="mb-3">
-                <label class="form-label">New Password</label>
-                <input type="password" name="password" class="form-control">
+                <label for="profile-password" class="form-label">New Password</label>
+                <input id="profile-password" type="password" name="password" class="form-control">
             </div>
 
             <div class="mb-3">
-                <label class="form-label">Confirm New Password</label>
-                <input type="password" name="password_confirmation" class="form-control">
+                <label for="profile-password-confirmation" class="form-label">Confirm New Password</label>
+                <input id="profile-password-confirmation" type="password" name="password_confirmation" class="form-control">
             </div>
 
             <button type="submit" class="btn btn-success">Save Changes</button>

@@ -82,12 +82,12 @@ function phoneAppFile(Folder $folder, string $filename, array $attributes = []):
 test('the app is offered on phones only', function () {
     $this->get(route('app.login'))
         ->assertOk()
-        ->assertSee('Sign in to access your account');
+        ->assertSee('<h3>Sign in</h3>', false);
 
     $this->withHeader('User-Agent', DESKTOP_AGENT)->get(route('app.login'))
         ->assertOk()
         ->assertSee('This app is for phones')
-        ->assertDontSee('Sign in to access your account');
+        ->assertDontSee('<h3>Sign in</h3>', false);
 
     $this->withHeader('User-Agent', DESKTOP_AGENT)->actingAs(phoneAppOfficer())
         ->postJson(route('app.sync'), ['have' => []])

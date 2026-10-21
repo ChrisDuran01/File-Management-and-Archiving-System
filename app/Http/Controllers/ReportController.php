@@ -180,7 +180,7 @@ class ReportController extends Controller
         // OFFICER ACTIVITY (SuperAdmin only) - actions over time, when the
         // system is used, action categories, leaderboard, latest actions.
         // =============================
-        $byHour = $byWeekday = $activityByCategory = $activeOfficers = $recentActivity = null;
+        $byHour = $byWeekday = $activityByCategory = $activeOfficers = null;
 
         if ($isSuperAdmin) {
             $trend['actions'] = $this->countByBucket($logsInRange->pluck('created_at'), $buckets);
@@ -213,8 +213,6 @@ class ReportController extends Controller
                 ->sortByDesc('total')
                 ->take(8)
                 ->values();
-
-            $recentActivity = $logsInRange->sortByDesc('created_at')->take(10)->values();
 
             // DATA MINING (disabled): officer scatter plot. Re-enable with the view's data mining section.
             // $officerScatter = $this->officerScatter($logsInRange);
@@ -400,7 +398,7 @@ class ReportController extends Controller
         if ($isSuperAdmin) {
             $answers += $this->superAdminAnswers(compact(
                 'activityByCategory', 'logsInRange', 'byHour', 'byWeekday', 'activeOfficers',
-                'recentActivity', 'backups', 'loginAnomalies'
+                'backups', 'loginAnomalies'
             ));
         }
 
@@ -409,7 +407,7 @@ class ReportController extends Controller
             'rangeKey', 'from', 'to', 'periodLabel', 'days',
             'kpis', 'totalFiles', 'totalDocuments', 'totalFolders', 'storageFormatted',
             'trend', 'byHour', 'byWeekday', 'hourLabels', 'weekdayLabels',
-            'activityByCategory', 'activeOfficers', 'recentActivity', /* 'officerScatter', */
+            'activityByCategory', 'activeOfficers', /* 'officerScatter', */
             'pipeline', 'batchStatuses', 'documentTypes', 'ocr',
             'storageTrend', 'projection', 'projectedTarget', 'topFolders', 'fileTypes',
             'preservation', 'backups',
@@ -742,14 +740,9 @@ class ReportController extends Controller
             $share = (int) round($top->total / $logged * 100);
             $a['officers'] = $b($top->user_name) . ' did ' . $b($share . '%') . ' of all logged actions'
                 . ($share >= 50 && $people > 1
-                    ? ', so most of the work rests on one person. Others may need training or access.'
+                    ? ', so most of the work rests on one person.'
                     : ($people > 1 ? '; the work is spread across ' . $people . ' people.' : '.'));
         }
-
-        $latest = $d['recentActivity']->first();
-        $a['latest'] = $latest
-            ? 'Last action ' . $b($latest->created_at->diffForHumans()) . ' by ' . e($latest->user_name) . '.'
-            : 'Nothing logged in this period.';
 
         // Are backups running?
         $bk = $d['backups'];

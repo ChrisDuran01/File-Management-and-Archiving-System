@@ -1,4 +1,5 @@
 @extends('Admin.home')
+@section('title', 'Dashboard')
 
 @section('content')
 
@@ -34,8 +35,8 @@
     outline: 2px solid var(--primary);
     outline-offset: 2px;
 }
-.quick-links a.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
-.quick-links a.primary:hover { background: var(--primary-dark); border-color: var(--primary-dark); }
+.quick-links a.primary { background: var(--primary-fill); border-color: var(--primary-fill); color: #fff; }
+.quick-links a.primary:hover { background: var(--primary-fill-hover); border-color: var(--primary-fill-hover); }
 
 @media (max-width: 700px) {
     .metric-grid { grid-template-columns: 1fr; }
@@ -84,8 +85,7 @@
 
     <div class="page-header">
         <div>
-            <h2>Admin Dashboard</h2>
-            <p class="sub">Overview of your folders, files, and storage</p>
+            <h1>Admin Dashboard</h1>
         </div>
     </div>
 
@@ -119,7 +119,7 @@
     <div class="card-panel">
         <div class="d-flex justify-content-between align-items-center mb-2">
             <p class="section-title mb-0">Recent folders</p>
-            <a href="{{ route('folders.index') }}" class="text-muted" style="font-size:12px;">View all</a>
+            <a href="{{ route('folders.index') }}" class="text-muted" style="font-size:12px;">View all folders</a>
         </div>
 
         <table class="rtable" aria-label="Recently created folders">

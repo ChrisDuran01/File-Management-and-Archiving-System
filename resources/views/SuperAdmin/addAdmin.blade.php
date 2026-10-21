@@ -1,4 +1,5 @@
 @extends('SuperAdmin.homeSuperAdmin')
+@section('title', 'Add Officer')
 
 @section('content')
 
@@ -229,7 +230,7 @@
     }
     .btn-cancel:hover { border-color: var(--primary); color: var(--primary); }
     .btn-save {
-        background: var(--primary);
+        background: var(--primary-fill);
         border: none;
         border-radius: var(--radius-sm);
         color: #fff;
@@ -301,7 +302,7 @@
 
 {{-- ── Page Header ── --}}
 <div class="page-header">
-    <h2>
+    <h1>
         <div class="page-title-icon">
             <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="6" cy="5" r="2.5" stroke="#058028" stroke-width="1.2"/>
@@ -310,7 +311,7 @@
             </svg>
         </div>
         Add Officer
-    </h2>
+    </h1>
 
     <a href="{{ route('officers.index') }}" class="back-link">
         <i class="fas fa-arrow-left"></i> Back to Officers
@@ -335,11 +336,11 @@
             {{-- Name + Email --}}
             <div class="field-row">
                 <div class="field-group">
-                    <label class="field-label">
+                    <label for="officer-name" class="field-label">
                         <i class="fas fa-user"></i>
                         Full Name <span class="field-required">*</span>
                     </label>
-                    <input
+                    <input id="officer-name"
                         type="text"
                         name="name"
                         class="field-input {{ $errors->has('name') ? 'is-invalid' : '' }}"
@@ -353,11 +354,11 @@
                 </div>
 
                 <div class="field-group">
-                    <label class="field-label">
+                    <label for="officer-email" class="field-label">
                         <i class="fas fa-envelope"></i>
                         Email Address <span class="field-required">*</span>
                     </label>
-                    <input
+                    <input id="officer-email"
                         type="email"
                         name="email"
                         class="field-input mono {{ $errors->has('email') ? 'is-invalid' : '' }}"
@@ -374,12 +375,12 @@
             {{-- Position + School Year --}}
             <div class="field-row">
                 <div class="field-group">
-                    <label class="field-label">
+                    <label for="officer-position-id" class="field-label">
                         <i class="fas fa-id-badge"></i>
                         Position <span class="field-required">*</span>
                     </label>
                     <div class="select-wrap">
-                        <select
+                        <select id="officer-position-id"
                             name="position_id"
                             class="field-select {{ $errors->has('position_id') ? 'is-invalid' : '' }}"
                             required
@@ -398,11 +399,11 @@
                 </div>
 
                 <div class="field-group">
-                    <label class="field-label">
+                    <label for="officer-school-year" class="field-label">
                         <i class="fas fa-calendar"></i>
                         School Year <span class="field-required">*</span>
                     </label>
-                    <input
+                    <input id="officer-school-year"
                         type="text"
                         name="school_year"
                         class="field-input mono {{ $errors->has('school_year') ? 'is-invalid' : '' }}"
@@ -422,7 +423,7 @@
 
             {{-- Password --}}
             <div class="field-group">
-                <label class="field-label">
+                <label for="passwordField" class="field-label">
                     <i class="fas fa-lock"></i>
                     Password <span class="field-required">*</span>
                 </label>

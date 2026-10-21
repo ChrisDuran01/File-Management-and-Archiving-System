@@ -99,6 +99,14 @@ test('the date range still filters, including through later batches', function (
     expect(substr_count($rest['html'], 'log-row'))->toBe(9)->and($rest['hasMore'])->toBeFalse();
 });
 
+test('the columns Activity Logs filters and counts by are indexed', function () {
+    $indexed = collect(Illuminate\Support\Facades\Schema::getIndexes('activity_logs'))
+        ->flatMap(fn (array $index) => $index['columns'])
+        ->all();
+
+    expect($indexed)->toContain('created_at', 'user_name', 'ip_address');
+});
+
 test('a search with no match says so', function () {
     makeLogs(5);
 

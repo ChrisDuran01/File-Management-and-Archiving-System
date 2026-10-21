@@ -99,7 +99,7 @@
         overflow: hidden;
         text-overflow: ellipsis;
     }
-    .header-search-dropdown .live-search-meta { font-size: 11px; color: #9ca3af; }
+    .header-search-dropdown .live-search-meta { font-size: 11px; color: #646b78; }
     .header-search-dropdown .live-search-snippet {
         font-size: 11px;
         color: #6b7280;
@@ -124,7 +124,7 @@
         padding: 20px 16px;
         text-align: center;
         font-size: 12px;
-        color: #9ca3af;
+        color: #646b78;
     }
 
     @media (max-width: 860px) {
@@ -148,9 +148,12 @@
 </style>
 
 <div class="header-search">
-    <form class="header-search-field" action="{{ route('search') }}" method="GET" id="topbarSearchForm" autocomplete="off">
-        <i class='bx bx-search header-search-icon'></i>
-        <input type="text" name="query" id="topbarSearchInput" placeholder="Search folders, files, documents…">
+    <form class="header-search-field" action="{{ route('search') }}" method="GET" id="topbarSearchForm" autocomplete="off" role="search">
+        <i class='bx bx-search header-search-icon' aria-hidden="true"></i>
+        {{-- The placeholder disappears once typing starts, so the field has
+             a real name of its own. --}}
+        <input type="text" name="query" id="topbarSearchInput" placeholder="Search folders, files, documents…"
+               aria-label="Search folders, files and documents" aria-controls="topbarSearchDropdown">
     </form>
     <div id="topbarSearchDropdown" class="header-search-dropdown"></div>
 </div>
@@ -212,6 +215,12 @@
         clearTimeout(debounceTimer);
 
         if (query.length < 2) {
+            // Also stop a search already on its way, or its results would
+            // pop up after the box was cleared.
+            if (activeRequest) {
+                activeRequest.abort();
+                activeRequest = null;
+            }
             hideDropdown();
             return;
         }

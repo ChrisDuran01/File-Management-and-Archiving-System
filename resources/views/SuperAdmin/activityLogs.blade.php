@@ -1,4 +1,5 @@
 @extends('SuperAdmin.homeSuperAdmin')
+@section('title', 'Activity Logs')
 @section('content')
 
 @include('Admin.partials.theme')
@@ -48,7 +49,7 @@
     .al-date-input:focus { border-color: var(--primary); }
     .al-filter-sep { font-size: 12px; color: var(--text-2); }
     .al-filter-btn {
-        background: var(--primary);
+        background: var(--primary-fill);
         border: none;
         border-radius: var(--radius-sm);
         color: #fff;
@@ -332,7 +333,7 @@
 
 {{-- ── Page Header ── --}}
 <div class="page-header">
-    <h2>
+    <h1>
         <div class="page-title-icon">
             <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="2" y="2" width="12" height="12" rx="2" stroke="#058028" stroke-width="1.2"/>
@@ -341,7 +342,7 @@
             </svg>
         </div>
         Activity Logs
-    </h2>
+    </h1>
 </div>
 
 {{-- ── Main Card ── --}}
@@ -350,27 +351,29 @@
     {{-- ── Filter Header ── --}}
     <div class="al-card-header">
         <form method="GET" action="{{ route('activity.logs') }}" class="al-filter-row" id="alFilterForm">
-            <span class="al-filter-label">Date range</span>
+            <span class="al-filter-label" id="alDateRangeLabel">Date range</span>
 
             <input type="date"
                    class="al-date-input"
                    name="from_date"
+                   aria-label="From date"
                    value="{{ request('from_date') }}">
 
-            <span class="al-filter-sep">—</span>
+            <span class="al-filter-sep" aria-hidden="true">—</span>
 
             <input type="date"
                    class="al-date-input"
                    name="to_date"
+                   aria-label="To date"
                    value="{{ request('to_date') }}">
 
             <button type="submit" class="al-filter-btn">
-                <i class="fas fa-filter me-1"></i> Filter
+                <i class="fas fa-filter me-1" aria-hidden="true"></i> Apply filters
             </button>
 
             @if(request('from_date') || request('to_date'))
                 <a href="{{ route('activity.logs') }}" class="al-clear-btn">
-                    Clear
+                    Clear filters
                 </a>
             @endif
         </form>
@@ -379,7 +382,7 @@
     {{-- ── Search ── --}}
     <div class="al-search-wrap">
         <div class="al-search-inner">
-            <svg class="al-search-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg class="al-search-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                 <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.3"/>
                 <line x1="10" y1="10" x2="14" y2="14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
             </svg>
@@ -388,6 +391,7 @@
                    id="searchInput"
                    name="q"
                    form="alFilterForm"
+                   aria-label="Search activity by user, action or IP address"
                    value="{{ request('q') }}"
                    placeholder="Search by user, action, or IP address…"
                    autocomplete="off">
@@ -424,7 +428,7 @@
             @endif
         </p>
         <div class="al-more-wrap">
-            <button type="button" class="al-more-btn" id="alMore" @if(! $hasMore) hidden @endif>Load more</button>
+            <button type="button" class="al-more-btn" id="alMore" @if(! $hasMore) hidden @endif>Load older activity</button>
         </div>
     </div>
 
@@ -498,7 +502,7 @@
 
             next    = data.next;
             hasMore = data.hasMore;
-            more.textContent = 'Load more';
+            more.textContent = 'Load older activity';
             more.hidden = ! hasMore;
             status.textContent = (! hasMore && list.querySelector('.log-row')) ? "You've reached the oldest activity." : '';
         } catch (e) {

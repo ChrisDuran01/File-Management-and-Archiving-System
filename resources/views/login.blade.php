@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
   <title>QSU Student Government · File Management & Archiving</title>
+  @include('partials.favicon')
   <!-- Google Fonts: Inter + Poppins for clean modern typography -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
@@ -17,7 +18,7 @@
       --qsu-gold: #C9A03D;
       --qsu-gold-light: #E8C468;
       --ink: #1C3A2F;
-      --muted: #6b7a75;
+      --muted: #5b6a65;
       --border: #E4E9E6;
       --bg: #F3F6F4;
     }
@@ -112,12 +113,7 @@
       font-weight: 700;
       font-size: 1.4rem;
       color: var(--ink);
-      margin-bottom: 0.2rem;
-    }
-    .welcome-header p {
-      color: var(--muted);
-      font-size: 0.88rem;
-      font-weight: 400;
+      margin-bottom: 0;
     }
 
     /* alerts */
@@ -182,7 +178,7 @@
       transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
     }
     .field-input-wrap input::placeholder {
-      color: #B7C0BC;
+      color: #6b7a75;
       font-weight: 400;
     }
     .field-input-wrap input:focus {
@@ -210,7 +206,7 @@
       border: none;
       border-radius: 0.5rem;
       cursor: pointer;
-      color: #9AA8A3;
+      color: #6b7a75;
     }
     .field-input-wrap .pw-toggle:hover,
     .field-input-wrap .pw-toggle:focus-visible { color: var(--qsu-green); outline: none; }
@@ -235,7 +231,7 @@
       transition: color 0.2s;
     }
     .forgot-link:hover {
-      color: var(--qsu-gold);
+      color: var(--qsu-green-dark);
     }
 
     .btn-login {
@@ -284,7 +280,7 @@
       border-bottom: 1px solid rgba(31, 110, 74, 0.3);
     }
     .signup-text a:hover {
-      color: var(--qsu-gold);
+      color: var(--qsu-green-dark);
       border-bottom-color: var(--qsu-gold);
     }
 
@@ -292,7 +288,7 @@
       margin-top: 1.75rem;
       text-align: center;
       font-size: 0.75rem;
-      color: #9AA8A3;
+      color: #5b6a65;
       font-weight: 500;
     }
 
@@ -321,7 +317,7 @@
   <div class="page">
     <div class="brand-header">
       <div class="logo-circle">
-        <img src="{{ asset('images/SG-logo.png') }}" alt="SG Logo" class="logo-img" onerror="this.onerror=null; this.src='https://placehold.co/46x46/ffffff/1F6E4A?text=SG';">
+        <img src="{{ asset('images/SG-logo.png') }}" alt="" class="logo-img" onerror="this.onerror=null; this.src='https://placehold.co/46x46/ffffff/1F6E4A?text=SG';">
       </div>
       <div class="brand-title">QSU Student Government</div>
       <div class="brand-sub">File Management &amp; Archiving System</div>
@@ -329,8 +325,7 @@
 
     <div class="login-card">
       <div class="welcome-header">
-        <h3>Welcome back</h3>
-        <p>Sign in to access your account</p>
+        <h3>Sign in</h3>
       </div>
 
       {{-- Also shown at the officer phone app's address (/app/login) - see

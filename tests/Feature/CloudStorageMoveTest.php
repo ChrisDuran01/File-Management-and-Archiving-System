@@ -10,12 +10,16 @@ use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
 
-/** The Backblaze (S3) files disk with made-up credentials - signing a link needs no network. */
+/**
+ * An S3 (Backblaze-style) files disk with made-up credentials, on a host in
+ * the reserved .invalid domain - one that can never be reached - so any
+ * network call would fail instead of quietly succeeding.
+ */
 function backblazeCloudDisk(): void
 {
     config(['filesystems.disks.cloud' => [
         'driver' => 's3', 'key' => 'test-key-id', 'secret' => 'test-secret', 'region' => 'us-east-005',
-        'bucket' => 'qsusg-files', 'endpoint' => 'https://s3.us-east-005.backblazeb2.com',
+        'bucket' => 'qsusg-files', 'endpoint' => 'https://s3.backblaze.invalid',
         'use_path_style_endpoint' => false, 'throw' => false,
     ]]);
     Storage::forgetDisk('cloud');
@@ -24,14 +28,16 @@ function backblazeCloudDisk(): void
 test('on Backblaze a preview link is signed right here, for an hour, with no call to the provider', function () {
     backblazeCloudDisk();
 
+    FileResponse::cloudLink('warm-up.pdf'); // the first call loads the AWS library - not what is measured
+
     $started = microtime(true);
     $link = FileResponse::cloudLink('1790824426_general-plan.docx');
 
-    expect($link)->toContain('s3.us-east-005.backblazeb2.com')
+    expect($link)->toContain('backblaze.invalid')
         ->toContain('1790824426_general-plan.docx')
         ->toContain('X-Amz-Signature=')
         ->toContain('X-Amz-Expires=3600')
-        ->and(microtime(true) - $started)->toBeLessThan(1.0);
+        ->and(microtime(true) - $started)->toBeLessThan(0.1);
 });
 
 test('a preview falls back to this server\'s own copy when there is no cloud copy yet', function () {

@@ -1,4 +1,5 @@
 @extends($layout ?? 'Admin.home')
+@section('title', 'Announcements')
 @section('content')
 
 @include('Admin.partials.theme')
@@ -37,7 +38,7 @@
     .field-group .form-control:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-dim); outline: none; }
 
     .btn-primary-flat {
-        background: var(--primary); color: #fff; border: none; border-radius: var(--radius-sm);
+        background: var(--primary-fill); color: #fff; border: none; border-radius: var(--radius-sm);
         padding: 10px 20px; font-size: .86rem; font-weight: 600; cursor: pointer;
     }
     .btn-primary-flat:hover { background: #046322; }
@@ -49,6 +50,9 @@
     .an-title { font-weight: 600; font-size: .95rem; margin-bottom: 2px; }
     .an-meta { font-size: .78rem; color: var(--text-2); margin-bottom: 8px; }
     .an-body { font-size: .85rem; color: var(--text-1); white-space: pre-line; margin-bottom: 10px; }
+    .an-hidden-tag { color: var(--text-2); font-weight: 600; }
+    .field-group .check-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: .84rem; color: var(--text-1); cursor: pointer; }
+    .check-row input { width: 16px; height: 16px; accent-color: var(--primary); }
     .an-attachment { font-size: .8rem; }
     .an-attachment a { color: var(--primary); text-decoration: none; }
     .an-attachment a:hover { text-decoration: underline; }
@@ -118,8 +122,8 @@
 
 <div class="page-header">
     <div>
-        <h2><i class="fas fa-bullhorn me-2" style="color:var(--primary);font-size:1.1rem;"></i>Announcements</h2>
-        <p class="sub">Post updates for students. These show up on the public student dashboard as soon as you save them.</p>
+        <h1><i class="fas fa-bullhorn me-2" style="color:var(--primary);font-size:1.1rem;"></i>Announcements</h1>
+        <p class="sub">A new post appears on the student page as soon as you save it, and students who turned on notifications get an alert.</p>
     </div>
 </div>
 
@@ -129,25 +133,26 @@
     <form action="{{ route('announcements.store') }}" method="POST" enctype="multipart/form-data">
         @csrf
         <div class="field-group">
-            <label>Title</label>
-            <input type="text" name="title" class="form-control" placeholder="e.g. General Assembly this Friday" required>
+            <label for="anNew-title">Title</label>
+            <input id="anNew-title" type="text" name="title" class="form-control" placeholder="e.g. General Assembly this Friday" required>
         </div>
         <div class="field-group">
-            <label>Message</label>
+            <label id="anNew-message-label">Message</label>
             <div id="quill-new" class="quill-editor" data-placeholder="Details for students..."></div>
             <input type="hidden" name="body" id="body-new">
         </div>
         <div class="field-group">
-            <label>Photos (optional)</label>
-            <input type="file" name="images[]" class="form-control photo-input" accept=".jpg,.jpeg,.png,.webp" multiple>
+            <label for="anNew-images">Photos (optional)</label>
+            <input id="anNew-images" type="file" name="images[]" class="form-control photo-input" accept=".jpg,.jpeg,.png,.webp" multiple>
             <small style="color:var(--text-3);">Up to 10 photos, 10MB each (large photos are shrunk automatically). Swipe the preview to check them; tap &times; to remove one.</small>
             <div class="photo-preview"></div>
         </div>
         <div class="field-group">
-            <label>Attachment (optional)</label>
-            <input type="file" name="attachment" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+            <label for="anNew-attachment">Attachment (optional)</label>
+            <input id="anNew-attachment" type="file" name="attachment" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
             <small style="color:var(--text-3);">PDF, image, or Word doc, up to 10MB.</small>
         </div>
+        @include('Admin.partials.hide-from-search', ['checked' => false])
 
         <button type="submit" class="btn-primary-flat"><i class="fas fa-paper-plane me-1"></i> Post announcement</button>
     </form>
@@ -165,6 +170,7 @@
                 <div class="an-meta">
                     Posted {{ $an->created_at->format('M d, Y g:i A') }}
                     @if($an->author) &middot; by {{ $an->author->name }} @endif
+                    @if($an->hide_from_search) &middot; <span class="an-hidden-tag"><i class="fas fa-eye-slash"></i> Hidden from Google</span> @endif
                 </div>
                 @include('partials.image-carousel', ['images' => $an->images])
                 <div class="an-body">{!! $an->body !!}</div>
@@ -177,15 +183,16 @@
                 @endif
 
                 <div class="an-actions">
-                    <button type="button" class="edit" onclick="toggleEditPanel({{ $an->id }})">
-                        <i class="fas fa-pen"></i> Edit
+                    <button type="button" class="edit" onclick="toggleEditPanel({{ $an->id }}, this)"
+                            aria-expanded="false" aria-controls="edit-{{ $an->id }}">
+                        <i class="fas fa-pen" aria-hidden="true"></i> Edit<span class="sr-only"> {{ $an->title }}</span>
                     </button>
                     <form action="{{ route('announcements.destroy', $an->id) }}" method="POST"
                           data-confirm-title="Delete this announcement?"
                           data-confirm="“{{ $an->title }}” will be removed from the student page. This cannot be undone."
                           data-confirm-ok="Delete">
                         @csrf @method('DELETE')
-                        <button type="submit" class="danger"><i class="fas fa-trash"></i> Delete</button>
+                        <button type="submit" class="danger"><i class="fas fa-trash" aria-hidden="true"></i> Delete<span class="sr-only"> {{ $an->title }}</span></button>
                     </form>
                 </div>
 
@@ -193,34 +200,35 @@
                     <form action="{{ route('announcements.update', $an->id) }}" method="POST" enctype="multipart/form-data">
                         @csrf @method('PUT')
                         <div class="field-group">
-                            <label>Title</label>
-                            <input type="text" name="title" class="form-control" value="{{ $an->title }}" required>
+                            <label for="an-title-{{ $an->id }}">Title</label>
+                            <input id="an-title-{{ $an->id }}" type="text" name="title" class="form-control" value="{{ $an->title }}" required>
                         </div>
                         <div class="field-group">
-                            <label>Message</label>
+                            <label id="an-message-label-{{ $an->id }}">Message</label>
                             <div id="quill-edit-{{ $an->id }}" class="quill-editor" data-initial="{{ $an->body }}"></div>
                             <input type="hidden" name="body" id="body-edit-{{ $an->id }}">
                         </div>
                         <div class="field-group">
-                            <label>Photos</label>
+                            <label for="an-images-{{ $an->id }}">Photos</label>
                             @if($an->images->isNotEmpty())
                                 <div class="existing-photos">
                                     @foreach($an->images as $img)
                                         <label class="existing-photo">
                                             <img loading="lazy" decoding="async" src="{{ route('announcements.image', $img->id) }}" alt="">
-                                            <span><input type="checkbox" name="remove_images[]" value="{{ $img->id }}"> Remove</span>
+                                            <span><input type="checkbox" name="remove_images[]" value="{{ $img->id }}"> Remove<span class="sr-only"> photo {{ $loop->iteration }}</span></span>
                                         </label>
                                     @endforeach
                                 </div>
                             @endif
-                            <input type="file" name="images[]" class="form-control photo-input" accept=".jpg,.jpeg,.png,.webp" multiple>
+                            <input type="file" name="images[]" id="an-images-{{ $an->id }}" class="form-control photo-input" accept=".jpg,.jpeg,.png,.webp" multiple>
                             <small style="color:var(--text-3);">Add more photos (10 max, 10MB each).</small>
                             <div class="photo-preview"></div>
                         </div>
                         <div class="field-group">
-                            <label>Replace attachment (optional)</label>
-                            <input type="file" name="attachment" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                            <label for="an-attachment-{{ $an->id }}">Replace attachment (optional)</label>
+                            <input id="an-attachment-{{ $an->id }}" type="file" name="attachment" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
                         </div>
+                        @include('Admin.partials.hide-from-search', ['checked' => $an->hide_from_search])
                         <button type="submit" class="btn-primary-flat"><i class="fas fa-save me-1"></i> Save changes</button>
                     </form>
                 </div>
@@ -244,16 +252,38 @@ const QUILL_TOOLBAR = [
 // first opened) rather than all at once on page load, since a page with
 // many posted announcements would otherwise initialize dozens of unused
 // editors up front.
+// Quill's editing area is a plain contenteditable <div> that a <label>
+// can't point at, and its toolbar buttons are icons only - name both.
+const TOOLBAR_NAMES = {
+    '.ql-bold': 'Bold', '.ql-italic': 'Italic', '.ql-underline': 'Underline', '.ql-strike': 'Strikethrough',
+    '.ql-list[value="ordered"]': 'Numbered list', '.ql-list[value="bullet"]': 'Bulleted list',
+    '.ql-link': 'Insert link', '.ql-blockquote': 'Quote', '.ql-clean': 'Remove formatting',
+};
+function labelEditor(editor, labelId) {
+    editor.root.setAttribute('role', 'textbox');
+    editor.root.setAttribute('aria-multiline', 'true');
+    editor.root.setAttribute('aria-labelledby', labelId);
+    const toolbar = editor.getModule('toolbar').container;
+    Object.entries(TOOLBAR_NAMES).forEach(([selector, name]) => {
+        toolbar.querySelectorAll('button' + selector).forEach(b => {
+            b.setAttribute('aria-label', name);
+            b.title = name;
+        });
+    });
+}
+
 const editEditors = {};
 
-function toggleEditPanel(id) {
+function toggleEditPanel(id, button) {
     const panel = document.getElementById('edit-' + id);
     panel.classList.toggle('show');
+    if (button) button.setAttribute('aria-expanded', panel.classList.contains('show') ? 'true' : 'false');
 
     if (panel.classList.contains('show') && ! editEditors[id]) {
         const container = document.getElementById('quill-edit-' + id);
         const editor = new Quill(container, { theme: 'snow', modules: { toolbar: QUILL_TOOLBAR } });
         editor.root.innerHTML = container.dataset.initial || '';
+        labelEditor(editor, 'an-message-label-' + id);
         editEditors[id] = editor;
     }
 }
@@ -294,12 +324,16 @@ function setupPhotoPicker(input) {
             slide.className = 'ps-slide';
             const img = document.createElement('img');
             img.src = URL.createObjectURL(f);
+            img.alt = 'Selected photo ' + (i + 1) + ': ' + f.name;
             img.draggable = false;
             const x = document.createElement('button');
             x.type = 'button';
             x.className = 'ps-x';
             x.innerHTML = '&times;';
+            // The × would otherwise be read out as "times"; the title alone
+            // doesn't name the button.
             x.title = 'Remove this photo';
+            x.setAttribute('aria-label', 'Remove photo ' + (i + 1) + ': ' + f.name);
             x.onclick = () => { files.splice(i, 1); sync(); };
             slide.append(img, x);
             stage.append(slide);
@@ -349,6 +383,7 @@ document.addEventListener('DOMContentLoaded', function () {
         placeholder: document.getElementById('quill-new').dataset.placeholder || '',
         modules: { toolbar: QUILL_TOOLBAR },
     });
+    labelEditor(newEditor, 'anNew-message-label');
 
     // Quill renders into its own <div>, not a form field, so the editor's
     // HTML has to be copied into a hidden input right before each form

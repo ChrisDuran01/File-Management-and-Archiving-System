@@ -1,4 +1,5 @@
 @extends($layout ?? 'Admin.home')
+@section('title', 'Folders')
 @section('content')
 
 @include('Admin.partials.theme')
@@ -47,7 +48,7 @@
     font-size: 13.5px;
     color: #444;
 }
-.year-dropdown-menu .dropdown-item:hover { background: #fff8ec; color: #b9770e; }
+.year-dropdown-menu .dropdown-item:hover { background: #fff8ec; color: #b45309; }
 .year-dropdown-menu .dropdown-item i { font-size: 12px; color: #d9a441; }
 
 /* Folder Card — allow dropdown to overflow */
@@ -95,6 +96,10 @@
     z-index: 10; /* FIX: sit above the card content */
 }
 .folder-card:hover .folder-menu-btn { opacity: 1; }
+/* Also when the keyboard is on the card or its menu, and always on touch
+   screens, which have no hover - otherwise the menu button is invisible. */
+.folder-card:focus-within .folder-menu-btn { opacity: 1; }
+@media (hover: none) { .folder-menu-btn { opacity: 1; } }
 .folder-menu-btn .btn {
     width: 28px;
     height: 28px;
@@ -212,7 +217,7 @@
     border-radius: 12px;
     padding: 2.5rem 1rem;
     text-align: center;
-    color: #888;
+    color: var(--text-3);
     font-size: 14px;
     cursor: pointer;
     transition: border-color 0.2s, background 0.2s;
@@ -237,7 +242,7 @@
     align-items: center;
     gap: 10px;
     margin: 2rem 0 1rem;
-    color: #999;
+    color: var(--text-3);
     font-size: 13px;
     font-weight: 500;
     text-transform: uppercase;
@@ -274,6 +279,8 @@
     z-index: 10;
 }
 .file-card:hover .file-menu-btn { opacity: 1; }
+.file-card:focus-within .file-menu-btn { opacity: 1; }
+@media (hover: none) { .file-menu-btn { opacity: 1; } }
 .file-menu-btn .btn {
     width: 26px;
     height: 26px;
@@ -314,7 +321,7 @@
 }
 .file-meta {
     font-size: 11px;
-    color: #aaa;
+    color: var(--text-3);
     margin-top: 2px;
 }
 
@@ -378,7 +385,7 @@
 {{-- Page Header --}}
 <div class="skel-real">
 <div class="page-header">
-    <h2>All Folders</h2>
+    <h1>All Folders</h1>
 
     {{-- Search now lives in the topbar (partials/header-search.blade.php),
          available on every Admin/SuperAdmin page instead of just this one. --}}
@@ -413,9 +420,10 @@
 
             {{-- 3-dot Menu --}}
             <div class="dropdown folder-menu-btn">
-                <button class="btn btn-sm" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false"
+                <button type="button" class="btn btn-sm" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false"
+                        aria-label="More actions for {{ $folder->name }}"
                         onclick="event.stopPropagation()">
-                    <i class="bi bi-three-dots-vertical"></i>
+                    <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end shadow-sm"
                     style="border-radius:10px; font-size:13px; min-width:130px;">
@@ -517,7 +525,7 @@
                         Archive Selected Folders
                     </h5>
                     <button type="button" class="btn-close"
-                            data-bs-dismiss="modal"></button>
+                            data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
                 <div class="modal-body">
@@ -548,23 +556,23 @@
                     </div>
 
                     <div class="mt-3">
-                        <label class="form-label">
+                        <label class="form-label" for="archiveZipName">
                             Archive Name / ZIP File
                         </label>
 
                         <input type="text"
-                               name="zip_name"
+                               name="zip_name" id="archiveZipName"
                                class="form-control"
                                placeholder="Example: SY-2026-2027-Archive.zip"
                                required>
                     </div>
 
                     <div class="mt-3">
-                        <label class="form-label">
+                        <label class="form-label" for="archiveSchoolYear">
                             School Year Tag
                         </label>
 
-                        <select name="school_year"
+                        <select name="school_year" id="archiveSchoolYear"
                                 class="form-select">
                             <option value="2026-2027">2026-2027</option>
                             <option value="2025-2026">2025-2026</option>
@@ -602,16 +610,17 @@
                     @csrf
                     @method('PUT')
                     <div class="modal-header">
-                        <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Rename Folder</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        <h5 class="modal-title" id="renameTitle{{ $folder->id }}"><i class="bi bi-pencil me-2" aria-hidden="true"></i>Rename Folder</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                        <input type="text" name="name" class="form-control"
+                        <label for="renameInput{{ $folder->id }}" class="form-label text-muted" style="font-size:13px;">New folder name</label>
+                        <input type="text" name="name" class="form-control" id="renameInput{{ $folder->id }}"
                                value="{{ $folder->name }}" required autofocus style="border-radius:8px;">
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary" style="border-radius:8px;">Save</button>
+                        <button type="submit" class="btn btn-primary" style="border-radius:8px;">Save name</button>
                     </div>
                 </form>
             </div>
@@ -626,8 +635,8 @@
                 <form action="{{ route('folders.updateAccess', $folder->id) }}" method="POST">
                     @csrf
                     <div class="modal-header">
-                        <h5 class="modal-title"><i class="bi bi-shield-lock me-2"></i>Manage Access</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        <h5 class="modal-title"><i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Manage Access: {{ $folder->name }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         <div class="form-check form-switch mb-3">
@@ -641,10 +650,11 @@
                         </div>
 
                         <div id="accessList{{ $folder->id }}" style="display:{{ $folder->is_restricted ? 'block' : 'none' }};">
-                            <label class="form-label text-muted" style="font-size:13px;">
+                            <p class="form-label text-muted" style="font-size:13px;" id="accessListLabel{{ $folder->id }}">
                                 Who else can see this folder (besides you and SuperAdmin):
-                            </label>
-                            <div style="max-height:220px; overflow-y:auto;" class="border rounded p-2">
+                            </p>
+                            <div style="max-height:220px; overflow-y:auto;" class="border rounded p-2"
+                                 role="group" aria-labelledby="accessListLabel{{ $folder->id }}">
                                 @forelse($officers as $officer)
                                     @if($officer->id !== $folder->created_by)
                                     <div class="form-check mb-1">
@@ -665,7 +675,7 @@
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary" style="border-radius:8px;">Save</button>
+                        <button type="submit" class="btn btn-primary" style="border-radius:8px;">Save access</button>
                     </div>
                 </form>
             </div>
@@ -689,17 +699,18 @@
 
 
         <div class="fab-option" id="fabOptFolder">
-            <span class="fab-label">New folder</span>
-            <button class="fab-mini folder"
+            <span class="fab-label" aria-hidden="true">New folder</span>
+            <button type="button" class="fab-mini folder" aria-label="New folder"
                     data-bs-toggle="modal" data-bs-target="#addFolderModal"
                     onclick="closeFab()">
-                <i class="bi bi-folder-plus"></i>
+                <i class="bi bi-folder-plus" aria-hidden="true"></i>
             </button>
         </div>
 
     </div>
-    <button class="fab-main" id="fabMain" onclick="toggleFab()">
-        <i class="fas fa-plus"></i>
+    <button type="button" class="fab-main" id="fabMain" onclick="toggleFab()"
+            aria-label="Add" aria-expanded="false" aria-controls="fabOptFolder">
+        <i class="fas fa-plus" aria-hidden="true"></i>
     </button>
 </div>
 
@@ -711,18 +722,18 @@
             <form action="{{ route('folders.store') }}" method="POST">
                 @csrf
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-folder-plus me-2 text-success"></i>New Folder</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <h5 class="modal-title"><i class="bi bi-folder-plus me-2 text-success" aria-hidden="true"></i>New Folder</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <label class="form-label text-muted" style="font-size:13px;">Folder name</label>
-                    <input type="text" name="folder_name" class="form-control"
+                    <label for="newFolderName" class="form-label text-muted" style="font-size:13px;">Folder name</label>
+                    <input type="text" name="folder_name" id="newFolderName" class="form-control"
                            placeholder="e.g. My Documents" required autofocus style="border-radius:8px;">
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-success" style="border-radius:8px;">
-                        <i class="bi bi-check-lg me-1"></i> Create
+                        <i class="bi bi-check-lg me-1" aria-hidden="true"></i> Create folder
                     </button>
                 </div>
             </form>
@@ -739,7 +750,7 @@
                 @csrf
                 <div class="modal-header">
                     <h5 class="modal-title"><i class="fas fa-upload me-2 text-primary"></i>Upload Files</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
 
@@ -756,8 +767,8 @@
 
                     @if($folders->count())
                     <div class="mt-3">
-                        <label class="form-label text-muted" style="font-size:13px;">Upload to folder (optional)</label>
-                        <select name="folder_id" class="form-select form-select-sm" style="border-radius:8px;">
+                        <label class="form-label text-muted" style="font-size:13px;" for="uploadTargetFolder">Upload to folder (optional)</label>
+                        <select name="folder_id" id="uploadTargetFolder" class="form-select form-select-sm" style="border-radius:8px;">
                             <option value="">— Root —</option>
                             @foreach($folders as $folder)
                             <option value="{{ $folder->id }}">{{ $folder->name }}</option>
@@ -790,7 +801,7 @@
     <div style="background:#fff; border:1px solid #e5e5e5; border-radius:12px; box-shadow:0 8px 30px rgba(0,0,0,0.15); overflow:hidden;">
         <div style="padding:10px 14px; border-bottom:1px solid #f0f0f0; font-weight:600; font-size:13px; display:flex; justify-content:space-between; align-items:center;">
             <span><i class="fas fa-cloud-upload-alt me-1" style="color:#058028;"></i> Uploading</span>
-            <button type="button" id="uploadToastClose" style="border:none; background:none; color:#999; cursor:pointer; font-size:16px; line-height:1;" aria-label="Close">&times;</button>
+            <button type="button" id="uploadToastClose" style="border:none; background:none; color:var(--text-2); cursor:pointer; font-size:16px; line-height:1;" aria-label="Close">&times;</button>
         </div>
         <div id="uploadToastList" style="max-height:280px; overflow-y:auto;"></div>
     </div>
@@ -802,7 +813,7 @@
 .upload-toast-row:last-child { border-bottom: none; }
 .upload-toast-row .row-top { display:flex; justify-content:space-between; font-size:12px; color:#333; margin-bottom:4px; gap:8px; }
 .upload-toast-row .row-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:200px; }
-.upload-toast-row .row-status { color:#888; white-space:nowrap; flex-shrink:0; }
+.upload-toast-row .row-status { color:var(--text-3); white-space:nowrap; flex-shrink:0; }
 .upload-toast-row .row-track { height:6px; border-radius:4px; background:#eee; overflow:hidden; }
 .upload-toast-row .row-bar { height:100%; width:0%; background:#058028; transition:width .15s ease; }
 .upload-toast-row .row-bar.is-indeterminate {
@@ -817,7 +828,7 @@
     to   { background-position: 0 0; }
 }
 .upload-toast-row .row-cancel-btn {
-    border: none; background: none; color: #aaa; cursor: pointer;
+    border: none; background: none; color: var(--text-2); cursor: pointer;
     font-size: 11px; padding: 0; flex-shrink: 0; line-height: 1;
 }
 .upload-toast-row .row-cancel-btn:hover { color: #c0392b; }
@@ -835,12 +846,14 @@ let fabOpen = false;
 function toggleFab() {
     fabOpen = !fabOpen;
     document.getElementById('fabMain').classList.toggle('open', fabOpen);
+    document.getElementById('fabMain').setAttribute('aria-expanded', fabOpen ? 'true' : 'false');
     document.querySelectorAll('.fab-option').forEach(o => o.classList.toggle('show', fabOpen));
 }
 
 function closeFab() {
     fabOpen = false;
     document.getElementById('fabMain').classList.remove('open');
+    document.getElementById('fabMain').setAttribute('aria-expanded', 'false');
     document.querySelectorAll('.fab-option').forEach(o => o.classList.remove('show'));
 }
 

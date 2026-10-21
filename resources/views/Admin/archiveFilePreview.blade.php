@@ -1,4 +1,5 @@
 @extends($layout ?? 'Admin.home')
+@section('title', $filename)
 @section('content')
 
 @include('Admin.partials.theme')
@@ -26,7 +27,7 @@
 .preview-wrapper { max-width: 960px; margin: 0 auto; }
 .back-link {
     display: inline-flex; align-items: center; gap: 6px;
-    font-size: 13px; color: #888; text-decoration: none; margin-bottom: 1.25rem;
+    font-size: 13px; color: var(--text-2); text-decoration: none; margin-bottom: 1.25rem;
 }
 .back-link:hover { color: #058028; }
 
@@ -43,8 +44,9 @@
 .file-header-name {
     font-size: 16px; font-weight: 600; color: #1a1a1a;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0 0 3px;
+    line-height: inherit;
 }
-.file-header-meta { font-size: 12px; color: #aaa; }
+.file-header-meta { font-size: 12px; color: var(--text-3); }
 .view-only-note {
     font-size: 11px; color: #854F0B; background: #faeeda; border-radius: 20px;
     padding: 4px 12px; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
@@ -82,7 +84,7 @@
     align-items: center; justify-content: center; font-size: 34px;
 }
 .preview-none h5 { font-size: 16px; font-weight: 600; color: #333; margin: 0; }
-.preview-none p { font-size: 13px; color: #999; margin: 0; max-width: 340px; }
+.preview-none p { font-size: 13px; color: var(--text-3); margin: 0; max-width: 340px; }
 
 /* ===== DARK MODE (page-unique classes; shared ones live in partials/theme) ===== */
 [data-theme="dark"] .file-header,
@@ -129,7 +131,7 @@
             <i class="{{ $icon[0] }}"></i>
         </div>
         <div class="file-header-info">
-            <p class="file-header-name">{{ $filename }}</p>
+            <h1 class="file-header-name">{{ $filename }}</h1>
             <div class="file-header-meta">Inside archived folder: {{ $archive->folder_name }}</div>
         </div>
         <span class="view-only-note"><i class="fas fa-eye"></i> View only - no download</span>

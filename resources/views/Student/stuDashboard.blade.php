@@ -63,9 +63,7 @@
     @if($heroPhoto) style="--hero-photo: url('{{ $heroPhoto }}');" @endif>
     <div class="wrap">
         <div class="hero-inner">
-            <p class="eyebrow">Official website</p>
             <h1>QSU Diffun <span class="hl">Student Government</span></h1>
-            <p class="hero-lede">Stay updated, find official documents, and reach the officers who represent you, all in one place.</p>
 
             <div class="hero-actions">
                 <a href="#announcements" class="btn btn-light">Read the latest news <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
@@ -101,7 +99,7 @@
             <a href="#officers" class="quick-card">
                 <span class="quick-icon"><i class="bi bi-people" aria-hidden="true"></i></span>
                 <strong>Officers</strong>
-                <span>Meet the people serving you</span>
+                <span>Names and positions</span>
             </a>
         @endif
         <a href="#contact" class="quick-card">
@@ -119,9 +117,7 @@
         <div class="wrap">
             <div class="sec-head sec-head-center">
                 <div>
-                    <p class="eyebrow">Stay informed</p>
                     <h2 id="announcements-title">Latest announcements</h2>
-                    <p>News, events and reminders from the Student Government.</p>
                 </div>
                 {{-- Browser push opt-in. Hidden until the script confirms the browser supports it. --}}
                 <button type="button" id="pushToggle" class="btn btn-soft btn-sm push-toggle" hidden
@@ -190,6 +186,11 @@
                                     <button type="button" class="link-arrow an-see-more" aria-haspopup="dialog" hidden>
                                         <span class="u">Read more</span><span class="sr-only">: {{ $announcement->title }}</span> <i class="bi bi-arrow-right" aria-hidden="true"></i>
                                     </button>
+                                    {{-- The post's own page: what a shared link opens (see partials/share-script). --}}
+                                    <a href="{{ route('student.announcement', [$announcement->id, $announcement->slug]) }}" class="link-arrow an-share" data-share data-title="{{ $announcement->title }}">
+                                        <i class="bi bi-share" aria-hidden="true"></i>
+                                        <span class="u" data-share-label aria-live="polite">Share</span><span class="sr-only">: {{ $announcement->title }}</span>
+                                    </a>
                                     @if($announcement->attachment_path)
                                         <a href="{{ route('announcements.download', $announcement->id) }}" class="link-arrow an-attach" data-an-id="{{ $announcement->id }}">
                                             <i class="bi bi-paperclip" aria-hidden="true"></i>
@@ -243,9 +244,8 @@
         <div class="wrap">
             <div class="sec-head">
                 <div>
-                    <p class="eyebrow">Transparency</p>
                     <h2 id="documents-title">Public documents</h2>
-                    <p>Official records the Student Government has made public. Open one to preview or download it.</p>
+                    <p>Open a file to preview or download it. No account needed.</p>
                 </div>
                 @if($files->isNotEmpty())
                     <div class="search">
@@ -316,9 +316,7 @@
             <div class="wrap">
                 <div class="sec-head sec-head-center">
                     <div>
-                        <p class="eyebrow">Meet the team</p>
-                        <h2 id="officers-title">Your Student Government</h2>
-                        <p>The officers serving you this term, from each branch's head down.</p>
+                        <h2 id="officers-title">Officers</h2>
                     </div>
                 </div>
 
@@ -372,7 +370,7 @@
             <div class="cta-card">
                 <div>
                     <h2 id="cta-title">Have a concern, question or idea?</h2>
-                    <p>Your Student Government is listening. Send a message and an officer will reply to your email.</p>
+                    <p>Send a message and an officer will reply to your email within 3–5 business days.</p>
                 </div>
                 <a href="#contact" class="btn btn-light">Message us <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
             </div>
@@ -385,9 +383,7 @@
             <div class="wrap">
                 <div class="sec-head sec-head-center">
                     <div>
-                        <p class="eyebrow">Who we are</p>
                         <h2 id="about-title">Vision and mission</h2>
-                        <p>The vision and mission of Quirino State University, which guide its Student Government.</p>
                     </div>
                 </div>
 
@@ -442,9 +438,7 @@
         <div class="wrap">
             <div class="contact">
                 <div class="contact-intro">
-                    <p class="eyebrow">Contact us</p>
-                    <h2 id="contact-title">Get in touch</h2>
-                    <p>Questions, concerns or ideas? Send the Student Government a message and an officer will reply to your email.</p>
+                    <h2 id="contact-title">Contact us</h2>
                     <ul class="contact-points">
                         <li><i class="bi bi-clock" aria-hidden="true"></i><span>Replies within <strong>3–5 business days</strong></span></li>
                         <li><i class="bi bi-envelope" aria-hidden="true"></i><span>Prefer email? Write to <a href="mailto:sg@qsu.edu.ph">sg@qsu.edu.ph</a></span></li>
@@ -563,11 +557,10 @@
                     <span>Diffun Campus</span>
                 </div>
             </div>
-            <p>The official page of the Student Government of Quirino State University, Diffun Campus: announcements, public documents and the officers who serve you.</p>
         </div>
 
         <nav class="footer-links" aria-label="Footer">
-            <h3>Explore</h3>
+            <h3>On this page</h3>
             <a href="#announcements">Announcements</a>
             <a href="#documents">Documents</a>
             @if($branches->isNotEmpty())<a href="#officers">Officers</a>@endif
@@ -576,7 +569,7 @@
         </nav>
 
         <div class="footer-contact">
-            <h3>Get in touch</h3>
+            <h3>Contact</h3>
             <ul>
                 <li><i class="bi bi-envelope" aria-hidden="true"></i><a href="mailto:sg@qsu.edu.ph">sg@qsu.edu.ph</a></li>
                 <li><i class="bi bi-geo-alt" aria-hidden="true"></i><span>Quirino State University, Diffun Campus</span></li>
@@ -645,7 +638,7 @@
     <div class="dlg-scroll">
         <img src="{{ asset('icons/icon-192.png') }}" alt="" class="install-icon" width="72" height="72" loading="lazy">
         <h2 class="install-title" id="installTitle">Get the SG app</h2>
-        <p class="install-lede">Add this page to your home screen and it opens like an app: full screen, one tap away, and even without internet. It's the same page, so the website works just as well.</p>
+        <p class="install-lede">Add this page to your home screen. It opens full screen and works without internet. It's the same page as the website, so you don't have to install it.</p>
         <p class="install-note" data-install-note="push" hidden>
             <i class="bi bi-bell" aria-hidden="true"></i>
             <span>On iPhone and iPad, notifications work only in the app. Add it to your Home Screen, open it from there, then tap <strong>Notify me</strong>.</span>
@@ -707,7 +700,7 @@
         --ink: #10231a;
         --text: #34443b;
         --muted: #617067;
-        --faint: #8b988f;
+        --faint: #647269;   /* lightest text allowed: 5:1 on white, 4.7:1 on --tint */
         --bg: #ffffff;
         --tint: #f2f7f3;
         --tint-2: #e5eee7;
@@ -717,6 +710,11 @@
         --head: 'Poppins', 'Inter', system-ui, sans-serif;
         --radius: 16px;
         --radius-sm: 10px;
+        /* Small corners, not pills, on everything you click or type in
+           (buttons, inputs, menu links, filters, tabs) - pills on every
+           control read as AI-generated. Picked 2026-10-20. */
+        --radius-control: 4px;
+        --radius-tag: 3px;      /* small labels: "New", counts, positions */
         --wrap: 1180px;
         --header-h: 72px;
         --shadow: 0 8px 26px rgba(16, 35, 26, .08);
@@ -754,7 +752,7 @@
         overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
     }
     .skip-link {
-        position: fixed; top: 12px; left: 12px; z-index: 300; padding: 10px 18px; border-radius: 999px;
+        position: fixed; top: 12px; left: 12px; z-index: 300; padding: 10px 18px; border-radius: var(--radius-control);
         background: var(--green); color: #fff; font-weight: 600; text-decoration: none;
         transform: translateY(-200%); transition: transform .2s;
     }
@@ -768,17 +766,10 @@
         padding-right: max(20px, env(safe-area-inset-right));
     }
 
-    /* Small label above a heading, with a gold dash. */
-    .eyebrow {
-        display: inline-flex; align-items: center; gap: 10px;
-        color: var(--green-3); font-size: .78rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
-    }
-    .eyebrow::before { content: ''; width: 26px; height: 3px; border-radius: 3px; background: var(--gold); }
-
     /* ---------------------------- Buttons ---------------------------- */
     .btn {
         display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-        min-height: 48px; padding: 0 26px; border: 2px solid transparent; border-radius: 999px;
+        min-height: 48px; padding: 0 26px; border: 2px solid transparent; border-radius: var(--radius-control);
         font-size: .95rem; font-weight: 600; text-decoration: none; white-space: nowrap;
         transition: background-color .15s, border-color .15s, color .15s, opacity .15s, transform .15s;
     }
@@ -837,7 +828,7 @@
     .site-nav { display: flex; align-items: center; gap: 2px; }
     .site-nav a {
         position: relative; display: inline-flex; align-items: center; gap: 6px;
-        min-height: 44px; padding: 0 14px; border-radius: 999px;
+        min-height: 44px; padding: 0 14px; border-radius: var(--radius-control);
         color: var(--ink); font-size: .93rem; font-weight: 500; text-decoration: none;
         transition: color .15s, background-color .15s;
     }
@@ -857,7 +848,7 @@
         min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
         background: #d92d20; color: #fff; font-size: .68rem; font-weight: 700; line-height: 1;
     }
-    .nav-toggle { display: none; position: relative; width: 44px; height: 44px; flex-shrink: 0; margin-right: -8px; border: 0; border-radius: 12px; background: transparent; color: var(--green); }
+    .nav-toggle { display: none; position: relative; width: 44px; height: 44px; flex-shrink: 0; margin-right: -8px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--green); }
     .nav-toggle span {
         position: absolute; left: 11px; right: 11px; height: 2px; border-radius: 2px;
         background: currentColor; transition: transform .2s, top .2s, opacity .2s;
@@ -880,7 +871,7 @@
         .site-nav.is-open { display: flex; }
         .site-nav a { min-height: 52px; padding: 0 4px; border-bottom: 1px solid var(--line); border-radius: 0; font-size: 1.02rem; }
         .site-nav a[aria-current]::after { display: none; }
-        .site-nav .nav-cta { margin: 16px 0 0; justify-content: center; border-bottom: 0; border-radius: 999px; }
+        .site-nav .nav-cta { margin: 16px 0 0; justify-content: center; border-bottom: 0; border-radius: var(--radius-control); }
     }
 
     /* ------------------------------ Hero ------------------------------ */
@@ -903,23 +894,23 @@
         width: 320px; height: 320px; border: 44px solid rgba(255, 255, 255, .08); border-radius: 50%;
     }
     .hero-inner { max-width: 660px; }
-    .hero .eyebrow { color: var(--gold); }
+    /* Name and actions only - no tagline. A generic "all in one place" line
+       only repeated the quick-link cards below (removed 2026-10-20). */
     .hero h1 {
-        margin-top: 16px; font-family: var(--head); font-size: clamp(2.4rem, 1.3rem + 3.8vw, 4.1rem);
+        font-family: var(--head); font-size: clamp(2.4rem, 1.3rem + 3.8vw, 4.1rem);
         font-weight: 700; line-height: 1.08; letter-spacing: -.02em; text-wrap: balance;
     }
     .hero h1 .hl { color: var(--green-light); }
-    .hero-lede { max-width: 34rem; margin-top: 18px; color: rgba(255, 255, 255, .86); font-size: clamp(1rem, .95rem + .3vw, 1.15rem); line-height: 1.65; }
     .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
     .hero-latest {
         display: inline-flex; align-items: center; gap: 10px; max-width: 100%; min-height: 44px;
-        margin-top: 28px; padding: 6px 16px 6px 6px; border-radius: 999px;
+        margin-top: 28px; padding: 6px 16px 6px 6px; border-radius: var(--radius-control);
         background: rgba(255, 255, 255, .12); color: #fff; font-size: .9rem; text-decoration: none;
         -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); transition: background-color .15s;
     }
     .hero-latest:hover { background: rgba(255, 255, 255, .2); }
     .hero-latest-tag {
-        flex-shrink: 0; padding: 4px 10px; border-radius: 999px; background: var(--gold); color: var(--ink);
+        flex-shrink: 0; padding: 4px 10px; border-radius: var(--radius-tag); background: var(--gold); color: var(--ink);
         font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
     }
     .hero-latest-title { min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -977,10 +968,8 @@
         color: var(--ink); font-family: var(--head); font-size: clamp(1.9rem, 1.35rem + 1.7vw, 2.6rem);
         font-weight: 700; letter-spacing: -.02em; line-height: 1.15;
     }
-    .sec-head h2 { margin-top: 10px; }
     .sec-head p { max-width: 36rem; margin-top: 12px; color: var(--muted); }
     .sec-head-center { flex-direction: column; align-items: center; text-align: center; }
-    .sec-head-center .eyebrow::after { content: ''; width: 26px; height: 3px; border-radius: 3px; background: var(--gold); }
     .sec-head-center p { margin-left: auto; margin-right: auto; }
     .more-row { display: flex; justify-content: center; margin-top: 40px; }
 
@@ -1031,7 +1020,7 @@
     .an-card .pg-more { display: none; }
     .an-count {
         position: absolute; top: 12px; right: 12px; z-index: 1; display: inline-flex; align-items: center; gap: 6px;
-        padding: 4px 10px; border-radius: 999px; background: rgba(10, 30, 18, .72); color: #fff;
+        padding: 4px 10px; border-radius: var(--radius-tag); background: rgba(10, 30, 18, .72); color: #fff;
         font-size: .78rem; font-weight: 600; pointer-events: none;
     }
     /* Date tile on the cover, like an event calendar. */
@@ -1075,7 +1064,7 @@
         border-radius: 50%; background: #d92d20; box-shadow: 0 0 0 2px #fff;
     }
     .chip {
-        display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px;
+        display: inline-flex; align-items: center; padding: 2px 10px; border-radius: var(--radius-tag);
         background: var(--gold); color: var(--ink); font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
     }
     .an-title {
@@ -1127,7 +1116,7 @@
     .search { position: relative; width: min(320px, 100%); }
     .search i { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
     .search input {
-        width: 100%; min-height: 50px; padding: 0 18px 0 46px; border: 1px solid var(--line-2); border-radius: 999px;
+        width: 100%; min-height: 50px; padding: 0 18px 0 46px; border: 1px solid var(--line-2); border-radius: var(--radius-control);
         background: #fff; color: var(--ink); font-size: 1rem; box-shadow: 0 2px 8px rgba(16, 35, 26, .04);
         transition: border-color .15s, box-shadow .15s;
     }
@@ -1138,7 +1127,7 @@
     .filters::-webkit-scrollbar { display: none; }
     .filter {
         flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px;
-        border: 1px solid var(--line-2); border-radius: 999px; background: #fff; color: var(--ink);
+        border: 1px solid var(--line-2); border-radius: var(--radius-control); background: #fff; color: var(--ink);
         font-size: .88rem; font-weight: 500; transition: background-color .15s, border-color .15s, color .15s;
     }
     .filter:hover { border-color: var(--green-3); }
@@ -1163,7 +1152,7 @@
     .t-sheet { background: #dcfae6; color: #05603a; }
     .t-slides { background: #fef0c7; color: #93370d; }
     .t-image { background: #f0eaff; color: #6941c6; }
-    .t-other { background: var(--tint-2); color: var(--muted); }
+    .t-other { background: var(--tint-2); color: var(--text); }
     .doc-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
     .doc-name {
         color: var(--ink); font-weight: 600; line-height: 1.4; overflow-wrap: anywhere;
@@ -1187,13 +1176,13 @@
     .tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-bottom: 32px; }
     .tab {
         display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 22px;
-        border: 1px solid var(--line-2); border-radius: 999px; background: #fff; color: var(--ink);
+        border: 1px solid var(--line-2); border-radius: var(--radius-control); background: #fff; color: var(--ink);
         font-size: .93rem; font-weight: 600; transition: background-color .15s, color .15s, border-color .15s;
     }
     .tab:hover { border-color: var(--green-3); color: var(--green-3); }
     .tab[aria-selected="true"] { background: var(--green); border-color: var(--green); color: #fff; }
     .tab-count {
-        display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px;
+        display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: var(--radius-tag);
         background: var(--tint); color: var(--muted); font-size: .74rem; font-weight: 700;
     }
     .tab[aria-selected="true"] .tab-count { background: rgba(255, 255, 255, .2); color: #fff; }
@@ -1218,7 +1207,7 @@
     .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
     .person figcaption strong { display: block; color: var(--ink); font-family: var(--head); font-size: 1rem; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
     .person figcaption span {
-        display: inline-block; margin-top: 8px; padding: 3px 12px; border-radius: 999px;
+        display: inline-block; margin-top: 8px; padding: 3px 12px; border-radius: var(--radius-tag);
         background: var(--tint); color: var(--green-3); font-size: .78rem; font-weight: 600; line-height: 1.4;
     }
     /* The head of the branch: a larger card with a gold ring. */
@@ -1322,9 +1311,7 @@
         content: ''; position: absolute; right: -90px; bottom: -90px; z-index: -1;
         width: 240px; height: 240px; border: 36px solid rgba(255, 255, 255, .07); border-radius: 50%;
     }
-    .contact-intro .eyebrow { color: var(--gold); }
-    .contact-intro h2 { margin-top: 10px; color: #fff; }
-    .contact-intro > p { margin-top: 14px; max-width: 26rem; }
+    .contact-intro h2 { color: #fff; }
     .contact-points { list-style: none; display: grid; gap: 16px; margin-top: 32px; }
     .contact-points li { display: flex; align-items: center; gap: 14px; font-size: .94rem; }
     .contact-points i {
@@ -1339,7 +1326,7 @@
     .field label { display: block; margin-bottom: 6px; color: var(--ink); font-size: .86rem; font-weight: 600; }
     .field input,
     .field textarea {
-        width: 100%; min-height: 50px; padding: 12px 16px; border: 1px solid var(--line-2); border-radius: 12px;
+        width: 100%; min-height: 50px; padding: 12px 16px; border: 1px solid var(--line-2); border-radius: var(--radius-control);
         background: var(--tint); color: var(--ink); font-size: 1rem; transition: border-color .15s, box-shadow .15s, background-color .15s;
     }
     .field textarea { min-height: 150px; line-height: 1.6; resize: vertical; }
@@ -1373,7 +1360,6 @@
     .footer-brand img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; background: #fff; }
     .footer-brand strong { display: block; color: #fff; font-family: var(--head); font-weight: 600; }
     .footer-brand span { color: var(--green-light); font-size: .72rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
-    .footer-about p { max-width: 24rem; margin-top: 18px; font-size: .92rem; line-height: 1.7; }
     .site-footer h3 {
         position: relative; margin-bottom: 14px; padding-bottom: 12px;
         color: #fff; font-family: var(--head); font-size: 1rem; font-weight: 600;
@@ -1391,7 +1377,7 @@
     .footer-contact a:hover { color: #fff; }
     .footer-app {
         display: inline-flex; align-items: center; gap: 8px; min-height: 40px; margin-top: 18px; padding: 0 18px;
-        border: 1px solid rgba(255, 255, 255, .25); border-radius: 999px; background: none;
+        border: 1px solid rgba(255, 255, 255, .25); border-radius: var(--radius-control); background: none;
         color: #fff; font-size: .88rem; font-weight: 500; transition: border-color .15s, color .15s;
     }
     .footer-app:hover { border-color: #fff; color: #fff; }
@@ -1510,7 +1496,7 @@
     /* ------------------------- Get the app (optional) ------------------------- */
     .nav-app {
         display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; margin-top: 10px; padding: 0 16px;
-        border: 1px solid var(--line-2); border-radius: 999px; background: #fff; color: var(--green);
+        border: 1px solid var(--line-2); border-radius: var(--radius-control); background: #fff; color: var(--green);
         font-size: 1rem; font-weight: 600;
     }
     .nav-app:hover { background: var(--tint); }
@@ -1549,13 +1535,13 @@
         position: fixed; left: 50%; bottom: max(16px, calc(env(safe-area-inset-bottom) + 8px)); z-index: 150;
         width: max-content; max-width: calc(100vw - 24px); min-height: 48px; transform: translateX(-50%);
         display: flex; align-items: center; gap: 10px; padding: 10px 18px;
-        border-radius: 16px; background: var(--green-dark); color: #fff; font-size: .88rem; font-weight: 500; line-height: 1.4;
+        border-radius: var(--radius-sm); background: var(--green-dark); color: #fff; font-size: .88rem; font-weight: 500; line-height: 1.4;
         box-shadow: 0 10px 30px rgba(0, 0, 0, .25);
     }
     .net-bar.has-action { padding: 6px 6px 6px 16px; }
     .net-bar > i { flex-shrink: 0; color: var(--green-light); }
     .net-bar-btn {
-        flex-shrink: 0; min-height: 36px; padding: 0 14px; border: 0; border-radius: 999px;
+        flex-shrink: 0; min-height: 36px; padding: 0 14px; border: 0; border-radius: var(--radius-control);
         background: #fff; color: var(--green); font-size: .85rem; font-weight: 700;
     }
     .net-bar-btn:disabled { opacity: .65; }
@@ -1620,7 +1606,6 @@
     @keyframes screen-in { from { opacity: 0; } }
     html.is-app .sec-head { gap: 14px 24px; margin-bottom: 20px; }
     html.is-app .sec-head-center { align-items: flex-start; text-align: left; }
-    html.is-app .sec-head-center .eyebrow::after { display: none; }
     html.is-app .sec-head-center p { margin-left: 0; }
     html.is-app .sec-head h2,
     html.is-app .contact-intro h2 { font-size: 1.6rem; }
@@ -1642,7 +1627,7 @@
         color: var(--muted); font-size: .7rem; font-weight: 600; letter-spacing: .01em; text-decoration: none;
     }
     .tab-icon {
-        display: grid; place-items: center; width: 56px; height: 30px; border-radius: 999px;
+        display: grid; place-items: center; width: 56px; height: 30px; border-radius: var(--radius-control);
         font-size: 1.2rem; line-height: 1; transition: background-color .2s;
     }
     .tabbar .ico-on,
@@ -1832,11 +1817,11 @@
         body.classList.remove('clamped');
         anDialogBody.append($('.an-meta', card).cloneNode(true), heading, body);
 
-        const attach = $('.an-attach', card);
-        if (attach) {
+        const links = [$('.an-share', card), $('.an-attach', card)].filter(Boolean);
+        if (links.length) {
             const actions = document.createElement('div');
             actions.className = 'an-actions';
-            actions.append(attach.cloneNode(true));
+            links.forEach(link => actions.append(link.cloneNode(true)));
             anDialogBody.append(actions);
         }
 
@@ -2607,4 +2592,5 @@
     });
 })();
 </script>
+@include('Student.partials.share-script')
 @endsection

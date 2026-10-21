@@ -9,6 +9,8 @@ use App\Models\DisplayOfficer;
 use App\Models\OfficerTerm;
 use App\Models\SiteSetting;
 use App\Services\FileResponse;
+use App\Support\StudentPageCache;
+use App\Support\StudentPageSeo;
 use Illuminate\Support\Str;
 
 class StudentController extends Controller
@@ -22,7 +24,7 @@ class StudentController extends Controller
         'executive' => ['name' => 'Executive', 'about' => 'Leads the student government and carries out its programs, projects and services.'],
         'legislative' => ['name' => 'Legislative', 'about' => 'Speaks for the student body and passes the resolutions and policies the government follows.'],
         'judicial' => ['name' => 'Judicial', 'about' => 'Interprets the student government constitution and settles disputes fairly.'],
-        'other' => ['name' => 'Other officers', 'about' => 'More students serving the student body.'],
+        'other' => ['name' => 'Other officers', 'about' => 'Officers outside the three branches.'],
     ];
 
     /** Document "families" for the type filter, keyed by file extension. */
@@ -36,20 +38,97 @@ class StudentController extends Controller
 
     public function dashboard()
     {
+        // Every visitor sees the same files, announcements and officers, so
+        // they're built once and shared (StudentPageCache). The site settings
+        // are one small row, read fresh.
+        $siteSettings = SiteSetting::current();
+        $response = response()->view('Student.stuDashboard', StudentPageCache::remember(fn () => $this->pageData()) + [
+            'siteSettings' => $siteSettings,
+            'seo' => StudentPageSeo::home($siteSettings),
+        ]);
+
+        // A page showing this visitor's own contact-form result (a sent
+        // message, or the details they typed after a failed send) must never
+        // become the copy kept for offline use - public/sw.js skips no-store.
+        if (session()->has('success') || session()->has('errors') || session()->hasOldInput()) {
+            $response->headers->set('Cache-Control', 'no-store, private');
+        }
+
+        return $response;
+    }
+
+    /**
+     * One announcement on its own page, so it can be shared as a link (with
+     * its photo in the preview) and listed by search engines. The student
+     * page shows the same post as a card and a pop-up.
+     */
+    public function announcement(Announcement $announcement, ?string $slug = null)
+    {
+        // A missing or outdated end (the title was edited since the link was
+        // shared) goes to the one current address, so every link and search
+        // result counts as the same page.
+        if ($slug !== $announcement->slug()) {
+            return redirect()->route('student.announcement', [$announcement, $announcement->slug()], 301);
+        }
+
+        $announcement->load('images');
+        $siteSettings = SiteSetting::current();
+
+        $response = response()->view('Student.announcement', [
+            'announcement' => $announcement,
+            'siteSettings' => $siteSettings,
+            'seo' => StudentPageSeo::announcement($announcement, $siteSettings),
+        ]);
+
+        // Same as the page's robots meta tag, for crawlers that only read headers.
+        if ($announcement->hide_from_search) {
+            $response->headers->set('X-Robots-Tag', 'noindex');
+        }
+
+        return $response;
+    }
+
+    /**
+     * Everything on the student page that's the same for every visitor.
+     * Plain values with just the fields the page shows, since this is what
+     * StudentPageCache keeps - no storage paths or OCR text.
+     */
+    private function pageData(): array
+    {
         // Only show admin-approved files whose parent folder (if any) isn't restricted.
         // There is no "type" column - the type always comes from the file extension.
-        $files = File::publiclyVisible()->latest()->get()->each(function ($file) {
-            $file->ext = strtolower(pathinfo($file->filename, PATHINFO_EXTENSION));
-            $file->family = $this->docFamily($file->ext);
-            $file->size_label = $this->humanSize($file->size);
-        });
+        $files = File::publiclyVisible()->latest()
+            ->get(['id', 'filename', 'size', 'school_year', 'created_at'])
+            ->map(function ($file) {
+                $ext = strtolower(pathinfo($file->filename, PATHINFO_EXTENSION));
+
+                return (object) [
+                    'id' => $file->id,
+                    'filename' => $file->filename,
+                    'school_year' => $file->school_year,
+                    'created_at' => $file->created_at,
+                    'ext' => $ext,
+                    'family' => $this->docFamily($ext),
+                    'size_label' => $this->humanSize($file->size),
+                ];
+            });
 
         $docFamilies = collect(self::DOC_FAMILIES)
             ->map(fn ($meta, $key) => ['label' => $meta['label'], 'count' => $files->where('family', $key)->count()])
             ->put('other', ['label' => 'Other', 'count' => $files->where('family', 'other')->count()])
             ->filter(fn ($family) => $family['count'] > 0);
 
-        $announcements = Announcement::with('images')->latest()->get();
+        $announcements = Announcement::with('images')->latest()->get()
+            ->map(fn ($announcement) => (object) [
+                'id' => $announcement->id,
+                'slug' => $announcement->slug(),
+                'title' => $announcement->title,
+                'body' => $announcement->body,
+                'attachment_path' => $announcement->attachment_path,
+                'attachment_original_name' => $announcement->attachment_original_name,
+                'created_at' => $announcement->created_at,
+                'images' => $announcement->images->map(fn ($image) => (object) ['id' => $image->id, 'path' => $image->path]),
+            ]);
 
         $officers = OfficerTerm::with(['user', 'position'])
             ->where('status', 'active')
@@ -69,22 +148,7 @@ class StudentController extends Controller
             ->filter(fn ($branch) => $branch->tiers->isNotEmpty())
             ->values();
 
-        $response = response()->view('Student.stuDashboard', [
-            'files' => $files,
-            'docFamilies' => $docFamilies,
-            'announcements' => $announcements,
-            'branches' => $branches,
-            'siteSettings' => SiteSetting::current(),
-        ]);
-
-        // A page showing this visitor's own contact-form result (a sent
-        // message, or the details they typed after a failed send) must never
-        // become the copy kept for offline use - public/sw.js skips no-store.
-        if (session()->has('success') || session()->has('errors') || session()->hasOldInput()) {
-            $response->headers->set('Cache-Control', 'no-store, private');
-        }
-
-        return $response;
+        return compact('files', 'docFamilies', 'announcements', 'branches');
     }
 
     private function officer(string $name, string $position, ?string $photo): object

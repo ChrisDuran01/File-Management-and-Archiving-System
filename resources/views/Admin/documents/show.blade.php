@@ -1,4 +1,5 @@
 @extends($layout ?? 'Admin.home')
+@section('title', $document->title)
 @section('content')
 
 @include('Admin.partials.theme')
@@ -9,7 +10,7 @@
     * { box-sizing:border-box; }
     body { background:var(--surface); font-family:'Inter',sans-serif; color:var(--text-1); }
 
-    .btn-flat { background:var(--brand); color:#fff; border:none; border-radius:var(--radius-sm); padding:9px 16px; font-size:.84rem; font-weight:600; text-decoration:none; cursor:pointer; }
+    .btn-flat { background:var(--primary-fill); color:#fff; border:none; border-radius:var(--radius-sm); padding:9px 16px; font-size:.84rem; font-weight:600; text-decoration:none; cursor:pointer; }
     .btn-flat.ghost { background:var(--card); color:var(--text-2); border:1.5px solid var(--border); }
     .btn-flat.danger { background:var(--card); color:#b91c1c; border:1.5px solid #f3c9c9; }
 
@@ -56,13 +57,13 @@
 
 <div class="page-header">
     <div>
-        <h2>{{ $document->title }}</h2>
+        <h1>{{ $document->title }}</h1>
         <p class="sub">Filed {{ optional($document->created_at)->format('M j, Y') }} by {{ $document->createdBy?->name ?? 'System' }}</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <a href="{{ route('documents.index') }}" class="btn-flat ghost">Back</a>
+        <a href="{{ route('documents.index') }}" class="btn-flat ghost">Back to documents</a>
         @if (! $document->is_archived && $document->isManageableBy(auth()->user()))
-            <a href="{{ route('documents.edit', $document) }}" class="btn-flat"><i class="fas fa-pen me-1"></i> Edit</a>
+            <a href="{{ route('documents.edit', $document) }}" class="btn-flat"><i class="fas fa-pen me-1" aria-hidden="true"></i> Edit details</a>
             <form method="POST" action="{{ route('documents.destroy', $document) }}"
                   data-confirm-title="Move this document to Trash?"
                   data-confirm="The document and its PDF can be restored from Trash within {{ config('trash.retention_days') }} days."

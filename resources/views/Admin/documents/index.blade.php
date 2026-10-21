@@ -1,4 +1,5 @@
 @extends($layout ?? 'Admin.home')
+@section('title', 'Documents')
 @section('content')
 
 @include('Admin.partials.theme')
@@ -21,7 +22,7 @@
         border:1.5px solid var(--border); border-radius:var(--radius-sm); padding:8px 11px; font-size:.85rem; font-family:inherit;
     }
     .filter-row input:focus, .filter-row select:focus { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-dim); outline:none; }
-    .btn-flat { background:var(--brand); color:#fff; border:none; border-radius:var(--radius-sm); padding:9px 18px; font-size:.85rem; font-weight:600; cursor:pointer; text-decoration:none; }
+    .btn-flat { background:var(--primary-fill); color:#fff; border:none; border-radius:var(--radius-sm); padding:9px 18px; font-size:.85rem; font-weight:600; cursor:pointer; text-decoration:none; }
     .btn-flat.ghost { background:var(--card); color:var(--text-2); border:1.5px solid var(--border); }
 
     .doc-table { width:100%; border-collapse:collapse; font-size:.86rem; }
@@ -80,7 +81,7 @@
 
 <div class="page-header">
     <div>
-        <h2><i class="fas fa-folder-open me-2" style="color:var(--brand);font-size:1.1rem;"></i>Documents</h2>
+        <h1><i class="fas fa-folder-open me-2" style="color:var(--brand);font-size:1.1rem;"></i>Documents</h1>
         <p class="sub">Digitized hardcopy records. {{ $documents->count() }} shown.</p>
     </div>
     <a href="{{ route('documents.scans.index') }}" class="btn-flat ghost"><i class="fas fa-inbox me-1"></i> Scan inbox</a>
@@ -89,12 +90,12 @@
 <div class="card-panel">
     <form method="GET" action="{{ route('documents.index') }}" class="filter-row">
         <div class="fg">
-            <label>Search</label>
-            <input type="text" name="q" value="{{ request('q') }}" placeholder="title, ref no, sender" style="min-width:220px;">
+            <label for="docSearch">Search</label>
+            <input type="text" name="q" id="docSearch" value="{{ request('q') }}" placeholder="title, ref no, sender" style="min-width:220px;">
         </div>
         <div class="fg">
-            <label>Type</label>
-            <select name="type">
+            <label for="docType">Type</label>
+            <select name="type" id="docType">
                 <option value="">Any</option>
                 @foreach ($types as $t)
                     <option value="{{ $t }}" @selected(request('type') === $t)>{{ $t }}</option>
@@ -102,8 +103,8 @@
             </select>
         </div>
         <div class="fg">
-            <label>Folder</label>
-            <select name="folder_id">
+            <label for="docFolder">Folder</label>
+            <select name="folder_id" id="docFolder">
                 <option value="">Any</option>
                 @foreach ($folders as $folder)
                     <option value="{{ $folder->id }}" @selected((string) request('folder_id') === (string) $folder->id)>{{ $folder->name }}</option>
@@ -111,21 +112,21 @@
             </select>
         </div>
         <div class="fg">
-            <label>Received from</label>
-            <input type="date" name="from" value="{{ request('from') }}">
+            <label for="docFrom">Received from</label>
+            <input type="date" name="from" id="docFrom" value="{{ request('from') }}">
         </div>
         <div class="fg">
-            <label>To</label>
-            <input type="date" name="to" value="{{ request('to') }}">
+            <label for="docTo">To<span class="sr-only"> (date received)</span></label>
+            <input type="date" name="to" id="docTo" value="{{ request('to') }}">
         </div>
         <div class="fg">
-            <label>&nbsp;</label>
+            <label aria-hidden="true">&nbsp;</label>
             <label style="font-weight:500;font-size:.8rem;text-transform:none;letter-spacing:0;color:var(--text-2);">
                 <input type="checkbox" name="show_archived" value="1" @checked(request()->boolean('show_archived'))> include archived
             </label>
         </div>
-        <button type="submit" class="btn-flat">Filter</button>
-        <a href="{{ route('documents.index') }}" class="btn-flat ghost">Reset</a>
+        <button type="submit" class="btn-flat">Apply filters</button>
+        <a href="{{ route('documents.index') }}" class="btn-flat ghost">Clear filters</a>
     </form>
 </div>
 

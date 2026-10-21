@@ -66,10 +66,21 @@ return [
     // browser never sees it (requests go through HelpBotController).
     'gemini' => [
         'key'   => env('GEMINI_API_KEY'),
-        // Google retires dated model ids fairly often; the "-latest" alias
-        // tracks the current Flash model. Pin a dated id here if you need
-        // frozen behaviour (e.g. gemini-3.6-flash).
-        'model' => env('GEMINI_MODEL', 'gemini-flash-latest'),
+        // Tested 2026-10-20 with the real guide:
+        // - gemini-flash-latest (Google's newest, busiest Flash) timed out at
+        //   15s on every question; the log also shows 503 "high demand" and
+        //   a 20-requests-a-day free quota. Avoid it.
+        // - gemini-3.5-flash answered correctly and completely in ~5s.
+        // - gemini-flash-lite-latest answers in ~1.3s but is too literal: it
+        //   said "not covered" to "how do i manage admins" although the
+        //   guide has a Manage Admins section.
+        // Google retires dated ids like gemini-3.5-flash; when that happens
+        // it returns 404 and the fallback (an alias that never retires)
+        // takes over until this is updated.
+        'model' => env('GEMINI_MODEL') ?: 'gemini-3.5-flash',
+        // Asked once when the main model fails (busy, timed out, quota spent,
+        // retired). Separate model = separate quota. Blank = no fallback.
+        'fallback_model' => env('GEMINI_FALLBACK_MODEL', 'gemini-flash-lite-latest'),
     ],
 
 ];
