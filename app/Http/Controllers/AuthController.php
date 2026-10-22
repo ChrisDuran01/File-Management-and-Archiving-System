@@ -190,16 +190,6 @@ class AuthController extends Controller
             ->with('success', 'Password changed successfully.');
     }
 
-    public function adminDashboard()
-    {
-        return view('Admin.adminDashboard');
-    }
-
-    public function superAdminDashboard()
-    {
-        return view('SuperAdmin.superAdminDashboard');
-    }
-
     public function logout(Request $request)
     {
         // The idle-timeout screen (partials.idle-timeout) submits this same

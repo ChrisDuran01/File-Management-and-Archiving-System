@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\File;
 use App\Services\CloudFileUploader;
+use App\Services\DuplicateDetector;
 use App\Services\OcrExtractor;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -33,7 +34,7 @@ class ExtractFileOcrText implements ShouldQueue
     ) {
     }
 
-    public function handle(OcrExtractor $extractor, CloudFileUploader $uploader): void
+    public function handle(OcrExtractor $extractor, CloudFileUploader $uploader, DuplicateDetector $detector): void
     {
         $file = File::find($this->fileId);
 
@@ -45,15 +46,19 @@ class ExtractFileOcrText implements ShouldQueue
 
         if (! $extractor->supports($extension)) {
             $file->forceFill(['ocr_status' => 'skipped'])->save();
+            $this->checkForCopy($file, $detector, false);
 
             return;
         }
+
+        $converted = false;
 
         try {
             $text = $extractor->extract($file);
 
             if ($this->convertToPdf && $extractor->isImage($extension)) {
                 $this->replaceWithSearchablePdf($file, $extractor, $uploader);
+                $converted = true;
             }
 
             $file->forceFill([
@@ -68,6 +73,26 @@ class ExtractFileOcrText implements ShouldQueue
                 'ocr_status'       => 'failed',
                 'ocr_processed_at' => now(),
             ])->save();
+        }
+
+        $this->checkForCopy($file, $detector, $converted);
+    }
+
+    /**
+     * Now that the text is known, see whether this file is a copy of an
+     * older one. A failure here never fails the OCR itself.
+     */
+    private function checkForCopy(File $file, DuplicateDetector $detector, bool $bytesChanged): void
+    {
+        try {
+            // A photo turned into a searchable PDF has new bytes.
+            if ($bytesChanged || ! $file->content_hash) {
+                $detector->indexHash($file);
+            }
+            $detector->indexText($file);
+            $detector->check($file);
+        } catch (Throwable $e) {
+            Log::warning('Duplicate check failed for file ' . $file->filename . ': ' . $e->getMessage());
         }
     }
 

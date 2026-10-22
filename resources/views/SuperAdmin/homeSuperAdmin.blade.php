@@ -546,6 +546,11 @@
                         <span class="nav_name">Document Templates</span>
                     </a>
 
+                    <a href="/proposals" class="nav_link {{ Request::is('proposals*') ? 'active' : '' }}">
+                        <i class='bx bx-clipboard nav_icon'></i>
+                        <span class="nav_name">Activity Proposals</span>
+                    </a>
+
                     <a href="/reports" class="nav_link {{ Request::is('reports') ? 'active' : '' }}">
                         <i class='bx bx-chart nav_icon'></i>
                         <span class="nav_name">Reports &amp; Analytics</span>

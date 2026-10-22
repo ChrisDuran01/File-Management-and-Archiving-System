@@ -180,6 +180,11 @@
     .chip.neutral { background: #f1f5f9; color: #526071; }
     .chip.danger { background: var(--danger-dim); color: var(--danger); }
     .chip.warning { background: var(--warning-dim); color: var(--warning); }
+    a.chip { text-decoration: none; }
+    a.chip:hover { text-decoration: underline; }
+
+    /* Upload toast: a line under a file that duplicates one already saved */
+    .upload-toast-row .row-note { font-size: 11.5px; line-height: 1.4; color: var(--warning); margin-top: 6px; }
 
     /* ===== Forms ===== */
     .form-control:focus, .form-select:focus,

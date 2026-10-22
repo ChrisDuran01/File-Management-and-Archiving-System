@@ -44,9 +44,8 @@ test('each officer page has its own tab title and one main heading', function (s
     expect(tabTitle($html))->toBe($title)
         ->and(h1Count($html))->toBe(1);
 })->with([
-    // The SuperAdmin dashboard uses MySQL's DATE_FORMAT, so it can't run on
-    // the tests' SQLite - checked on the real database instead.
     'Admin dashboard'      => ['/adminDashboard', 'Dashboard · QSU-FMAS'],
+    'SuperAdmin dashboard' => ['/superAdminDashboard', 'Dashboard · QSU-FMAS'],
     'Folders'              => ['/folders', 'Folders · QSU-FMAS'],
     'Documents'            => ['/documents', 'Documents · QSU-FMAS'],
     'Scan Inbox'           => ['/documents/scans', 'Scan Inbox · QSU-FMAS'],
@@ -54,6 +53,8 @@ test('each officer page has its own tab title and one main heading', function (s
     'Trash'                => ['/trash', 'Trash · QSU-FMAS'],
     'Templates'            => ['/templates', 'Document Templates · QSU-FMAS'],
     'Letterheads'          => ['/letterheads', 'Letterheads · QSU-FMAS'],
+    'Activity Proposals'   => ['/proposals', 'Activity Proposals · QSU-FMAS'],
+    'New proposal'         => ['/proposals/create', 'New Activity Proposal · QSU-FMAS'],
     'Announcements'        => ['/announcements', 'Announcements · QSU-FMAS'],
     'Site Content'         => ['/site-settings', 'Site Content · QSU-FMAS'],
     'Profile'              => ['/profile', 'My Profile · QSU-FMAS'],

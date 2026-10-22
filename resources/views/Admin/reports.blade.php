@@ -160,6 +160,15 @@
 
     .empty-note { font-size: 13px; color: var(--text-muted); padding: 8px 0; }
 
+    /* Possible copies: the copy, then what it copies */
+    .copy-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--gridline); }
+    .copy-row:last-of-type { border-bottom: none; }
+    .copy-names { flex: 1; min-width: 0; }
+    .copy-names .rank-name { display: block; width: auto; }
+    .copy-names a { color: var(--text-primary); text-decoration: none; }
+    .copy-names .rank-meta a { color: var(--text-secondary); }
+    .copy-names a:hover { text-decoration: underline; }
+
     /* Student engagement */
     .eng-intro {
         display: flex; align-items: flex-start; gap: 10px; margin: 0 0 16px; padding: 12px 14px;
@@ -280,6 +289,7 @@
             'stale'     => $staleFolders->isNotEmpty() ? 'warning' : null,
             'integrity' => $preservation['fixity_failed'] > 0 ? 'critical' : ($preservation['fixity_unchecked'] > 0 ? 'warning' : null),
             'ocr'       => $ocr['failed'] > 0 ? 'warning' : null,
+            'copies'    => $copies->where('readonly', false)->isNotEmpty() ? 'warning' : null,
             'backups'   => ! $isSuperAdmin ? null
                 : (! $backups['last'] || $backups['last_age_hours'] > 24 * 7 ? 'critical'
                 : ($backups['last_age_hours'] > 48 || $backups['partial'] > 0 ? 'warning' : null)),
@@ -494,111 +504,74 @@
         </div>
     </div>
 
-    {{-- DATA MINING SECTION: DISABLED. To re-enable, remove this comment wrapper (it ends right
-         before the SECURITY block), and uncomment the $insights / $officerScatter lines in
-         ReportController and the matching JS block near the bottom of this file.
-         MINED INSIGHTS - computed by App\Services\ArchiveInsights
-    <div class="group-head"><i class="fas fa-wand-magic-sparkles"></i> Insights mined from your records</div>
+    {{-- TEXT MINING - copies of the same document (App\Services\DuplicateDetector,
+         flagged as each file is saved) and App\Services\ArchiveInsights (TF-IDF
+         vectors of the files' text). Only folders this officer may open, so it
+         is the same for Admins and SuperAdmins. --}}
+    <div class="group-head"><i class="fas fa-file-lines"></i> Found in the documents’ text</div>
     <p class="period-note" style="margin-top:-2px;">
-        Found by analysing the OCR text of {{ number_format($insights['corpus']) }} {{ Str::plural('file', $insights['corpus']) }} and the activity log. These are suggestions to review, not automatic changes. They always cover all time, not just the selected period.
+        From the text of {{ number_format($insights['corpus']) }} {{ Str::plural('file', $insights['corpus']) }} you can open. Suggestions to review: nothing is moved or deleted for you.
     </p>
 
     <div class="row-2">
-        <div class="card-panel">
-            <p class="section-title">Document map</p>
-            <p class="section-sub">Each dot is a file, placed by the similarity of its text (TF-IDF projected to 2-D). Same-colour clusters = folders that are internally consistent; dots stacked together = duplicates; <span style="font-weight:600;">&#9650;</span> = possibly misfiled.</p>
-            @if (count($insights['map']) >= 3)
-                <div class="chart-box" style="height:300px;"><canvas id="docMapChart"></canvas></div>
-            @else
-                <p class="empty-note">Needs at least 3 files with OCR text.</p>
+        <div class="card-panel{{ $toneClass('copies') }}">
+            <h3 class="q">{!! $flag('copies') !!}Are there copies of the same document? <span class="scope">All time</span></h3>
+            <p class="a">{!! $answers['copies'] !!}</p>
+            @foreach ($copies->take(8) as $c)
+                <div class="copy-row">
+                    <div class="copy-names">
+                        <a href="{{ route('files.preview', $c->id) }}" class="rank-name" title="{{ $c->name }}">{{ $c->name }}</a>
+                        <span class="rank-meta">
+                            @if ($c->original)
+                                copy of <a href="{{ route('files.preview', $c->original->id) }}" title="{{ $c->original->name }}">{{ $c->original->name }}</a>{{ $c->original->folder ? ' · ' . $c->original->folder : '' }}
+                            @else
+                                copy of a file in a folder you can’t open
+                            @endif
+                            {{ $c->readonly ? ' · past school year, read-only' : '' }}
+                        </span>
+                    </div>
+                    <span class="status-chip warning">{{ $c->similarity === 100 ? 'Exact copy' : $c->similarity . '% alike' }}</span>
+                </div>
+            @endforeach
+            @if ($copies->count() > 8)
+                <p class="section-sub" style="margin:10px 0 0;">And {{ $copies->count() - 8 }} more. Each one is marked “Possible copy” in its folder.</p>
             @endif
         </div>
         <div class="card-panel">
-            <p class="section-title">Officer behaviour</p>
-            <p class="section-sub">Each dot is an officer in this period: total actions vs downloads/deletions. The line is the expected level; <span style="color:#b3412f; font-weight:600;">red</span> dots are well above it. Dot size = days active.</p>
-            @if (count($officerScatter['points']) >= 1)
-                <div class="chart-box" style="height:300px;"><canvas id="officerScatter"></canvas></div>
-                @if (! $officerScatter['line'])
-                    <p class="section-sub" style="margin:8px 0 0;">Needs at least 4 active officers to draw the expected-level line.</p>
-                @endif
-            @else
-                <p class="empty-note">No activity in this period.</p>
+            <h3 class="q">Which documents read alike? <span class="scope">All time</span></h3>
+            <p class="a">{!! $answers['map'] !!}</p>
+            @if (count($insights['map']) >= 3)
+                <div class="chart-box" style="height:300px;"><canvas id="docMapChart" role="img" aria-label="Map of {{ count($insights['map']) }} documents placed by how alike their text is"></canvas></div>
             @endif
         </div>
     </div>
 
     <div class="row-2">
         <div class="card-panel">
-            <p class="section-title">Possible duplicates</p>
-            <p class="section-sub">Files whose text is {{ 85 }}%+ alike (TF-IDF + cosine similarity), even if the filenames differ.</p>
-            @forelse ($insights['duplicates'] as $pair)
-                <div style="padding:9px 0; border-bottom:1px solid var(--gridline);">
-                    <div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
-                        <span style="font-size:13px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ $pair['a']['name'] }}">{{ $pair['a']['name'] }}</span>
-                        <span class="status-chip {{ $pair['similarity'] >= 95 ? 'critical' : 'warning' }}">{{ $pair['similarity'] }}% alike</span>
-                    </div>
-                    <div style="font-size:12px; color:var(--text-muted);">
-                        <a href="{{ route('folders.show', $pair['a']['folder_id']) }}">{{ $pair['a']['folder'] }}</a>, {{ $pair['a']['date'] }}
-                    </div>
-                    <div style="font-size:13px; margin-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ $pair['b']['name'] }}">{{ $pair['b']['name'] }}</div>
-                    <div style="font-size:12px; color:var(--text-muted);">
-                        <a href="{{ route('folders.show', $pair['b']['folder_id']) }}">{{ $pair['b']['folder'] }}</a>, {{ $pair['b']['date'] }}
-                    </div>
-                </div>
-            @empty
-                <p class="empty-note">{{ $insights['corpus'] < 2 ? 'Not enough OCR text yet to compare files.' : 'No duplicate-looking files found.' }}</p>
-            @endforelse
-        </div>
-
-        <div class="card-panel">
-            <p class="section-title">Possibly misfiled</p>
-            <p class="section-sub">Files that read more like another folder's contents than their own (nearest-centroid text match).</p>
-            @forelse ($insights['misfiled'] as $m)
+            <h3 class="q">Are any files in the wrong folder? <span class="scope">All time</span></h3>
+            <p class="a">{!! $answers['misfiled'] !!}</p>
+            @foreach ($insights['misfiled'] as $m)
                 <div style="padding:9px 0; border-bottom:1px solid var(--gridline);">
                     <div style="font-size:13px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ $m['file']['name'] }}">{{ $m['file']['name'] }}</div>
                     <div style="font-size:12px; color:var(--text-muted);">
                         In <a href="{{ route('folders.show', $m['file']['folder_id']) }}">{{ $m['file']['folder'] }}</a> ({{ $m['own_match'] }}% match)
-                        &rarr; looks like <a href="{{ route('folders.show', $m['suggested']['id']) }}">{{ $m['suggested']['name'] }}</a> ({{ $m['other_match'] }}% match)
+                        &rarr; reads like <a href="{{ route('folders.show', $m['suggested']['id']) }}">{{ $m['suggested']['name'] }}</a> ({{ $m['other_match'] }}% match)
                     </div>
                 </div>
-            @empty
-                <p class="empty-note">{{ $insights['corpus'] < 4 ? 'Not enough OCR text yet to judge.' : 'Every file matches its folder well. Nothing to move.' }}</p>
-            @endforelse
-        </div>
-    </div>
-
-    <div class="row-2">
-        <div class="card-panel">
-            <p class="section-title">Unusual activity</p>
-            <p class="section-sub">Days in the last 7 where an officer's downloads/deletions were far above their own 90-day norm (z-score &ge; 3, at least 5 actions).</p>
-            @forelse ($insights['anomalies'] as $a)
-                <div class="rank-row" style="margin-bottom:10px; align-items:flex-start;">
-                    <div style="flex:1; min-width:0;">
-                        <div style="font-size:13px; font-weight:500;">{{ $a['user'] }}</div>
-                        <div style="font-size:11px; color:var(--text-muted);">{{ $a['date'] }}: {{ $a['count'] }} downloads/deletions vs usual {{ $a['baseline'] }} per day</div>
-                    </div>
-                    <span class="status-chip {{ $a['z'] >= 5 ? 'critical' : 'warning' }}"><i class="fas fa-circle"></i> z {{ $a['z'] }}</span>
-                </div>
-            @empty
-                <p class="empty-note">{{ $insights['anomalyUsers'] === 0 ? 'No download/delete history to compare against yet.' : 'No officer deviated from their own normal pattern.' }}</p>
-            @endforelse
+            @endforeach
         </div>
 
         <div class="card-panel">
-            <p class="section-title">What each folder is about</p>
-            <p class="section-sub">Most distinctive words in each folder's documents.</p>
-            @forelse ($insights['folderTopics'] as $t)
+            <h3 class="q">What is each folder about? <span class="scope">All time</span></h3>
+            <p class="a">{!! $answers['topics'] !!}</p>
+            @foreach ($insights['folderTopics'] as $t)
                 <div style="padding:8px 0; border-bottom:1px solid var(--gridline);">
                     <div style="font-size:13px; font-weight:500;">{{ $t['folder'] }} <span style="color:var(--text-muted); font-weight:400;">({{ $t['files'] }} {{ Str::plural('file', $t['files']) }})</span></div>
                     <div style="font-size:12px; color:var(--text-secondary);">{{ implode(' · ', $t['terms']) }}</div>
                 </div>
-            @empty
-                <p class="empty-note">Not enough OCR text yet.</p>
-            @endforelse
+            @endforeach
         </div>
     </div>
-
-    END OF DATA MINING SECTION --}}
 
     @if ($isSuperAdmin)
     {{-- SECURITY: LOGIN ANOMALIES - pattern detection over activity_logs,
@@ -911,12 +884,14 @@ new Chart(document.getElementById('weekdayChart'), {
 });
 @endif
 
-{{-- DATA MINING CHARTS: DISABLED (see the section comment above)
 // ---- Document map (scatter) ----
+// ArchiveInsights names the two largest folders and puts the rest in
+// "Other folders", so three colours - each with its own shape too. A file
+// that reads like another folder is a larger triangle.
 const mapPoints = @json($insights['map']);
 const mapEl = document.getElementById('docMapChart');
 if (mapEl && mapPoints.length) {
-    const palette = ['#058028', '#2f6fb5', '#b08900', '#a4457a', '#c2622d', '#2a9d9d', '#7a5cc2', '#8a8f98'];
+    const shapes = ['circle', 'rect', 'rectRot'];
     const groups = {};
     mapPoints.forEach(p => { (groups[p.folder] = groups[p.folder] || []).push(p); });
     const names = Object.keys(groups).sort((a, b) => (a === 'Other folders') - (b === 'Other folders') || groups[b].length - groups[a].length);
@@ -927,65 +902,25 @@ if (mapEl && mapPoints.length) {
             datasets: names.map((name, i) => ({
                 label: name,
                 data: groups[name],
-                backgroundColor: palette[Math.min(i, palette.length - 1)] + 'cc',
-                borderColor: palette[Math.min(i, palette.length - 1)],
+                backgroundColor: cat[Math.min(i, 2)] + 'cc',
+                borderColor: cat[Math.min(i, 2)],
                 pointRadius: groups[name].map(p => p.moved ? 8 : 5),
-                pointStyle: groups[name].map(p => p.moved ? 'triangle' : 'circle'),
+                pointStyle: groups[name].map(p => p.moved ? 'triangle' : shapes[Math.min(i, 2)]),
             })),
         },
         options: {
             responsive: true, maintainAspectRatio: false,
             plugins: {
-                legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10 } },
-                tooltip: { callbacks: { label: (c) => c.raw.file + (c.raw.moved ? '  (possibly misfiled)' : '') } },
+                legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true } },
+                tooltip: { callbacks: { label: (c) => c.raw.file + (c.raw.moved ? '  (reads like another folder)' : '') } },
             },
             scales: {
-                x: { grid: { color: gridColor }, ticks: { display: false }, title: { display: true, text: 'text similarity, dimension 1', color: textMuted } },
-                y: { grid: { color: gridColor }, ticks: { display: false }, title: { display: true, text: 'dimension 2', color: textMuted } },
+                x: { grid: { color: gridColor }, ticks: { display: false }, title: { display: true, text: 'how alike the text is (no units)', color: textMuted } },
+                y: { grid: { color: gridColor }, ticks: { display: false } },
             },
         },
     });
 }
-
-// ---- Officer behaviour (scatter + expected-level line) ----
-const officerData = @json($officerScatter);
-const offEl = document.getElementById('officerScatter');
-if (offEl && officerData.points.length) {
-    const ds = [
-        {
-            type: 'bubble',
-            label: 'Officers',
-            data: officerData.points.map(p => ({ x: p.x, y: p.y, r: Math.min(18, 4 + p.days * 1.2), name: p.name, days: p.days, outlier: p.outlier })),
-            backgroundColor: officerData.points.map(p => p.outlier ? 'rgba(179,65,47,0.75)' : cat[1] + 'b3'),
-            borderColor: officerData.points.map(p => p.outlier ? '#b3412f' : cat[1]),
-        },
-    ];
-    if (officerData.line) {
-        ds.push({
-            type: 'line', label: 'Expected level', data: officerData.line,
-            borderColor: textMuted, borderDash: [6, 5], borderWidth: 1.5, pointRadius: 0, fill: false,
-        });
-    }
-    new Chart(offEl, {
-        type: 'bubble',
-        data: { datasets: ds },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10 } },
-                tooltip: { callbacks: { label: (c) => c.raw.name
-                    ? `${c.raw.name}: ${c.raw.x} actions, ${c.raw.y} downloads/deletions, ${c.raw.days} active days${c.raw.outlier ? ' (above expected)' : ''}`
-                    : `expected ${c.parsed.y}` } },
-            },
-            scales: {
-                x: { type: 'linear', beginAtZero: true, grid: { color: gridColor }, ticks: { color: textMuted, precision: 0 }, title: { display: true, text: 'total logged actions', color: textMuted } },
-                y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: textMuted, precision: 0 }, title: { display: true, text: 'downloads + deletions', color: textMuted } },
-            },
-        },
-    });
-}
-
-END OF DATA MINING CHARTS --}}
 
 // ---- Storage growth + projection ----
 const storageTrend = @json($storageTrend);

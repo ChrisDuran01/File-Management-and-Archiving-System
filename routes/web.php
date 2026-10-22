@@ -28,6 +28,7 @@ use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\OfficerAppController;
 use App\Http\Controllers\ShareLinkController;
 use App\Http\Controllers\SeoController;
+use App\Http\Controllers\ActivityProposalController;
 
 /*
 |--------------------------------------------------------------------------
@@ -122,7 +123,7 @@ Route::middleware(['auth', 'nocache'])->group(function () {
     Route::post('/change-password', [AuthController::class, 'changePassword'])->name('password.change.submit');
 
     // Dashboards (the SuperAdmin one is in the superadmin group below)
-    Route::get('/adminDashboard', [FolderController::class, 'adminDashboard'])->name('Admin.adminDashboard');
+    Route::get('/adminDashboard', [DashboardController::class, 'adminDashboard'])->name('Admin.adminDashboard');
 
     // Folders
     Route::resource('folders', FolderController::class);
@@ -142,6 +143,7 @@ Route::middleware(['auth', 'nocache'])->group(function () {
     Route::post('/files/{id}/rename', [FileController::class, 'rename'])->name('files.rename');
     Route::post('/file/{id}/toggle-access', [FileController::class, 'toggleAccess'])->name('file.toggleAccess');
     Route::post('/file/{id}/approval', [FileController::class, 'setApproval'])->name('file.setApproval');
+    Route::post('/file/{id}/not-a-copy', [FileController::class, 'notACopy'])->name('file.notACopy');
 
     // Share links (website Share dialog and the phone app's Share sheet)
     Route::get('/files/{id}/share-links', [ShareLinkController::class, 'index'])->name('share-links.index');
@@ -253,6 +255,19 @@ Route::middleware(['auth', 'nocache'])->group(function () {
     Route::post('/letterheads', [LetterheadController::class, 'store'])->name('letterheads.store');
     Route::put('/letterheads/{letterhead}', [LetterheadController::class, 'update'])->name('letterheads.update');
     Route::delete('/letterheads/{letterhead}', [LetterheadController::class, 'destroy'])->name('letterheads.destroy');
+
+    // Detailed Activity Proposals. Any officer can read and copy one; only
+    // its maker or the Super Admin can change or delete it (checked in the
+    // controller).
+    Route::get('/proposals', [ActivityProposalController::class, 'index'])->name('proposals.index');
+    Route::get('/proposals/create', [ActivityProposalController::class, 'create'])->name('proposals.create');
+    Route::post('/proposals', [ActivityProposalController::class, 'store'])->name('proposals.store');
+    Route::get('/proposals/{proposal}', [ActivityProposalController::class, 'show'])->whereNumber('proposal')->name('proposals.show');
+    Route::get('/proposals/{proposal}/edit', [ActivityProposalController::class, 'edit'])->whereNumber('proposal')->name('proposals.edit');
+    Route::get('/proposals/{proposal}/pdf', [ActivityProposalController::class, 'pdf'])->whereNumber('proposal')->name('proposals.pdf');
+    Route::put('/proposals/{proposal}', [ActivityProposalController::class, 'update'])->whereNumber('proposal')->name('proposals.update');
+    Route::post('/proposals/{proposal}/copy', [ActivityProposalController::class, 'copy'])->whereNumber('proposal')->name('proposals.copy');
+    Route::delete('/proposals/{proposal}', [ActivityProposalController::class, 'destroy'])->whereNumber('proposal')->name('proposals.destroy');
 
     // Announcements (management; the public download route is declared above)
     Route::get('/announcements', [AnnouncementController::class, 'index'])->name('announcements.index');

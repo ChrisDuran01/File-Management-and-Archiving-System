@@ -18,6 +18,74 @@
     const scanCheckbox = form.querySelector('[name="scan_as_document"]');
     const pendingCheckbox = form.querySelector('[name="pending_approval"]');
 
+    // ---- One bar, 0-100%, for the whole upload ----
+    // Two steps: the browser sending the file here (measured), then this
+    // server putting it in cloud storage (the browser can't see that, so it
+    // is estimated from how long earlier files took per MB). The shown
+    // percentage starts slow and speeds up toward the end, and runs to 100%
+    // the moment the server answers. The estimate is on the generous side,
+    // so that answer usually comes early - which feels fast.
+    const SEND_SHARE = 0.3;      // part of the bar for sending the file here
+    const SAVE_BASE_MS = 1200;   // saving overhead regardless of size
+    const EASE = 1.6;            // > 1: slow start, fast finish
+    let msPerMb = 700;           // learned below, kept for the next visit
+    try { msPerMb = Number(localStorage.getItem('upload-ms-per-mb')) || msPerMb; } catch (e) { /* storage blocked */ }
+
+    function showPercent(ui, pct) {
+        ui.bar.style.width = pct + '%';
+        ui.status.textContent = pct + '%';
+    }
+
+    function startProgress(ui, file) {
+        const sizeMb = file.size / 1048576;
+        const p = ui.progress = {
+            sent: 0, sentAt: 0, shown: 0, raf: 0, sizeMb: sizeMb,
+            expectMs: 1.3 * (SAVE_BASE_MS + msPerMb * sizeMb),
+        };
+        (function tick() {
+            let actual = SEND_SHARE * p.sent;
+            if (p.sentAt) {
+                // Linear up to the estimate, then creeping, never quite done.
+                const t = (performance.now() - p.sentAt) / p.expectMs;
+                const saved = t < 1 ? 0.92 * t : 0.92 + 0.06 * (1 - Math.exp(1 - t));
+                actual = SEND_SHARE + (1 - SEND_SHARE) * saved;
+            }
+            p.shown = Math.max(p.shown, Math.min(97, Math.round(100 * Math.pow(actual, EASE))));
+            showPercent(ui, p.shown);
+            p.raf = requestAnimationFrame(tick);
+        })();
+    }
+
+    function markSent(ui) {
+        const p = ui.progress;
+        if (! p || p.sentAt) return;
+        p.sent = 1;
+        p.sentAt = performance.now();
+        ui.bar.classList.add('is-indeterminate'); // moving stripes while the server saves it
+    }
+
+    // Learn how long saving took for the next file's estimate.
+    function learn(p) {
+        if (! p.sentAt) return;
+        const savedMs = performance.now() - p.sentAt;
+        const observed = Math.max(50, (savedMs - SAVE_BASE_MS) / Math.max(p.sizeMb, 0.25));
+        msPerMb = Math.round(0.6 * msPerMb + 0.4 * observed);
+        try { localStorage.setItem('upload-ms-per-mb', String(msPerMb)); } catch (e) { /* storage blocked */ }
+    }
+
+    // The server answered: run the rest of the way quickly, then finish.
+    function sprint(ui, done) {
+        const p = ui.progress;
+        cancelAnimationFrame(p.raf);
+        const from = p.shown;
+        const start = performance.now();
+        (function step() {
+            const k = Math.min(1, (performance.now() - start) / 300);
+            showPercent(ui, Math.round(from + (100 - from) * k));
+            if (k < 1) { p.raf = requestAnimationFrame(step); } else { done(); }
+        })();
+    }
+
     if (toastClose) {
         toastClose.addEventListener('click', function () {
             toast.style.display = 'none';
@@ -55,6 +123,7 @@
     }
 
     function finish(ui, text, ok) {
+        if (ui.progress) cancelAnimationFrame(ui.progress.raf);
         ui.status.textContent = text;
         ui.bar.classList.remove('is-indeterminate');
         ui.bar.style.width = '100%';
@@ -65,7 +134,7 @@
     function upload(file, folderId, ui) {
         if (ui.cancelled) return Promise.resolve();
 
-        ui.status.textContent = '0%';
+        startProgress(ui, file);
 
         return new Promise(function (resolve) {
             const fd = new FormData();
@@ -80,16 +149,11 @@
 
             xhr.upload.addEventListener('progress', function (evt) {
                 if (! evt.lengthComputable || ui.cancelled) return;
-                const percent = Math.round((evt.loaded / evt.total) * 100);
-                ui.bar.style.width = percent + '%';
-                if (percent < 100) {
-                    ui.status.textContent = percent + '%';
-                } else {
-                    // Bytes are here; the server is now putting it in the cloud.
-                    ui.status.textContent = 'Saving…';
-                    ui.bar.classList.add('is-indeterminate');
-                }
+                ui.progress.sent = evt.loaded / evt.total;
+                // Bytes are all here; the server is now putting it in the cloud.
+                if (evt.loaded >= evt.total) markSent(ui);
             });
+            xhr.upload.addEventListener('load', function () { markSent(ui); });
 
             // The server answers in JSON (files.store sees Accept), so a
             // refused file - wrong type, too big, read-only folder - shows
@@ -99,11 +163,26 @@
                 let body = {};
                 try { body = JSON.parse(xhr.responseText); } catch (e) { /* not JSON */ }
                 if (xhr.status >= 200 && xhr.status < 300) {
-                    finish(ui, body.cloudPending ? 'Saved (cloud copy pending)' : 'Done ✓', true);
-                } else {
-                    const reason = body.message || (body.errors && Object.values(body.errors)[0][0]) || 'Upload failed';
-                    finish(ui, reason, false);
+                    // Saved already - too late to cancel.
+                    ui.cancelBtn.style.display = 'none';
+                    learn(ui.progress);
+                    sprint(ui, function () {
+                        finish(ui, body.cloudPending ? 'Saved (cloud copy pending)' : 'Done ✓', true);
+                        // An exact copy of a file already saved (DuplicateDetector).
+                        (body.copies || []).forEach(function (c) {
+                            const note = document.createElement('div');
+                            note.className = 'row-note';
+                            note.textContent = c.original
+                                ? 'Same file as “' + c.original + '”' + (c.folder ? ' in ' + c.folder : '') + '. It is marked as a possible copy.'
+                                : 'Same file as one already saved in a folder you can’t open.';
+                            ui.status.closest('.upload-toast-row').appendChild(note);
+                        });
+                        resolve();
+                    });
+                    return;
                 }
+                const reason = body.message || (body.errors && Object.values(body.errors)[0][0]) || 'Upload failed';
+                finish(ui, reason, false);
                 resolve();
             });
             xhr.addEventListener('error', function () {

@@ -10,6 +10,7 @@ class HelpBotLog extends Model
         'user_id',
         'question',
         'answer',
+        'source',
         'answered_from_guide',
         'helpful',
     ];

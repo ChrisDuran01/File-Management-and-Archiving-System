@@ -117,7 +117,8 @@ class FolderArchiver
                 'sender'          => $document?->sender,
                 'recipient'       => $document?->recipient,
                 'notes'           => $document?->notes,
-                'file_record'     => Arr::except($file->getAttributes(), ['ocr_text']),
+                // text_terms is rebuilt from ocr_text on restore.
+                'file_record'     => Arr::except($file->getAttributes(), ['ocr_text', 'text_terms']),
                 'document_record' => $document?->getAttributes(),
             ];
 

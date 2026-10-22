@@ -9,6 +9,7 @@ use App\Models\Document;
 use App\Models\File;
 use App\Models\Folder;
 use App\Models\User;
+use App\Services\DuplicateDetector;
 use App\Services\FolderArchiver;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Artisan;
@@ -253,8 +254,21 @@ class ArchiveController extends Controller
                         'size'         => $fileSize,
                         'storage_type' => $uploadedToCloud ? 'both' : 'local',
                         'ocr_text'     => $kept?->ocr_text,
+                        'content_hash' => hash('sha256', $fileContent),
+                        'duplicate_of_id'      => null,
+                        'duplicate_similarity' => null,
                     ]
                 ))->save();
+
+                // Checked again like a new upload: a restored file whose twin
+                // is still in the system is flagged as a possible copy.
+                try {
+                    $detector = app(DuplicateDetector::class);
+                    $detector->indexText($file);
+                    $detector->check($file);
+                } catch (\Throwable $e) {
+                    Log::warning('Duplicate check failed for restored file ' . $newFileName . ': ' . $e->getMessage());
+                }
 
                 // A file that was filed as a document lost that record when
                 // it was archived (the database deletes it with the file

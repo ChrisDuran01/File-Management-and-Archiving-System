@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Folder;
 use App\Models\HelpBotLog;
+use App\Services\HelpGuideSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -20,6 +21,9 @@ use Illuminate\Support\Str;
  * Grounded on purpose: the system instruction tells the model to answer only
  * from the guide and to say so when something isn't covered, so a demo can't
  * be derailed by a confident wrong answer.
+ *
+ * When Gemini can't answer (out of quota, busy, down), the guide is searched
+ * by keywords instead, so the officer still gets an answer.
  */
 class HelpBotController extends Controller
 {
@@ -56,29 +60,15 @@ class HelpBotController extends Controller
         $contents[] = ['role' => 'user', 'parts' => [['text' => $data['message']]]];
 
         // requestGemini() logs every failed attempt itself (with the model
-        // name), so the branches below only pick what the officer sees.
+        // name), so a failure here only has to pick the officer's answer.
         try {
             $response = $this->requestGemini($apiKey, $prompt, $contents);
         } catch (\Throwable) {
-            return response()->json(['reply' => "Sorry, I couldn't reach the help service. Try again in a moment."], 502);
+            $response = null;
         }
 
-        if (! $response->successful()) {
-            // A 429 here is Gemini's free-tier RESOURCE_EXHAUSTED quota, not a
-            // transient blip - the whole school shares one API key, and the
-            // free tier caps it at a small number of requests PER DAY. We only
-            // get here once the fallback model's quota is spent too, and every
-            // request then fails instantly until the quota resets, so "try
-            // again in a moment" is actively wrong advice - tell the officer
-            // (and whoever reads the report) what's really going on instead
-            // of implying a retry will help.
-            if ($response->status() === 429) {
-                return response()->json([
-                    'reply' => "The help assistant has hit its daily usage limit and won't work again until it resets. Please let the Super Admin know so they can upgrade the AI plan.",
-                ], 502);
-            }
-
-            return response()->json(['reply' => "Sorry, the help service returned an error. Try again in a moment."], 502);
+        if (! $response?->successful()) {
+            return $this->answerFromGuide($data['message'], $guide, $response?->status() === 429);
         }
 
         // Join every text part (3.x can return a thought part alongside the
@@ -100,6 +90,45 @@ class HelpBotController extends Controller
         ]);
 
         return response()->json(['reply' => $reply, 'log_id' => $log->id]);
+    }
+
+    /**
+     * Gemini couldn't answer, so search the guide by keywords instead and
+     * show the closest part of it word for word (HelpGuideSearch).
+     *
+     * A 429 is Gemini's free-tier RESOURCE_EXHAUSTED quota, not a transient
+     * blip - the whole school shares one API key and the free tier caps it
+     * at a small number of requests PER DAY, so say so rather than
+     * implying the AI will be back in a moment. Anything else (503 "high
+     * demand", timeouts, other errors) is reported as busy.
+     *
+     * Logged with source 'keywords' either way, so a question the guide
+     * doesn't cover still lands in the FAQ backlog.
+     */
+    private function answerFromGuide(string $question, string $guide, bool $outOfQuota)
+    {
+        $match = (new HelpGuideSearch($guide))->answer($question);
+
+        $why = $outOfQuota
+            ? "The AI assistant has used up today's free limit"
+            : 'The AI assistant is busy right now';
+
+        $reply = $match
+            ? "{$why}, so here is the part of the officer guide that matches your question:\n\n{$match}"
+            : "{$why}, and I couldn't find your question in the officer guide. Try other words, such as \"archive folder\" or \"make a file public\", or ask the Super Admin.";
+
+        $log = HelpBotLog::create([
+            'user_id'             => Auth::id(),
+            'question'            => $question,
+            'answer'              => Str::limit($reply, 4000),
+            'source'              => 'keywords',
+            'answered_from_guide' => $match !== null,
+        ]);
+
+        // No match: 502 so the chat offers "Try again", which asks the AI.
+        return $match
+            ? response()->json(['reply' => $reply, 'log_id' => $log->id])
+            : response()->json(['reply' => $reply], 502);
     }
 
     /**
@@ -212,11 +241,15 @@ class HelpBotController extends Controller
         }
 
         // The section runs until the next "---" rule (or the end of the file).
+        // The note names the tasks in everyday words, so the keyword search
+        // (HelpGuideSearch) finds it for "how do I add a new officer" too.
         $end = strpos($guide, "\n---", $start + 1);
 
         return substr($guide, 0, $start)
-            . "\n## Super Admin only\n\nManage Admins (adding, editing or ending officers, End Term),"
-            . " Activity Logs and Settings / Backup are used by the Super Admin only.\n"
+            . "\n## Super Admin only\n\nThese are used by the Super Admin only. Ask the Super Admin if you need one done.\n\n"
+            . "- **Manage Admins:** adding a new officer, editing an officer, ending an officer's term, End Term.\n"
+            . "- **Activity Logs:** the record of who did what in the system.\n"
+            . "- **Settings / Backup:** making, downloading and scheduling backups.\n"
             . ($end === false ? '' : substr($guide, $end));
     }
 

@@ -121,6 +121,7 @@ class TemplateController extends Controller
             'local_path' => $localPath,
             'storage_type' => $storageType,
             'size' => strlen($pdfContent),
+            'content_hash' => hash('sha256', $pdfContent),
             'folder_id' => $request->folder_id ?: null,
             'generated_from_template_id' => $template->id,
             'officer_term_id' => $term?->id,

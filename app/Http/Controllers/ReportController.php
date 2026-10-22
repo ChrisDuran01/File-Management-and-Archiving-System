@@ -17,6 +17,7 @@ use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -214,8 +215,10 @@ class ReportController extends Controller
                 ->take(8)
                 ->values();
 
-            // DATA MINING (disabled): officer scatter plot. Re-enable with the view's data mining section.
-            // $officerScatter = $this->officerScatter($logsInRange);
+            // officerScatter() is not shown: comparing officers with each other
+            // flags whoever runs the tests, and test accounts skew the line.
+            // ArchiveInsights::unusualActivity() (each officer against their
+            // own baseline) is the better fit if this comes back.
         }
 
         // =============================
@@ -370,10 +373,20 @@ class ReportController extends Controller
         $staleFolders = $allStaleFolders->take(8)->values();
 
         // =============================
+        // TEXT MINING - copies of the same document (flagged by
+        // DuplicateDetector as each file is saved), and from the files'
+        // TF-IDF vectors: a map of which documents read alike, possibly
+        // misfiled files, and what each folder is about. All time, and only
+        // the folders this officer may open.
+        // =============================
+        $copies = $this->possibleCopies();
+        $insights = $this->textInsights();
+
+        // =============================
         // CSV EXPORT - the same numbers the page shows.
         // =============================
         if ($request->query('export') === 'csv') {
-            return $this->exportCsv($periodLabel, $kpis, $trend, $activityByCategory, $activeOfficers, $documentTypes, $batchStatuses, $topFolders, $pipeline, $preservation, $backups);
+            return $this->exportCsv($periodLabel, $kpis, $trend, $activityByCategory, $activeOfficers, $documentTypes, $batchStatuses, $topFolders, $pipeline, $preservation, $backups, $copies);
         }
 
         // =============================
@@ -383,9 +396,6 @@ class ReportController extends Controller
         // =============================
         $loginAnomalies = $isSuperAdmin ? $this->detectLoginAnomalies() : null;
 
-        // DATA MINING (disabled): duplicates, misfiled, anomalies, document map.
-        // $insights = app(ArchiveInsights::class)->build(Auth::user());
-
         $hourLabels = array_map(fn ($h) => sprintf('%02d:00', $h), range(0, 23));
         $weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -394,7 +404,7 @@ class ReportController extends Controller
             'trend', 'buckets', 'pipeline', 'batchStatuses', 'documentTypes', 'storageTrend', 'projection',
             'projectedTarget', 'storageFormatted', 'totalStorage', 'topFolders', 'fileTypes', 'staleFolders',
             'staleCount', 'preservation', 'ocr'
-        ));
+        )) + $this->textMiningAnswers($copies, $insights);
         if ($isSuperAdmin) {
             $answers += $this->superAdminAnswers(compact(
                 'activityByCategory', 'logsInRange', 'byHour', 'byWeekday', 'activeOfficers',
@@ -411,9 +421,107 @@ class ReportController extends Controller
             'pipeline', 'batchStatuses', 'documentTypes', 'ocr',
             'storageTrend', 'projection', 'projectedTarget', 'topFolders', 'fileTypes',
             'preservation', 'backups',
-            'staleFolders', /* 'insights', */
+            'staleFolders', 'copies', 'insights',
             'loginAnomalies', 'isSuperAdmin', 'layout'
         ));
+    }
+
+    /**
+     * Files flagged as a copy of an older file, that the viewer may open,
+     * most alike first. The original is named only when the viewer may
+     * open it too - a restricted folder's contents stay private.
+     */
+    private function possibleCopies()
+    {
+        $user = Auth::user();
+
+        return File::flaggedAsCopy()
+            ->with(['folder', 'duplicateOf.folder'])
+            ->orderByDesc('duplicate_similarity')->orderByDesc('id')
+            ->get()
+            ->filter(fn (File $f) => $f->isAccessibleBy($user))
+            ->map(fn (File $f) => (object) [
+                'id'         => $f->id,
+                'name'       => $f->filename,
+                'folder'     => $f->folder?->name,
+                'folder_id'  => $f->folder_id,
+                'similarity' => (int) $f->duplicate_similarity,
+                'readonly'   => (bool) $f->is_archived, // a past school year's file can't be deleted
+                'original'   => $f->duplicateOf->isAccessibleBy($user) ? (object) [
+                    'id'        => $f->duplicateOf->id,
+                    'name'      => $f->duplicateOf->filename,
+                    'folder'    => $f->duplicateOf->folder?->name,
+                    'folder_id' => $f->duplicateOf->folder_id,
+                ] : null,
+            ])
+            ->values();
+    }
+
+    /**
+     * ArchiveInsights for this viewer. It compares every pair of files, so
+     * it is kept for an hour - and worked out again as soon as a file is
+     * added, changed, read by OCR or a folder's access changes.
+     */
+    private function textInsights(): array
+    {
+        $user = Auth::user();
+        $stamp = implode('|', [
+            File::count(), File::max('updated_at'), File::whereNotNull('text_terms')->count(), Folder::max('updated_at'),
+        ]);
+
+        return Cache::remember(
+            'report-text-insights:' . $user->id . ':' . md5($stamp),
+            now()->addHour(),
+            fn () => app(ArchiveInsights::class)->build($user)
+        );
+    }
+
+    /**
+     * One-line answers for the text-mining panels. Same rules as
+     * recordsAnswers().
+     *
+     * @return array<string, string>
+     */
+    private function textMiningAnswers($copies, array $insights): array
+    {
+        $b = fn ($text) => '<strong>' . e($text) . '</strong>';
+        $a = [];
+
+        // Are there copies of the same document?
+        $total = $copies->count();
+        $exact = $copies->where('similarity', 100)->count();
+        $readonly = $copies->where('readonly', true)->count();
+        $a['copies'] = match (true) {
+            $total === 0 => 'No file looks like a copy of another.',
+            default => $b($total . ' ' . Str::plural('file', $total)) . ' ' . ($total === 1 ? 'looks' : 'look') . ' like a copy of another file'
+                . ($exact ? ', ' . $b($exact . ' of them exact') : '') . '.'
+                . ($readonly === $total
+                    ? ' All are from a past school year, so they stay as they are.'
+                    : ($readonly ? ' ' . $readonly . ' are from a past school year and stay as they are.' : '')
+                        . ' Open the folder to delete a copy, or mark it “not a copy” to keep both.'),
+        };
+
+        // Which documents read alike?
+        $a['map'] = $insights['corpus'] < 3
+            ? 'Needs at least 3 files with readable text (has ' . $insights['corpus'] . ').'
+            : $b($insights['corpus'] . ' files') . ' placed by how alike their words are. Dots close together read alike; dots on top of each other are copies.';
+
+        // Are any files in the wrong folder?
+        $m = $insights['misfiled'];
+        $a['misfiled'] = match (true) {
+            $insights['corpus'] < 4 => 'Not enough text yet to judge (needs files with text in at least two folders of 3 or more).',
+            $m === [] => 'Every file reads most like its own folder. Nothing to move.',
+            default => $b(count($m) . ' ' . Str::plural('file', count($m))) . ' read more like another folder. The clearest: '
+                . $b('“' . $m[0]['file']['name'] . '”') . ' reads like ' . $b('“' . $m[0]['suggested']['name'] . '”') . '.',
+        };
+
+        // What is each folder about?
+        $t = $insights['folderTopics'][0] ?? null;
+        $a['topics'] = $t
+            ? $b('“' . $t['folder'] . '”') . ' is mostly about ' . e(implode(', ', array_slice($t['terms'], 0, 3))) . '.'
+            : 'Not enough text yet.';
+
+        return $a;
     }
 
     /**
@@ -825,11 +933,11 @@ class ReportController extends Controller
      * $activityByCategory, $activeOfficers and $backups are null for a regular
      * Admin (SuperAdmin-only sections), and their rows are left out.
      */
-    private function exportCsv(string $periodLabel, array $kpis, array $trend, $activityByCategory, $activeOfficers, $documentTypes, $batchStatuses, $topFolders, array $pipeline, array $preservation, ?array $backups)
+    private function exportCsv(string $periodLabel, array $kpis, array $trend, $activityByCategory, $activeOfficers, $documentTypes, $batchStatuses, $topFolders, array $pipeline, array $preservation, ?array $backups, $copies)
     {
         $filename = 'libris-report-' . Carbon::now()->format('Ymd-His') . '.csv';
 
-        return response()->streamDownload(function () use ($periodLabel, $kpis, $trend, $activityByCategory, $activeOfficers, $documentTypes, $batchStatuses, $topFolders, $pipeline, $preservation, $backups) {
+        return response()->streamDownload(function () use ($periodLabel, $kpis, $trend, $activityByCategory, $activeOfficers, $documentTypes, $batchStatuses, $topFolders, $pipeline, $preservation, $backups, $copies) {
             $out = fopen('php://output', 'w');
             fwrite($out, "\xEF\xBB\xBF"); // UTF-8 BOM so Excel reads it correctly
 
@@ -887,6 +995,17 @@ class ReportController extends Controller
             fputcsv($out, ['LARGEST FOLDERS', 'Files', 'Size']);
             foreach ($topFolders as $f) {
                 fputcsv($out, [$safe($f->name), $f->files, $f->formatted]);
+            }
+            fputcsv($out, []);
+
+            fputcsv($out, ['POSSIBLE COPIES', 'Folder', 'Copy of', 'In folder', 'Alike %']);
+            foreach ($copies as $c) {
+                fputcsv($out, [
+                    $safe($c->name), $safe($c->folder),
+                    $c->original ? $safe($c->original->name) : 'a file in a folder you can\'t open',
+                    $c->original ? $safe($c->original->folder) : '',
+                    $c->similarity,
+                ]);
             }
             fputcsv($out, []);
 

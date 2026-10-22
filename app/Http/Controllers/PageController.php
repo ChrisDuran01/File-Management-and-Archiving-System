@@ -14,10 +14,6 @@ class PageController extends Controller
         return view ('home');
     }
 
-     public function adminDashboard(){
-        return view ('Admin.adminDashboard');
-    }
-
     public function archives(){
         return view ('Admin.archives');
     }
@@ -28,10 +24,6 @@ class PageController extends Controller
 
     public function reports(){
         return view ('Admin.reports');
-    }
-
-    public function superAdminDashboard(){
-        return view ('SuperAdmin.superAdminDashboard');
     }
 
     public function activityLogs(){

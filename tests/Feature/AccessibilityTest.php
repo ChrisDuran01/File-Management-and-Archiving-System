@@ -46,7 +46,16 @@ function a11yRecords(User $user): array
 
     Folder::create(['name' => 'Old drafts', 'created_by' => $user->id])->delete();
 
-    return [$folder, $file];
+    $proposal = \App\Models\ActivityProposal::create([
+        'title'      => 'Leadership Training',
+        'objectives' => ['Train officers'],
+        'schedule'   => [['time' => '8:00 AM', 'activity' => 'Registration', 'personnel' => 'SG Secretary']],
+        'signatories' => ['prepared' => [['name' => 'A. Officer', 'position' => 'SG Secretary']]],
+        'created_by' => $user->id,
+    ]);
+    $proposal->items()->create(['category' => 'Meals', 'particular' => 'Lunch', 'quantity' => 60, 'unit' => 'pax', 'unit_price' => 60]);
+
+    return [$folder, $file, $proposal];
 }
 
 function a11yDom(string $html): DOMXPath
@@ -187,16 +196,15 @@ test('the checks catch each kind of problem they look for', function () {
 
 test('officer pages give every image alt text, every control a name and every field a label', function (string $url) {
     $user = a11ySuperAdmin();
-    [$folder, $file] = a11yRecords($user);
-    $url = str_replace(['{folder}', '{file}'], [$folder->id, $file->id], $url);
+    [$folder, $file, $proposal] = a11yRecords($user);
+    $url = str_replace(['{folder}', '{file}', '{proposal}'], [$folder->id, $file->id, $proposal->id], $url);
 
     $html = $this->actingAs($user)->get($url)->assertOk()->getContent();
 
     expect(a11yProblems($html))->toBe([]);
 })->with([
-    // The SuperAdmin dashboard uses MySQL's DATE_FORMAT, so it can't run on
-    // the tests' SQLite (see PageTitlesTest).
     'Admin dashboard' => '/adminDashboard',
+    'SuperAdmin dashboard' => '/superAdminDashboard',
     'Folders'         => '/folders',
     'Folder'          => '/folders/{folder}',
     'File preview'    => '/files/{file}/preview',
@@ -206,6 +214,10 @@ test('officer pages give every image alt text, every control a name and every fi
     'Trash'           => '/trash',
     'Templates'       => '/templates',
     'Letterheads'     => '/letterheads',
+    'Proposals'       => '/proposals',
+    'New proposal'    => '/proposals/create',
+    'Proposal'        => '/proposals/{proposal}',
+    'Edit proposal'   => '/proposals/{proposal}/edit',
     'Announcements'   => '/announcements',
     'Site Content'    => '/site-settings',
     'Profile'         => '/profile',

@@ -115,30 +115,6 @@ class FolderController extends Controller
     }
 
     /**
-     * Admin dashboard summary
-     */
-    public function adminDashboard()
-    {
-        $totalFolders = Folder::where('is_archived', false)->count();
-        $totalFiles   = File::where('is_archived', false)->count();
-
-        $storageUsed = File::where('is_archived', false)->sum('size');
-        $storageFormatted = $storageUsed >= 1073741824
-            ? number_format($storageUsed / 1073741824, 2) . ' GB'
-            : number_format($storageUsed / 1048576, 2) . ' MB';
-
-        // Get 5 most recent folders
-        $recentFolders = Folder::where('is_archived', false)->latest()->take(5)->get();
-
-        return view('Admin.adminDashboard', compact(
-            'totalFolders',
-            'totalFiles',
-            'storageFormatted',
-            'recentFolders'
-        ));
-    }
-
-    /**
      * Show a specific folder
      * Includes subfolders and files inside it
      */
@@ -161,7 +137,7 @@ class FolderController extends Controller
         $folders->manageable = $folders->isManageableBy(Auth::user());
 
         // Files inside this folder
-        $files = File::where('folder_id', $id)->get();
+        $files = File::where('folder_id', $id)->with('duplicateOf.folder')->get();
 
         $layout = Folder::isSuperAdmin(Auth::user()) ? 'SuperAdmin.homeSuperAdmin' : 'Admin.home';
 

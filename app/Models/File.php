@@ -26,17 +26,38 @@ class File extends Model
     'ocr_status',
     'ocr_processed_at',
     'is_pending_approval',
+    'content_hash',
 ];
 
     protected $casts = [
         'last_accessed_at' => 'datetime',
         'ocr_processed_at' => 'datetime',
         'is_pending_approval' => 'boolean',
+        'text_terms' => 'array',
+        'duplicate_dismissed_at' => 'datetime',
     ];
 
     public function folder()
     {
         return $this->belongsTo(Folder::class);
+    }
+
+    /**
+     * The older file this one looks like a copy of (DuplicateDetector). Null
+     * once that file is in Trash, so a copy whose original was deleted stops
+     * being flagged.
+     */
+    public function duplicateOf()
+    {
+        return $this->belongsTo(File::class, 'duplicate_of_id');
+    }
+
+    /** Files flagged as a copy that no officer has answered "keep both" for. */
+    public function scopeFlaggedAsCopy($query)
+    {
+        return $query->whereNotNull('duplicate_of_id')
+            ->whereNull('duplicate_dismissed_at')
+            ->whereHas('duplicateOf');
     }
 
     /**

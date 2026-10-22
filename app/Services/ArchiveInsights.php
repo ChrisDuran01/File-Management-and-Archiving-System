@@ -9,34 +9,25 @@ use App\Models\User;
 use Carbon\Carbon;
 
 /**
- * Data mining over the archive's own data. Three techniques, each tied to
- * something an officer can act on:
+ * Text mining over the archive's own documents, for the Reports page. Every
+ * technique starts from the same TF-IDF vectors (TextVectors), built from the
+ * word counts stored with each file (files.text_terms):
  *
- *  - Near-duplicate detection: TF-IDF vectors of each file's OCR text,
- *    compared by cosine similarity. Finds the same document uploaded twice
- *    (or a re-scan) even when the filename differs.
+ *  - Document map: classical multidimensional scaling of the files'
+ *    cosine similarities, so documents that read alike sit together.
  *  - Possible misfiling: a file is compared to the "centroid" (summed
  *    TF-IDF vector) of its own folder's OTHER files and of every other
  *    folder. If it reads much more like another folder, it is suggested
  *    for a move. This is a nearest-centroid text classifier.
- *  - Unusual activity: per-officer z-score. Each officer's daily count of
- *    sensitive actions (downloads, deletes) is compared with their OWN
- *    90-day baseline, so a heavy user isn't flagged for normal work but a
- *    quiet account suddenly downloading a lot is.
+ *  - Folder topics: the words with the highest summed weight per folder.
  *
- * Everything is computed on demand from existing tables; nothing is stored.
+ * Copies of the same document are found by DuplicateDetector when each file
+ * is saved, not here. Everything is computed on demand; nothing is stored.
  */
 class ArchiveInsights
 {
     /** Cap the corpus so the pairwise comparison stays cheap. */
     private const MAX_FILES = 400;
-
-    /** Only the start of each document is needed to characterise it. */
-    private const MAX_TEXT_CHARS = 20000;
-
-    private const MIN_TOKENS = 15;
-
-    private const DUPLICATE_SIMILARITY = 0.85;
 
     private const MISFILED_MIN_SIMILARITY = 0.30;
 
@@ -50,82 +41,49 @@ class ArchiveInsights
 
     private const ANOMALY_MIN_COUNT = 5;
 
-    private const STOPWORDS = [
-        'the','and','for','that','this','with','from','are','was','were','been','have','has','had','will','shall',
-        'not','but','you','your','our','their','his','her','its','who','whom','which','what','when','where','also',
-        'any','all','can','may','such','than','then','them','these','those','there','here','upon','per','page',
-        'ang','ng','sa','mga','na','at','ay','para','ito','may','ni','kay','nang','pa','din','rin','po','ko','mo',
-        'dated','date','copy','signed','name','office','university','republic','philippines',
-    ];
-
-    /**
-     * @return array{
-     *   corpus: int, duplicates: array, misfiled: array, folderTopics: array,
-     *   anomalies: array, anomalyUsers: int
-     * }
-     */
-    public function build(User $viewer): array
+    public function __construct(private readonly TextVectors $vectors)
     {
-        $text = $this->textInsights($viewer);
-
-        return $text + $this->activityInsights();
     }
 
-    // ------------------------------------------------------------------
-    // TEXT MINING (TF-IDF + cosine similarity)
-    // ------------------------------------------------------------------
-
-    private function textInsights(User $viewer): array
+    /**
+     * @return array{corpus: int, misfiled: array, folderTopics: array, map: array}
+     */
+    public function build(User $viewer): array
     {
         $folders = Folder::all()->keyBy('id');
         $accessible = $folders->filter(fn (Folder $f) => $f->isAccessibleBy($viewer))->keys()->all();
 
         $files = File::whereIn('folder_id', $accessible)
-            ->whereNotNull('ocr_text')->where('ocr_text', '!=', '')
+            ->where(fn ($q) => $q->whereNotNull('text_terms')->orWhere(fn ($q) => $q->whereNotNull('ocr_text')->where('ocr_text', '!=', '')))
             ->latest()->limit(self::MAX_FILES)
-            ->get(['id', 'filename', 'folder_id', 'ocr_text', 'created_at']);
+            ->get(['id', 'filename', 'folder_id', 'text_terms', 'ocr_text', 'created_at']);
 
-        // Term-frequency per file; skip files with too little text to judge.
+        // Word counts per file (stored; worked out here for a file saved
+        // before they were). Files with too little text are left out.
         $tf = [];
-        $df = [];
         foreach ($files as $file) {
-            $tokens = $this->tokenize(mb_substr($file->ocr_text, 0, self::MAX_TEXT_CHARS));
-            if (count($tokens) < self::MIN_TOKENS) {
-                continue;
-            }
-            $counts = array_count_values($tokens);
-            $tf[$file->id] = $counts;
-            foreach (array_keys($counts) as $term) {
-                $df[$term] = ($df[$term] ?? 0) + 1;
+            $counts = $file->text_terms ?? $this->vectors->termCounts($file->ocr_text);
+            if ($counts) {
+                $tf[$file->id] = $counts;
             }
         }
 
         $n = count($tf);
-        $empty = ['corpus' => $n, 'duplicates' => [], 'misfiled' => [], 'folderTopics' => [], 'map' => []];
+        $empty = ['corpus' => $n, 'misfiled' => [], 'folderTopics' => [], 'map' => []];
         if ($n < 2) {
             return $empty;
         }
 
-        // TF-IDF, L2-normalised so a dot product is the cosine similarity.
-        $vec = [];
-        foreach ($tf as $fileId => $counts) {
-            $v = [];
-            foreach ($counts as $term => $c) {
-                $v[$term] = (1 + log($c)) * (log(($n + 1) / ($df[$term] + 1)) + 1);
-            }
-            $vec[$fileId] = $this->normalize($v);
-        }
-
+        $df = $this->vectors->documentFrequencies($tf);
+        $vec = array_map(fn ($counts) => $this->vectors->weigh($counts, $df, $n), $tf);
         $byId = $files->keyBy('id');
 
-        // Pairwise cosine similarity, computed once and shared by the
-        // duplicate finder and the 2-D document map.
         $ids = array_keys($vec);
         $gram = [];
         for ($i = 0, $c = count($ids); $i < $c; $i++) {
             $gram[$i][$i] = 1.0;
             for ($j = $i + 1; $j < $c; $j++) {
-                $gram[$i][$j] = $gram[$j][$i] = $this->dot($vec[$ids[$i]], $vec[$ids[$j]]);
+                $gram[$i][$j] = $gram[$j][$i] = $this->vectors->dot($vec[$ids[$i]], $vec[$ids[$j]]);
             }
         }
 
@@ -133,7 +91,6 @@ class ArchiveInsights
 
         return [
             'corpus'       => $n,
-            'duplicates'   => $this->findDuplicates($ids, $gram, $byId, $folders),
             'misfiled'     => $misfiled,
             'folderTopics' => $this->folderTopics($vec, $byId, $folders),
             'map'          => $this->documentMap($ids, $gram, $byId, $folders, array_column(array_column($misfiled, 'file'), 'id')),
@@ -183,7 +140,7 @@ class ArchiveInsights
             $counts[$fid] = ($counts[$fid] ?? 0) + 1;
         }
         arsort($counts);
-        $named = array_slice(array_keys($counts), 0, 7);
+        $named = array_slice(array_keys($counts), 0, 2);
 
         $points = [];
         foreach ($ids as $i => $id) {
@@ -243,30 +200,6 @@ class ArchiveInsights
         return $norm > 0 ? array_map(fn ($x) => $x / $norm, $v) : $v;
     }
 
-    private function findDuplicates(array $ids, array $gram, $byId, $folders): array
-    {
-        $pairs = [];
-
-        for ($i = 0, $c = count($ids); $i < $c; $i++) {
-            for ($j = $i + 1; $j < $c; $j++) {
-                $sim = $gram[$i][$j];
-                if ($sim >= self::DUPLICATE_SIMILARITY) {
-                    $a = $byId[$ids[$i]];
-                    $b = $byId[$ids[$j]];
-                    $pairs[] = [
-                        'similarity' => (int) round($sim * 100),
-                        'a' => $this->fileRow($a, $folders),
-                        'b' => $this->fileRow($b, $folders),
-                    ];
-                }
-            }
-        }
-
-        usort($pairs, fn ($x, $y) => $y['similarity'] <=> $x['similarity']);
-
-        return array_slice($pairs, 0, 8);
-    }
-
     private function findMisfiled(array $vec, $byId, $folders): array
     {
         // Sum vector per folder.
@@ -295,7 +228,7 @@ class ArchiveInsights
             foreach ($v as $term => $w) {
                 $ownCentroid[$term] = ($ownCentroid[$term] ?? 0) - $w;
             }
-            $ownSim = $this->dot($v, $this->normalize($ownCentroid));
+            $ownSim = $this->vectors->dot($v, $this->vectors->normalize($ownCentroid));
 
             $bestFolder = null;
             $bestSim = 0.0;
@@ -303,7 +236,7 @@ class ArchiveInsights
                 if ($folderId === $own || ($members[$folderId] ?? 0) < 2) {
                     continue;
                 }
-                $sim = $this->dot($v, $this->normalize($centroid));
+                $sim = $this->vectors->dot($v, $this->vectors->normalize($centroid));
                 if ($sim > $bestSim) {
                     $bestSim = $sim;
                     $bestFolder = $folderId;
@@ -367,51 +300,18 @@ class ArchiveInsights
         ];
     }
 
-    /** @return string[] */
-    private function tokenize(string $text): array
-    {
-        $words = preg_split('/[^\p{L}\p{N}]+/u', mb_strtolower($text), -1, PREG_SPLIT_NO_EMPTY);
-        $stop = array_flip(self::STOPWORDS);
-
-        return array_values(array_filter($words, fn ($w) => mb_strlen($w) >= 3
-            && ! isset($stop[$w])
-            && ! ctype_digit($w)));
-    }
-
-    private function normalize(array $v): array
-    {
-        $norm = sqrt(array_sum(array_map(fn ($x) => $x * $x, $v)));
-        if ($norm <= 0) {
-            return $v;
-        }
-        foreach ($v as $k => $x) {
-            $v[$k] = $x / $norm;
-        }
-
-        return $v;
-    }
-
-    /** Dot product over the smaller vector's terms. */
-    private function dot(array $a, array $b): float
-    {
-        if (count($a) > count($b)) {
-            [$a, $b] = [$b, $a];
-        }
-        $s = 0.0;
-        foreach ($a as $term => $w) {
-            if (isset($b[$term])) {
-                $s += $w * $b[$term];
-            }
-        }
-
-        return $s;
-    }
-
     // ------------------------------------------------------------------
     // UNUSUAL ACTIVITY (per-officer z-score on sensitive actions)
+    // Not shown yet: it reads the activity log, which is SuperAdmin-only,
+    // so it may only be added inside the Reports page's SuperAdmin panels.
     // ------------------------------------------------------------------
 
-    private function activityInsights(): array
+    /**
+     * Each officer's daily count of sensitive actions (downloads, deletes)
+     * compared with their OWN 90-day baseline, so a heavy user isn't flagged
+     * for normal work but a quiet account suddenly downloading a lot is.
+     */
+    public function unusualActivity(): array
     {
         $now = Carbon::now();
         $recentStart = $now->copy()->subDays(self::ANOMALY_RECENT_DAYS - 1)->startOfDay();

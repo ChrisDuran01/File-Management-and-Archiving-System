@@ -10,6 +10,7 @@ use App\Models\OfficerTerm;
 use App\Models\User;
 use App\Notifications\FileUploadedToYourFolder;
 use App\Services\CloudFileUploader;
+use App\Services\DuplicateDetector;
 use App\Services\FileResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -34,7 +35,7 @@ class FileController extends Controller
      * - Uploads every file to the cloud disk, then stores metadata in the
      *   database via a single bulk insert.
      */
-    public function store(Request $request, CloudFileUploader $uploader)
+    public function store(Request $request, CloudFileUploader $uploader, DuplicateDetector $detector)
     {
         set_time_limit(0);
 
@@ -95,13 +96,16 @@ class FileController extends Controller
 
             $filePath  = time() . '_' . Str::slug($name) . '_' . $count . '_' . uniqid() . '.' . $extension;
             $localPath = $uploadedFile->store('uploads/' . ($request->folder_id ?? 'root'), 'local');
+            $fullPath  = Storage::disk('local')->path($localPath);
 
             $prepared[] = [
                 'newFileName' => $newFileName,
                 'filePath'    => $filePath,
                 'localPath'   => $localPath,
-                'fullPath'    => Storage::disk('local')->path($localPath),
+                'fullPath'    => $fullPath,
                 'size'        => $uploadedFile->getSize(),
+                // Lets an exact copy of a file already saved be named right away.
+                'hash'        => hash_file('sha256', $fullPath) ?: null,
             ];
         }
 
@@ -135,6 +139,7 @@ class FileController extends Controller
                 'officer_term_id' => $term?->id,
                 'school_year'     => $term?->school_year,
                 'is_pending_approval' => $pendingApproval,
+                'content_hash'    => $item['hash'],
                 'created_at'      => $now,
                 'updated_at'      => $now,
             ];
@@ -143,6 +148,8 @@ class FileController extends Controller
         // =============================
         // STEP 3: BULK INSERT + ONE ACTIVITY LOG FOR THE WHOLE BATCH
         // =============================
+        $copies = [];
+
         if ($rows) {
             File::insert($rows);
 
@@ -150,10 +157,19 @@ class FileController extends Controller
             // the timestamp this whole batch shares to queue OCR per file.
             $scanAsDocument = $request->boolean('scan_as_document');
 
-            File::whereIn('filename', collect($rows)->pluck('filename'))
+            $newFiles = File::whereIn('filename', collect($rows)->pluck('filename'))
                 ->where('created_at', $now)
-                ->pluck('id')
-                ->each(fn ($id) => ExtractFileOcrText::dispatch($id, $scanAsDocument));
+                ->get();
+
+            // Exact copies are known now, from the bytes; copies with the
+            // same text are found once OCR has read them (ExtractFileOcrText).
+            foreach ($newFiles as $newFile) {
+                if ($original = $detector->check($newFile)) {
+                    $copies[] = $this->describeCopy($newFile, $original);
+                }
+            }
+
+            $newFiles->each(fn ($f) => ExtractFileOcrText::dispatch($f->id, $scanAsDocument));
 
             ActivityLog::create([
                 'user_name'  => Auth::user()->name,
@@ -164,6 +180,10 @@ class FileController extends Controller
             $this->notifyFolderCreator($request->folder_id, count($rows), $rows[0]['filename']);
         }
 
+        $copyNote = $copies
+            ? ' ' . collect($copies)->map(fn ($c) => '"' . $c['file'] . '" is the same file as ' . $c['original_phrase'] . '.')->implode(' ')
+            : '';
+
         if ($localOnlyNames) {
             $count = count($localOnlyNames);
 
@@ -171,13 +191,59 @@ class FileController extends Controller
                 count($rows) . ' file(s) uploaded. ' . $count . ' ' . ($count === 1 ? 'couldn\'t' : 'couldn\'t')
                 . ' reach cloud storage right now and ' . ($count === 1 ? 'was' : 'were')
                 . ' saved locally instead - still fully usable, and will sync to the cloud automatically'
-                . ' once the connection recovers: ' . implode(', ', $localOnlyNames),
+                . ' once the connection recovers: ' . implode(', ', $localOnlyNames) . $copyNote,
                 200,
-                ['cloudPending' => true]
+                ['cloudPending' => true, 'copies' => $copies]
             );
         }
 
-        return $reply('success', 'Files uploaded successfully!');
+        return $reply('success', 'Files uploaded successfully!' . $copyNote, 200, $copies ? ['copies' => $copies] : []);
+    }
+
+    /**
+     * How an upload that duplicates a saved file is described to the
+     * uploader. The original's name and folder are only given when the
+     * uploader may open it - a restricted folder's contents stay private.
+     */
+    private function describeCopy(File $copy, File $original): array
+    {
+        $visible = $original->isAccessibleBy(Auth::user());
+        $folder  = $original->folder?->name;
+
+        return [
+            'file'            => $copy->filename,
+            'original'        => $visible ? $original->filename : null,
+            'folder'          => $visible ? $folder : null,
+            'original_phrase' => $visible
+                ? '"' . $original->filename . '"' . ($folder ? ' in ' . $folder : '')
+                : 'a file already saved in a folder you can\'t open',
+        ];
+    }
+
+    /**
+     * "Not a copy, keep both" for a file flagged by DuplicateDetector - for
+     * two resolutions that share a template, say. The answer is kept, so
+     * the file isn't flagged again. Allowed for a file under a past school
+     * year too: it only clears the system's label, the record is unchanged.
+     */
+    public function notACopy($id, DuplicateDetector $detector)
+    {
+        $file = File::findOrFail($id);
+
+        if (! $file->isAccessibleBy(Auth::user())) {
+            abort(403, 'This file is in a restricted folder you don\'t have access to.');
+        }
+
+        $original = $file->duplicateOf;
+        $detector->dismiss($file);
+
+        ActivityLog::create([
+            'user_name'  => Auth::user()->name,
+            'activity'   => 'Updated duplicate check: kept both ' . $file->filename . ($original ? ' and ' . $original->filename : '') . ' (not a copy)',
+            'ip_address' => request()->ip(),
+        ]);
+
+        return back()->with('success', '"' . $file->filename . '" won\'t be flagged as a copy again.');
     }
 
     /**

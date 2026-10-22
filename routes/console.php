@@ -1,12 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Schedule;
-use Illuminate\Support\Facades\Cache;
 use App\Services\BackupScheduler;
-
-// Heartbeat for the SuperAdmin dashboard's System health card: if this stops
-// updating, schedule:work / schedule:run isn't running.
-Schedule::call(fn () => Cache::forever('scheduler:heartbeat', now()->timestamp))->everyMinute();
 
 // Retention policy: move folders stored under a past school year into the
 // ZIP archive once they haven't been opened in a long time

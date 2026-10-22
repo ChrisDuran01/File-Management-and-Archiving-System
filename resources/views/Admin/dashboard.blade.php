@@ -1,4 +1,4 @@
-@extends('SuperAdmin.homeSuperAdmin')
+@extends($layout)
 @section('title', 'Dashboard')
 @section('content')
 
@@ -6,7 +6,9 @@
 
 <style>
     /* ── Dashboard ──
-       Every section is the same .dash-card, and the four headline cards come
+       One page for both roles (DashboardController): an Admin gets the same
+       cards minus the ones built on SuperAdmin pages ($isSuperAdmin).
+       Every section is the same .dash-card, and the headline cards come
        from one loop, so the page always looks like one system. Colours come
        only from the theme tokens: green is the one accent, amber/red are
        kept for things that need attention. */
@@ -46,8 +48,9 @@
     .dash-empty.ok i { color: var(--success); }
     .dash-empty p { margin: 0; font-size: 13px; color: var(--text-2); }
 
-    /* Headline cards */
+    /* Headline cards: four for a SuperAdmin, three for an Admin */
     .kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+    .kpi-grid.is-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .kpi {
         display: flex;
         flex-direction: column;
@@ -170,7 +173,10 @@
     .facts li b { color: var(--text-1); font-weight: 500; text-align: right; overflow-wrap: anywhere; }
 
     @media (max-width: 1199.98px) {
-        .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .kpi-grid:not(.is-3) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 767.98px) {
+        .kpi-grid.is-3 { grid-template-columns: minmax(0, 1fr); }
     }
     /* One column: the two column wrappers dissolve so the most urgent card leads */
     @media (max-width: 991.98px) {
@@ -210,8 +216,10 @@
 
     $attentionLevel = collect($attention)->contains('level', 'danger') ? 'danger'
         : (collect($attention)->contains('level', 'warning') ? 'warning' : 'ok');
-    $healthIssues = collect($health)->where('status', '!=', 'ok')->count();
+    $healthIssues = collect($health ?? [])->where('status', '!=', 'ok')->count();
     $healthIcon = ['ok' => 'bi-check-circle-fill', 'warning' => 'bi-exclamation-triangle-fill', 'danger' => 'bi-x-circle-fill'];
+    $kpiGridClass = count($kpis) === 3 ? 'kpi-grid is-3' : 'kpi-grid';
+    $hasActions = $activityChart['actions'] !== null;
 @endphp
 
 {{-- Skeleton placeholder, shown until the real content below is revealed --}}
@@ -222,8 +230,8 @@
             <div class="skel skel-text" style="width:260px;"></div>
         </div>
     </div>
-    <div class="kpi-grid">
-        @for ($i = 0; $i < 4; $i++)
+    <div class="{{ $kpiGridClass }}">
+        @for ($i = 0; $i < count($kpis); $i++)
             <div class="dash-card kpi">
                 <div class="skel skel-text" style="width:50%;"></div>
                 <div class="skel skel-text" style="width:40%; height:26px;"></div>
@@ -253,13 +261,17 @@
     </div>
     <div class="dash-actions">
         <a href="/reports" class="btn-flat ghost"><i class="bi bi-bar-chart-line"></i> Reports</a>
-        <a href="/backup" class="btn-flat ghost"><i class="bi bi-cloud-arrow-up"></i> Backups</a>
-        <a href="/addAdmin" class="btn-flat"><i class="bi bi-person-plus"></i> Add officer</a>
+        @if ($isSuperAdmin)
+            <a href="/backup" class="btn-flat ghost"><i class="bi bi-cloud-arrow-up"></i> Backups</a>
+            <a href="/addAdmin" class="btn-flat"><i class="bi bi-person-plus"></i> Add officer</a>
+        @else
+            <a href="/folders" class="btn-flat"><i class="bi bi-folder2-open"></i> Open folders</a>
+        @endif
     </div>
 </div>
 
 {{-- ── Headline numbers ── --}}
-<div class="kpi-grid">
+<div class="{{ $kpiGridClass }}">
     @foreach ($kpis as $kpi)
         <a href="{{ $kpi['href'] }}" class="dash-card kpi">
             <div class="kpi-head">
@@ -313,24 +325,28 @@
             <header class="dash-card-head">
                 <div>
                     <h3>Activity</h3>
-                    <p>Last 30 days · {{ number_format($activityChart['totalUploads']) }} {{ Str::plural('file', $activityChart['totalUploads']) }} uploaded, {{ number_format($activityChart['totalActions']) }} {{ Str::plural('action', $activityChart['totalActions']) }} logged</p>
+                    <p>Last 30 days · {{ number_format($activityChart['totalUploads']) }} {{ Str::plural('file', $activityChart['totalUploads']) }} uploaded{{ $hasActions ? ', ' . number_format($activityChart['totalActions']) . ' ' . Str::plural('action', $activityChart['totalActions']) . ' logged' : '' }}</p>
                 </div>
-                <div class="chart-legend" aria-hidden="true">
-                    <span><i class="key-bar"></i>Files uploaded</span>
-                    <span><i class="key-line"></i>Logged actions</span>
-                </div>
+                {{-- A legend only when there are two series --}}
+                @if ($hasActions)
+                    <div class="chart-legend" aria-hidden="true">
+                        <span><i class="key-bar"></i>Files uploaded</span>
+                        <span><i class="key-line"></i>Logged actions</span>
+                    </div>
+                @endif
             </header>
             <div class="dash-card-body">
                 @if ($activityChart['totalUploads'] + $activityChart['totalActions'] > 0)
                     <div class="chart-box">
-                        <canvas id="activityChart" role="img" aria-label="Files uploaded and actions logged per day over the last 30 days"></canvas>
+                        <canvas id="activityChart" role="img" aria-label="{{ $hasActions ? 'Files uploaded and actions logged' : 'Files uploaded' }} per day over the last 30 days"></canvas>
                     </div>
                 @else
-                    <div class="dash-empty"><i class="bi bi-graph-up"></i><p>No uploads or logged actions in the last 30 days.</p></div>
+                    <div class="dash-empty"><i class="bi bi-graph-up"></i><p>{{ $hasActions ? 'No uploads or logged actions in the last 30 days.' : 'No uploads in the last 30 days.' }}</p></div>
                 @endif
             </div>
         </section>
 
+        @if ($isSuperAdmin)
         <section class="dash-card o-4">
             <header class="dash-card-head">
                 <div>
@@ -359,6 +375,7 @@
                 @endif
             </div>
         </section>
+        @endif
 
         <section class="dash-card o-5">
             <header class="dash-card-head">
@@ -423,11 +440,12 @@
             </div>
         </section>
 
+        @if ($isSuperAdmin)
         <section class="dash-card o-3">
             <header class="dash-card-head">
                 <div>
                     <h3>System health</h3>
-                    <p>Backups and background tasks</p>
+                    <p>Backups</p>
                 </div>
                 @if ($healthIssues)
                     <span class="badge-soft warning">{{ $healthIssues }} to check</span>
@@ -447,6 +465,7 @@
                 </ul>
             </div>
         </section>
+        @endif
 
         <section class="dash-card o-6">
             <header class="dash-card-head">
@@ -515,21 +534,21 @@
     };
 
     const c = colors();
+    const uploads = {
+        type: 'bar', label: 'Files uploaded', data: data.uploads, order: 2,
+        backgroundColor: c.uploads, borderRadius: 4, maxBarThickness: 12,
+    };
+    // Logged actions only for a SuperAdmin (data.actions is null for an Admin).
+    const actions = data.actions && {
+        type: 'line', label: 'Logged actions', data: data.actions, order: 1,
+        // monotone: the smoothed line never dips below zero between points
+        borderColor: c.actions, backgroundColor: c.actions, borderWidth: 2, cubicInterpolationMode: 'monotone',
+        pointRadius: 0, pointHoverRadius: 4, pointHitRadius: 10,
+    };
     const chart = new Chart(canvas, {
         data: {
             labels: data.labels,
-            datasets: [
-                {
-                    type: 'line', label: 'Logged actions', data: data.actions, order: 1,
-                    // monotone: the smoothed line never dips below zero between points
-                    borderColor: c.actions, backgroundColor: c.actions, borderWidth: 2, cubicInterpolationMode: 'monotone',
-                    pointRadius: 0, pointHoverRadius: 4, pointHitRadius: 10,
-                },
-                {
-                    type: 'bar', label: 'Files uploaded', data: data.uploads, order: 2,
-                    backgroundColor: c.uploads, borderRadius: 4, maxBarThickness: 12,
-                },
-            ],
+            datasets: actions ? [actions, uploads] : [uploads],
         },
         options: {
             maintainAspectRatio: false,
@@ -559,8 +578,7 @@
 
     new MutationObserver(() => {
         const n = colors();
-        const [actions, uploads] = chart.data.datasets;
-        actions.borderColor = actions.backgroundColor = n.actions;
+        if (actions) actions.borderColor = actions.backgroundColor = n.actions;
         uploads.backgroundColor = n.uploads;
         chart.options.scales.x.border.color = n.grid;
         chart.options.scales.y.grid.color = n.grid;

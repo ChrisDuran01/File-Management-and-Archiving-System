@@ -98,26 +98,83 @@ it('sends the API key in a header, never in the URL', function () {
         && ! str_contains($request->url(), 'test-key'));
 });
 
-it('does not try the fallback for an error it would repeat', function () {
+it('does not try the fallback model for an error it would repeat', function () {
     Http::fake(['*' => Http::response(['error' => ['code' => 400]], 400)]);
 
     $this->actingAs(helpBotUser())
         ->postJson('/help-bot/ask', ['message' => 'how do I archive a folder?'])
-        ->assertStatus(502);
+        ->assertOk()
+        ->assertJsonPath('reply', fn (string $reply) => str_contains($reply, 'Archive one folder'));
 
     Http::assertSentCount(1);
 });
 
-it('explains the daily limit once both models are out of quota', function () {
+it('answers from the guide by keywords once both models are out of quota', function () {
     Http::fake(['*' => Http::response(['error' => ['code' => 429, 'status' => 'RESOURCE_EXHAUSTED']], 429)]);
+
+    $response = $this->actingAs(helpBotUser())
+        ->postJson('/help-bot/ask', ['message' => 'paano i-archive ang folder?'])
+        ->assertOk();
+
+    expect($response->json('reply'))
+        ->toContain("used up today's free limit")
+        ->toContain('**Archive one folder:** on Folders, three-dot menu → Archive.');
+
+    Http::assertSentCount(2);
+
+    $log = HelpBotLog::sole();
+    expect($response->json('log_id'))->toBe($log->id)
+        ->and($log->source)->toBe('keywords')
+        ->and($log->answered_from_guide)->toBeTrue();
+});
+
+it('answers from the guide by keywords when both models are busy', function () {
+    Http::fake([
+        '*main-model*'   => Http::failedConnection('cURL error 28: Operation timed out'),
+        '*backup-model*' => Http::response(['error' => ['code' => 503, 'status' => 'UNAVAILABLE']], 503),
+    ]);
+
+    $this->actingAs(helpBotUser())
+        ->postJson('/help-bot/ask', ['message' => 'I deleted a file by mistake'])
+        ->assertOk()
+        ->assertJsonPath('reply', fn (string $reply) => str_contains($reply, 'busy right now')
+            && str_contains($reply, 'Check Trash and restore it.'));
+});
+
+it('says so when the keywords match nothing in the guide', function () {
+    Http::fake(['*' => Http::response(['error' => ['code' => 429]], 429)]);
+
+    $this->actingAs(helpBotUser())
+        ->postJson('/help-bot/ask', ['message' => 'tell me a joke'])
+        ->assertStatus(502)
+        ->assertJsonPath('reply', fn (string $reply) => str_contains($reply, "couldn't find your question in the officer guide"));
+
+    // Still logged, so the question shows up in the FAQ backlog.
+    expect(HelpBotLog::sole()->answered_from_guide)->toBeFalse();
+});
+
+it('keeps the Super Admin steps out of an officer\'s keyword answer', function () {
+    Http::fake(['*' => Http::response(['error' => ['code' => 429]], 429)]);
+
+    $reply = $this->actingAs(helpBotOfficer())
+        ->postJson('/help-bot/ask', ['message' => 'how do I add a new officer?'])
+        ->assertOk()
+        ->json('reply');
+
+    expect($reply)
+        ->toContain('Super Admin only')
+        ->toContain('adding a new officer')
+        ->not->toContain('temporary password');
+});
+
+it('logs AI answers as coming from the AI', function () {
+    Http::fake(['*' => Http::response(geminiReply('1. Go to Folders.'))]);
 
     $this->actingAs(helpBotUser())
         ->postJson('/help-bot/ask', ['message' => 'how do I archive a folder?'])
-        ->assertStatus(502)
-        ->assertJsonPath('reply', fn (string $reply) => str_contains($reply, 'daily usage limit'));
+        ->assertOk();
 
-    Http::assertSentCount(2);
-    expect(HelpBotLog::count())->toBe(0);
+    expect(HelpBotLog::sole()->source)->toBe('ai');
 });
 
 it('leaves the Super Admin steps out of the guide an officer gets', function () {

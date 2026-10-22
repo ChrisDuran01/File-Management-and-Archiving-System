@@ -70,9 +70,22 @@ is separate from the students' app.
 
 ## Dashboard
 
-The landing page after login. Shows totals (folders, files, storage used) and
-your most recent folders. Use the quick links to jump to Folders, Reports, or
-Archives.
+The landing page after login. It shows:
+
+- **Headline numbers**: storage used, files (with this week's uploads) and
+  folders. Click a card to open the matching page.
+- **Activity**: files uploaded per day over the last 30 days.
+- **Needs attention**: things someone should act on, such as scan batches
+  waiting for review, files whose text couldn't be read, possible copies and
+  folders nobody has opened in 90 days. Click a line to go there. "All
+  clear" means there is nothing to do.
+- **Recent uploads**: the newest files in folders you can open.
+- **Storage by type** and a 7-day **Student page** snapshot (visits,
+  announcement views, document opens, searches).
+
+The Super Admin's dashboard also has the number of officers, the latest
+actions from the Activity Logs, and backup status, because those pages are
+Super Admin only.
 
 ## Folders
 
@@ -110,6 +123,24 @@ drag files onto the drop zone. Uploads go straight to cloud storage and show
 progress in a small toast in the top-right corner; you can keep working while
 they finish. If a direct upload fails it automatically retries through the
 server. Accepted types include PDF, Word, Excel, PowerPoint, and common images.
+
+### "Possible copy" label
+
+The system checks every new file against the files already saved, so the
+same minutes or resolution isn't kept twice under different names:
+
+- **Exact copy** (the very same file): the upload toast says so right away.
+- **Same text** (for example the Word and the PDF of one resolution, a
+  re-scan, or a renamed "- Copy"): found a few seconds later, once the
+  system has read the file's text.
+
+Either way the newer file gets a **Possible copy** label in its folder. Click
+the label to open the older file and compare. Then either delete the copy
+(menu → Delete, it goes to Trash) or choose **Not a copy, keep both** if
+they are really two documents, such as two resolutions made from the same
+template. Nothing is deleted automatically. The list of all possible copies
+is on Reports & Analytics, and the Super Admin dashboard shows how many
+there are.
 
 ## Making a file public (sharing with students)
 
@@ -229,6 +260,46 @@ Pick a template, fill in the fields, and generate a PDF. Letterheads are the
 header/footer images applied to generated documents – manage them from the
 Letterheads area.
 
+## Activity Proposals
+
+Write a Detailed Activity Proposal in the system instead of in Word: Activity
+Proposals in the menu → New proposal. Only the title is required, so you can
+save and finish the rest later.
+
+- **The top:** Title, Theme, Date, and Proponent (it starts as "Student
+  Government"). The Budget is filled in for you from the Grand Total.
+- **The five parts:** I. Rationale, II. Objectives, III. Methods & Approaches,
+  IV. Schedule of Activities, and V. Budgetary Requirements. Start each
+  paragraph on a new line. Objectives can have text before the numbered list.
+  Use "Add objective" or "Add row" under a part for more lines, and the ×
+  button to remove one.
+- **Schedule of Activities:** Time, Activity and Venue/Personnel. A cell can
+  have more than one line (for example a name, then the position on the next
+  line). The Master of Ceremony goes in its own box under the table and is
+  printed as the last row.
+- **Budgetary Requirements:** each row has a Category, Particular, Quantity,
+  Unit and Unit Price. The Total Price of each row (Quantity × Unit Price) and
+  the Grand Total are computed for you. Category and Unit suggest names used
+  in earlier proposals, but you can type any name. In the PDF, rows next to
+  each other with the same Category share one Category cell.
+- **Signatories:** Prepared by, Noted, Budget Available, Recommending
+  Approval, and Approved, each with names and positions. A new proposal
+  starts with the names from the last proposal, so check them when officers
+  change.
+- **Print it:** open the proposal, pick the letterhead next to "Print on",
+  and click Open PDF. It opens in a new tab, ready to print. Signatures are
+  done on the printed copy.
+- **Start from last year's proposal:** on the Activity Proposals page, pick
+  "All school years" (or last year) and click Show, then Copy on the old
+  proposal. You get a new proposal of your own with the same content and no
+  dates. Set the dates and check the names and prices.
+- **Search:** the search box on the page finds proposals by title, theme,
+  particular or category.
+- **Who can change it:** the officer who made it, or the Super Admin. Any
+  officer can open, print and copy any proposal.
+- Approving a proposal in the system and showing it on the student page are
+  not available yet.
+
 ## Reports & Analytics
 
 Read-only charts and counts in two tabs: **Records & system** (files uploaded,
@@ -240,6 +311,12 @@ What you see depends on your role. Officer activity (who did what, the busiest
 hours and days), backup status, and sign-in security appear only for the Super
 Admin, the same as the Activity Logs and Backup pages those numbers come from.
 The CSV export follows the same rule.
+
+The Records tab also has **Found in the documents' text**, worked out from the
+words inside the files you can open: possible copies of the same document, a
+map of which documents read alike, files that read more like another folder
+(possibly misfiled), and the main words of each folder. These are suggestions
+only; nothing is moved or deleted for you.
 
 ## Announcements
 

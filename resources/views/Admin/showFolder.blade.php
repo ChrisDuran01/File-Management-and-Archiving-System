@@ -461,6 +461,7 @@
                         <a href="{{ route('files.preview', $file->id) }}" class="file-name-text file-name-link">{{ $name }}</a>
                         <span class="file-ext-badge">{{ $ext }}</span>
                         @include('Admin.partials.approval-badge', ['file' => $file])
+                        @include('Admin.partials.copy-badge', ['file' => $file])
                     </div>
                 </td>
                 <td  onclick="window.location='{{ route('files.preview', $file->id) }}'" class="file-date">{{ $file->updated_at->format('M d, Y · h:i A') }}</td>
@@ -536,6 +537,16 @@
             @else
                 <i class="bi bi-hourglass-split me-2 text-secondary"></i> Mark as subject for approval
             @endif
+        </button>
+    </form>
+</li>
+                    @endif
+                    @if($file->duplicate_of_id && ! $file->duplicate_dismissed_at && $file->duplicateOf)
+                    <li>
+    <form action="{{ route('file.notACopy', $file->id) }}" method="POST">
+        @csrf
+        <button type="submit" class="dropdown-item py-2">
+            <i class="bi bi-files me-2 text-secondary"></i> Not a copy, keep both
         </button>
     </form>
 </li>
