@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\ActivityProposal;
+use App\Models\ActivityProposalItem;
 use App\Models\Announcement;
 use App\Models\AnnouncementImage;
 use App\Models\DisplayOfficer;
@@ -46,6 +48,7 @@ class AppServiceProvider extends ServiceProvider
         $studentPageModels = [
             File::class, Folder::class, Announcement::class, AnnouncementImage::class,
             OfficerTerm::class, Position::class, DisplayOfficer::class, User::class,
+            ActivityProposal::class, ActivityProposalItem::class,
         ];
         foreach ($studentPageModels as $model) {
             $model::saved(fn () => StudentPageCache::forget());

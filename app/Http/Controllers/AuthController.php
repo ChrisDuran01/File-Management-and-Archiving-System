@@ -60,13 +60,14 @@ class AuthController extends Controller
     }
 
     /**
-     * Shared password strength policy for every place a user sets their own
-     * password (first-login change and email reset). Deliberately skips
+     * Shared password strength policy for first-login change, email reset
+     * and a temporary password an Adviser/President sets for an officer
+     * (OfficerController::resetPassword). Deliberately skips
      * ->uncompromised() (Have I Been Pwned lookup) - it requires outbound
      * internet access on every password change, which isn't a fit for an
      * on-prem/offline deployment.
      */
-    private function passwordPolicy(): PasswordRules
+    public static function passwordPolicy(): PasswordRules
     {
         return PasswordRules::min(8)->mixedCase()->numbers()->symbols();
     }
@@ -101,13 +102,10 @@ class AuthController extends Controller
 
         $user = Auth::user();
 
-        // An officer account with an inactive term is disabled, regardless
-        // of what position it held.
-        $officer = DB::table('officer_terms')
-            ->where('user_id', $user->id)
-            ->first();
-
-        if ($officer && $officer->status != 'active') {
+        // An officer whose term has ended is disabled, regardless of what
+        // position they held. Same rule as EnsureActiveOfficer, which signs
+        // out anyone already signed in when the term ends.
+        if (! $user->isActiveOfficer()) {
             Auth::logout();
 
             // A former officer's credentials still working (they're just

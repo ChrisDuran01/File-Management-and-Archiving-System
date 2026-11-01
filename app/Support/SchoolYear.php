@@ -58,6 +58,14 @@ class SchoolYear
         return $startYear.'-'.($startYear + 1);
     }
 
+    /** "2026-2027" -> "2027-2028" */
+    public static function next(string $label): string
+    {
+        $startYear = (int) substr($label, 0, 4) + 1;
+
+        return $startYear.'-'.($startYear + 1);
+    }
+
     /**
      * School years worth offering in a filter, newest first: every one from
      * the oldest record in the system up to now, plus any the records name

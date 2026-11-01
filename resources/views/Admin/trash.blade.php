@@ -33,6 +33,7 @@
     .type-icon.folder   { background:#fffbeb; color:#f59e0b; }
     .type-icon.file     { background:#e9f5ee; color:#058028; }
     .type-icon.document { background:#ede9fe; color:var(--brand); }
+    .type-icon.proposal { background:#eff6ff; color:#1d4ed8; }
 
     .empty-state { text-align:center; color:var(--text-3); padding:48px 16px; }
     .empty-state i { font-size:2.2rem; display:block; margin-bottom:10px; opacity:.5; }
@@ -41,6 +42,7 @@
     [data-theme="dark"] .type-icon.folder   { background:var(--warning-dim); color:var(--warning); }
     [data-theme="dark"] .type-icon.file     { background:var(--primary-dim); color:var(--primary); }
     [data-theme="dark"] .type-icon.document { background:#201f33; color:#a5a3e0; }
+    [data-theme="dark"] .type-icon.proposal { background:#16213a; color:#93b4f5; }
 </style>
 
 {{-- Skeleton placeholder, shown until the real content below is revealed --}}
@@ -76,7 +78,7 @@
 
 <div class="skel-real">
 
-@php $total = $folders->count() + $files->count() + $documents->count(); @endphp
+@php $total = $folders->count() + $files->count() + $documents->count() + $proposals->count(); @endphp
 
 <div class="page-header">
     <div>
@@ -215,6 +217,46 @@
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="btn-flat danger"><i class="fas fa-times me-1" aria-hidden="true"></i> Delete forever<span class="sr-only"> {{ $document->title }}</span></button>
+                        </form>
+                        @endif
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+    @endif
+
+    @if ($proposals->count())
+    <div class="card-panel" style="padding:6px 4px 4px;">
+        <p class="section-title">Activity proposals ({{ $proposals->count() }})</p>
+        <table class="trash-table">
+            <thead>
+                <tr><th>Title</th><th>School year</th><th>Made by</th><th>Deleted</th><th style="text-align:right;">Actions</th></tr>
+            </thead>
+            <tbody>
+                @foreach ($proposals as $proposal)
+                <tr>
+                    <td>
+                        <span class="type-icon proposal"><i class="fas fa-clipboard-list"></i></span>
+                        <span class="item-name">{{ $proposal->title }}</span>
+                    </td>
+                    <td class="item-meta">{{ $proposal->school_year ?? '—' }}</td>
+                    <td class="item-meta">{{ $proposal->preparedByLabel() }}</td>
+                    <td class="item-meta">{{ $proposal->deleted_at->diffForHumans() }}</td>
+                    <td class="actions" style="text-align:right;">
+                        <form method="POST" action="{{ route('trash.restore', ['proposal', $proposal->id]) }}">
+                            @csrf
+                            <button type="submit" class="btn-flat ghost"><i class="fas fa-undo me-1" aria-hidden="true"></i> Restore<span class="sr-only"> {{ $proposal->title }}</span></button>
+                        </form>
+                        @if ($isSuperAdmin)
+                        <form method="POST" action="{{ route('trash.destroy', ['proposal', $proposal->id]) }}"
+                              data-confirm-title="Permanently delete this proposal?"
+                              data-confirm="“{{ $proposal->title }}” and its budget will be gone for good. Its signed copy stays in its folder. This cannot be undone."
+                              data-confirm-ok="Delete forever">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="btn-flat danger"><i class="fas fa-times me-1" aria-hidden="true"></i> Delete forever<span class="sr-only"> {{ $proposal->title }}</span></button>
                         </form>
                         @endif
                     </td>

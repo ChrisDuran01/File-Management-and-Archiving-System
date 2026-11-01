@@ -248,7 +248,11 @@
 <div class="page-header">
     <div>
         <h1><i class="fas fa-search me-2" style="color:var(--primary);font-size:1.1rem;"></i>Search Results</h1>
+        @if(filled($query))
         <p class="sub">Results for <strong>"{{ $query }}"</strong></p>
+        @else
+        <p class="sub">Type a word in the search bar above to search.</p>
+        @endif
     </div>
 </div>
 
@@ -279,7 +283,11 @@
     {{-- ── Empty state ─────────────────────────────────── --}}
     <div class="empty-state">
         <i class="fas fa-search"></i>
+        @if(filled($query))
         <p>No results found for <strong>"{{ $query }}"</strong>.<br>Try a different keyword.</p>
+        @else
+        <p>Nothing to search for yet.</p>
+        @endif
     </div>
 
 @else

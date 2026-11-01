@@ -6,6 +6,7 @@ use App\Http\Controllers\PageController;
 use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FileController;
+use App\Http\Controllers\FileVersionController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\BackupController;
@@ -68,6 +69,10 @@ Route::get('/announcements/images/{image}', [AnnouncementController::class, 'ima
 // window. The slug is optional: a wrong or missing one redirects.
 Route::get('stuDashboard/announcements/{announcement}/{slug?}', [StudentController::class, 'announcement'])->name('student.announcement');
 
+// One approved activity from Activity Proposals, with its budget per
+// category. 404 unless the proposal is switched on and approved.
+Route::get('stuDashboard/activities/{proposal}/{slug?}', [StudentController::class, 'activity'])->whereNumber('proposal')->name('student.activity');
+
 // For search engines and link previews (Messenger, Facebook): robots.txt
 // is served from here, not public/, so its Sitemap line has the real domain.
 Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->name('sitemap');
@@ -111,7 +116,8 @@ Route::middleware('throttle:60,1')->group(function () {
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'nocache'])->group(function () {
+// `officer` signs out anyone whose term ended while they were signed in.
+Route::middleware(['auth', 'officer', 'nocache'])->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
     Route::post('/session/keep-alive', [AuthController::class, 'keepAlive'])->name('session.keepAlive');
@@ -131,11 +137,11 @@ Route::middleware(['auth', 'nocache'])->group(function () {
     Route::put('/folders/{id}', [FolderController::class, 'update'])->name('folders.update');
     Route::delete('/folders/{id}', [FolderController::class, 'destroy'])->name('folders.destroy');
     Route::post('/folders/{id}/access', [FolderController::class, 'updateAccess'])->name('folders.updateAccess');
-    Route::post('/folders/archive-selected', [FolderController::class, 'archiveSelected'])->name('folders.archive.selected');
     Route::get('/folders/history/{year}', [FolderController::class, 'history'])->name('folders.history');
 
     // Files
     Route::post('/files', [FileController::class, 'store'])->name('files.store');
+    Route::post('/files/cancel-upload', [FileController::class, 'cancelUpload'])->middleware('signed')->name('files.cancelUpload');
     Route::get('/files/{id}/preview', [FileController::class, 'preview'])->name('files.preview');
     Route::get('/files/{id}/raw', [FileController::class, 'raw'])->name('files.raw');
     Route::get('/files/{id}/download', [FileController::class, 'download'])->name('files.download');
@@ -144,6 +150,17 @@ Route::middleware(['auth', 'nocache'])->group(function () {
     Route::post('/file/{id}/toggle-access', [FileController::class, 'toggleAccess'])->name('file.toggleAccess');
     Route::post('/file/{id}/approval', [FileController::class, 'setApproval'])->name('file.setApproval');
     Route::post('/file/{id}/not-a-copy', [FileController::class, 'notACopy'])->name('file.notACopy');
+
+    // File versions (a document returned for fixes keeps one row)
+    Route::post('/files/name-check', [FileVersionController::class, 'nameCheck'])->name('files.nameCheck');
+    Route::get('/files/{id}/versions', [FileVersionController::class, 'index'])->name('files.versions.index');
+    Route::post('/files/{id}/versions', [FileVersionController::class, 'store'])->name('files.versions.store');
+    Route::get('/files/{id}/versions/{no}', [FileVersionController::class, 'show'])->whereNumber('no')->name('files.versions.show');
+    Route::get('/files/{id}/versions/{no}/download', [FileVersionController::class, 'download'])->whereNumber('no')->name('files.versions.download');
+    Route::post('/files/{id}/versions/{no}/restore', [FileVersionController::class, 'restore'])->whereNumber('no')->name('files.versions.restore');
+    Route::post('/files/{id}/final', [FileVersionController::class, 'markFinal'])->name('files.final');
+    Route::delete('/files/{id}/final', [FileVersionController::class, 'clearFinal'])->name('files.final.clear');
+    Route::post('/file/{id}/merge-into-original', [FileVersionController::class, 'merge'])->name('file.mergeIntoOriginal');
 
     // Share links (website Share dialog and the phone app's Share sheet)
     Route::get('/files/{id}/share-links', [ShareLinkController::class, 'index'])->name('share-links.index');
@@ -156,14 +173,17 @@ Route::middleware(['auth', 'nocache'])->group(function () {
 
     // Reports
     Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
+    Route::post('/reports/price-check-settings', [ReportController::class, 'priceSettings'])->name('reports.price-settings');
 
-    // Archives
+    // Archives - a whole school year at a time (SchoolYearArchiver); one
+    // ZIP per folder inside it. Archiving early and restoring a school year
+    // are the Adviser's / President's.
     Route::get('/archives', [ArchiveController::class, 'index'])->name('archives.index');
-    Route::post('/{id}/archives', [ArchiveController::class, 'archiveFolder'])->name('folders.archive');
-    Route::post('/archives/{id}/restore', [ArchiveController::class, 'restore'])->name('archives.restore');
+    Route::get('/archives/school-years/{schoolYear}', [ArchiveController::class, 'schoolYear'])->where('schoolYear', '\d{4}-\d{4}')->name('archives.schoolYear');
+    Route::post('/archives/school-years/{schoolYear}', [ArchiveController::class, 'archiveSchoolYear'])->where('schoolYear', '\d{4}-\d{4}')->middleware('superadmin')->name('archives.archiveSchoolYear');
+    Route::post('/archives/school-years/{schoolYear}/restore', [ArchiveController::class, 'restoreSchoolYear'])->where('schoolYear', '\d{4}-\d{4}')->middleware('superadmin')->name('archives.restoreSchoolYear');
     Route::get('/archives/{id}', [ArchiveController::class, 'download'])->name('archives.download');
     Route::delete('/archives/{id}', [ArchiveController::class, 'destroy'])->name('archives.destroy');
-    Route::post('/archives/run-auto-archive', [ArchiveController::class, 'runAutoArchive'])->name('archives.runAutoArchive');
     Route::get('/archives/{id}/view', [ArchiveController::class, 'show'])->name('archives.show');
     Route::get('/archives/{id}/files/{filename}', [ArchiveController::class, 'previewFile'])->name('archives.previewFile');
     Route::get('/archives/{id}/files/{filename}/raw', [ArchiveController::class, 'streamFile'])->name('archives.streamFile');
@@ -190,15 +210,18 @@ Route::middleware(['auth', 'nocache'])->group(function () {
 
         // Officers - management of officer accounts is the single most
         // sensitive surface in the app (it can hand out SuperAdmin).
+        // There is deliberately no way to delete an officer's term record:
+        // an account with no record counts as SuperAdmin (Folder::
+        // isSuperAdmin), so deleting a former officer's record would let
+        // them back in with full access. Former officers stay as "former".
         Route::get('/manageAdmins', [OfficerController::class, 'index'])->name('officers.index');
         Route::get('/addAdmin', [DashboardController::class, 'createOfficer'])->name('officers.create');
         Route::post('/manageAdmins', [OfficerController::class, 'store'])->name('officers.store');
         Route::get('/editAdmin/{id}', [OfficerController::class, 'edit'])->name('officers.edit');
         Route::put('/officers/update/{id}', [OfficerController::class, 'update'])->name('officers.update');
-        Route::delete('/officers/destroy/{id}', [OfficerController::class, 'destroy'])->name('officers.destroy');
+        Route::patch('/officers/{id}/password', [OfficerController::class, 'resetPassword'])->name('officers.resetPassword');
         Route::delete('/officers/archiveAll', [OfficerController::class, 'archiveAll'])->name('officers.archiveAll');
         Route::patch('/officers/reactivate/{id}', [OfficerController::class, 'reactivate'])->name('officers.reactivate');
-        Route::delete('/officers/force-delete/{id}', [OfficerController::class, 'forceDelete'])->name('officers.forceDelete');
         Route::patch('/officers/archive/{id}', [OfficerController::class, 'archiveOfficer'])->name('officers.archiveOfficer');
 
         // System restore - rebuilds the live database AND every cloud file
@@ -220,10 +243,10 @@ Route::middleware(['auth', 'nocache'])->group(function () {
     // (enforced in the controller).
     Route::get('/trash', [TrashController::class, 'index'])->name('trash.index');
     Route::post('/trash/{type}/{id}/restore', [TrashController::class, 'restore'])
-        ->whereIn('type', ['file', 'folder', 'document'])->whereNumber('id')->name('trash.restore');
+        ->whereIn('type', ['file', 'folder', 'document', 'proposal'])->whereNumber('id')->name('trash.restore');
     Route::delete('/trash/empty', [TrashController::class, 'empty'])->name('trash.empty');
     Route::delete('/trash/{type}/{id}', [TrashController::class, 'destroy'])
-        ->whereIn('type', ['file', 'folder', 'document'])->whereNumber('id')->name('trash.destroy');
+        ->whereIn('type', ['file', 'folder', 'document', 'proposal'])->whereNumber('id')->name('trash.destroy');
 
     // Digitize Hardcopy: scan-inbox review queue + structured document records.
     // The literal /documents/scans* routes are declared before /documents/{document}
@@ -250,10 +273,14 @@ Route::middleware(['auth', 'nocache'])->group(function () {
     // Templates & letterheads
     Route::get('/templates', [TemplateController::class, 'index'])->name('templates.index');
     Route::post('/templates/generate', [TemplateController::class, 'generate'])->name('templates.generate');
+    Route::post('/templates/preview', [TemplateController::class, 'preview'])->name('templates.preview');
+    Route::post('/templates/preview-pdf', [TemplateController::class, 'previewPdf'])->name('templates.preview-pdf');
     Route::get('/letterheads', [LetterheadController::class, 'index'])->name('letterheads.index');
     Route::get('/letterheads/{letterhead}/preview', [LetterheadController::class, 'preview'])->name('letterheads.preview');
     Route::post('/letterheads', [LetterheadController::class, 'store'])->name('letterheads.store');
     Route::put('/letterheads/{letterhead}', [LetterheadController::class, 'update'])->name('letterheads.update');
+    Route::post('/letterheads/{letterhead}/default', [LetterheadController::class, 'makeDefault'])->name('letterheads.default');
+    Route::post('/letterheads/{letterhead}/copy', [LetterheadController::class, 'copy'])->name('letterheads.copy');
     Route::delete('/letterheads/{letterhead}', [LetterheadController::class, 'destroy'])->name('letterheads.destroy');
 
     // Detailed Activity Proposals. Any officer can read and copy one; only
@@ -261,13 +288,20 @@ Route::middleware(['auth', 'nocache'])->group(function () {
     // controller).
     Route::get('/proposals', [ActivityProposalController::class, 'index'])->name('proposals.index');
     Route::get('/proposals/create', [ActivityProposalController::class, 'create'])->name('proposals.create');
+    Route::get('/proposals/import', [ActivityProposalController::class, 'importForm'])->name('proposals.import');
+    Route::post('/proposals/import', [ActivityProposalController::class, 'importRead'])->name('proposals.import.read');
     Route::post('/proposals', [ActivityProposalController::class, 'store'])->name('proposals.store');
+    Route::post('/proposals/budget-check', [ActivityProposalController::class, 'budgetCheck'])->name('proposals.budget-check');
     Route::get('/proposals/{proposal}', [ActivityProposalController::class, 'show'])->whereNumber('proposal')->name('proposals.show');
     Route::get('/proposals/{proposal}/edit', [ActivityProposalController::class, 'edit'])->whereNumber('proposal')->name('proposals.edit');
     Route::get('/proposals/{proposal}/pdf', [ActivityProposalController::class, 'pdf'])->whereNumber('proposal')->name('proposals.pdf');
     Route::put('/proposals/{proposal}', [ActivityProposalController::class, 'update'])->whereNumber('proposal')->name('proposals.update');
     Route::post('/proposals/{proposal}/copy', [ActivityProposalController::class, 'copy'])->whereNumber('proposal')->name('proposals.copy');
     Route::delete('/proposals/{proposal}', [ActivityProposalController::class, 'destroy'])->whereNumber('proposal')->name('proposals.destroy');
+    Route::post('/proposals/{proposal}/status', [ActivityProposalController::class, 'status'])->whereNumber('proposal')->name('proposals.status');
+    Route::post('/proposals/{proposal}/signed-copy', [ActivityProposalController::class, 'attachSigned'])->whereNumber('proposal')->name('proposals.signed');
+    Route::post('/proposals/{proposal}/reopen', [ActivityProposalController::class, 'reopen'])->whereNumber('proposal')->name('proposals.reopen');
+    Route::post('/proposals/{proposal}/publish', [ActivityProposalController::class, 'publish'])->whereNumber('proposal')->name('proposals.publish');
 
     // Announcements (management; the public download route is declared above)
     Route::get('/announcements', [AnnouncementController::class, 'index'])->name('announcements.index');
@@ -303,7 +337,7 @@ Route::prefix('app')->name('app.')->middleware('phone')->group(function () {
 
     Route::get('/login', [OfficerAppController::class, 'showLogin'])->name('login');
 
-    Route::middleware(['auth', 'nocache'])->group(function () {
+    Route::middleware(['auth', 'officer', 'nocache'])->group(function () {
         Route::get('/', [OfficerAppController::class, 'home'])->name('home');
         Route::get('/account', [OfficerAppController::class, 'account'])->name('account');
 

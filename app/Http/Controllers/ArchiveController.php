@@ -8,11 +8,12 @@ use App\Models\ActivityLog;
 use App\Models\Document;
 use App\Models\File;
 use App\Models\Folder;
+use App\Models\SchoolYearArchive;
 use App\Models\User;
 use App\Services\DuplicateDetector;
-use App\Services\FolderArchiver;
+use App\Services\SchoolYearArchiver;
+use App\Support\SchoolYear;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File as FileFacade;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -27,89 +28,168 @@ class ArchiveController extends Controller
     /** @var array<string, string[]> table => its column names, looked up once per request by reviveRecord() */
     private array $tableColumns = [];
 
-    public function index()
+    /**
+     * The archive, a school year at a time: each archived school year with
+     * what is in it (only the folders this officer may open), and - for the
+     * Adviser/President - the finished school years waiting to be archived.
+     */
+    public function index(SchoolYearArchiver $archiver)
     {
-        $archives = Archive::latest()->get()->filter(fn (Archive $archive) => $archive->isAccessibleBy(Auth::user()))->values();
-        $layout = Folder::isSuperAdmin(Auth::user()) ? 'SuperAdmin.homeSuperAdmin' : 'Admin.home';
-        return view('Admin.archives', compact('archives', 'layout'));
+        $user = Auth::user();
+        $records = SchoolYearArchive::all()->keyBy('school_year');
+
+        $years = Archive::whereNull('restored_at')->get()
+            ->filter(fn (Archive $archive) => $archive->isAccessibleBy($user))
+            ->groupBy('school_year')
+            ->map(fn ($archives, $schoolYear) => [
+                'school_year'      => $schoolYear,
+                'folders'          => $archives->count(),
+                'files'            => $archives->sum(fn (Archive $archive) => count($archive->filenames())),
+                'archived_at'      => $records[$schoolYear]->archived_at ?? $archives->max('archived_at'),
+                'how'              => $records[$schoolYear]->archived_how ?? null,
+                'by'               => $records[$schoolYear]->archived_by ?? null,
+                'fixity_failed'    => $archives->where('fixity_status', 'failed')->count(),
+                'fixity_unchecked' => $archives->whereNotIn('fixity_status', ['ok', 'failed'])->count(),
+            ])
+            ->sortKeysDesc()
+            ->values();
+
+        $isSuperAdmin = Folder::isSuperAdmin($user);
+        $waiting = $isSuperAdmin ? $archiver->waiting() : collect();
+        $retentionYears = SchoolYearArchiver::retentionYears();
+        $layout = $isSuperAdmin ? 'SuperAdmin.homeSuperAdmin' : 'Admin.home';
+
+        return view('Admin.archives', compact('years', 'waiting', 'retentionYears', 'isSuperAdmin', 'layout'));
+    }
+
+    /** One archived school year: its folders, one archive (ZIP) each. */
+    public function schoolYear(string $schoolYear)
+    {
+        $user = Auth::user();
+        $archives = Archive::where('school_year', $schoolYear)->whereNull('restored_at')->orderBy('folder_name')->get()
+            ->filter(fn (Archive $archive) => $archive->isAccessibleBy($user))
+            ->values();
+
+        abort_if($archives->isEmpty(), 404);
+
+        $record = SchoolYearArchive::where('school_year', $schoolYear)->first();
+        $isSuperAdmin = Folder::isSuperAdmin($user);
+        $layout = $isSuperAdmin ? 'SuperAdmin.homeSuperAdmin' : 'Admin.home';
+
+        return view('Admin.archiveSchoolYear', compact('schoolYear', 'archives', 'record', 'isSuperAdmin', 'layout'));
     }
 
     /**
-     * Manually run the stale-folder retention check (also runs on its own
-     * daily schedule) — lets a SuperAdmin trigger it on demand instead of
-     * waiting for the next scheduled run.
+     * "Archive now" (Adviser/President): a finished school year, before its
+     * automatic date. The same work the nightly archives:school-years does.
      */
-    public function runAutoArchive(Request $request)
+    public function archiveSchoolYear(string $schoolYear, SchoolYearArchiver $archiver)
     {
-        $years = $request->filled('years') ? (int) $request->years : null;
-
-        $exitCode = Artisan::call('folders:archive-stale', array_filter([
-            '--years' => $years,
-        ], fn ($v) => $v !== null));
-
-        $output = trim(Artisan::output());
-
-        return back()->with($exitCode === 0 ? 'success' : 'error', $output ?: 'Retention check completed.');
-    }
-
-    public function archiveFolder($folderId, FolderArchiver $archiver)
-    {
-        try {
-            $folder = Folder::findOrFail($folderId);
-
-            if (! $folder->isManageableBy(Auth::user())) {
-                return back()->with('error', 'Only this folder\'s creator or a SuperAdmin can archive it.');
-            }
-
-            $folderName = $folder->name;
-
-            $result = $archiver->archive($folder, Auth::user()?->name ?? 'System');
-
-            if (! $result['success']) {
-                return back()->with('error', $result['message']);
-            }
-
-            ActivityLog::create([
-                'user_name'  => Auth::user()?->name ?? 'System',
-                'activity'   => 'Archived folder: ' . $folderName,
-                'ip_address' => request()->ip()
-            ]);
-
-            return redirect()->route('folders.index')->with('success', $result['message']);
-
-        } catch (\Exception $e) {
-            Log::error('Archive failed: ' . $e->getMessage());
-            return back()->with('error', 'Archive failed: ' . $e->getMessage());
+        if ($refusal = $archiver->refusal($schoolYear)) {
+            return back()->with('error', $refusal);
         }
+
+        $result = $archiver->archive($schoolYear, Auth::user()->name, 'by_hand');
+
+        if ($result['folders'] === 0) {
+            return back()->with('error', "Nothing from SY {$schoolYear} could be archived. " . implode(' ', $result['failed']));
+        }
+
+        $message = "SY {$schoolYear} archived: {$result['folders']} " . Str::plural('folder', $result['folders'])
+            . ", {$result['files']} " . Str::plural('file', $result['files']) . '.'
+            . ($result['empty'] ? " {$result['empty']} empty " . Str::plural('folder', $result['empty']) . ' had nothing to archive and stayed under the school year.' : '');
+
+        return redirect()->route('archives.schoolYear', $schoolYear)
+            ->with($result['failed'] ? 'error' : 'success', $message . ($result['failed'] ? ' Not archived: ' . implode('; ', $result['failed']) : ''));
     }
 
-       /////////////////////////////////////////////////////
-                          //RESTORE//
-       /////////////////////////////////////////////////////
-    public function restore($id)
+    /**
+     * Brings a whole school year back (Adviser/President), under that school
+     * year as before: read-only, still searchable. It then stays out of the
+     * automatic archive until someone archives it again by hand.
+     */
+    public function restoreSchoolYear(string $schoolYear)
     {
+        $archives = Archive::where('school_year', $schoolYear)->whereNull('restored_at')->get();
+
+        if ($archives->isEmpty()) {
+            return back()->with('error', "Nothing from SY {$schoolYear} is in the archive.");
+        }
+
+        $folders = 0;
+        $files = 0;
+        $problems = [];
+        $folderIds = [];
+
+        foreach ($archives as $archive) {
+            $result = $this->restoreArchive($archive);
+
+            if ($result['ok']) {
+                $folders++;
+                $files += $result['files'];
+                $folderIds[] = $result['folder_id'];
+                if ($result['warning']) {
+                    $problems[] = $archive->folder_name . ':' . $result['warning'];
+                }
+            } else {
+                $problems[] = $archive->folder_name . ': ' . $result['message'];
+            }
+        }
+
+        if ($folders > 0) {
+            SchoolYearArchive::updateOrCreate(['school_year' => $schoolYear], [
+                'status'      => 'restored',
+                'restored_by' => Auth::user()->name,
+                'restored_at' => now(),
+            ]);
+        }
+
+        ActivityLog::create([
+            'user_name'  => Auth::user()->name,
+            'activity'   => "Restored school year {$schoolYear}: {$folders} folder(s), {$files} file(s)"
+                . ($problems ? '. WARNING: ' . implode('; ', $problems) : ''),
+            'ip_address' => request()->ip(),
+        ]);
+
+        // Files that were on the student page when archived are there again.
+        $public = File::publiclyVisible()->whereIn('folder_id', $folderIds)->count();
+
+        $message = "SY {$schoolYear} restored: {$folders} " . Str::plural('folder', $folders) . ", {$files} " . Str::plural('file', $files)
+            . ", back under Previous School Years ({$schoolYear}). It stays there until someone archives it again from Archives."
+            . ($public ? " {$public} " . Str::plural('file', $public) . ' in it ' . ($public === 1 ? 'is' : 'are') . ' on the student page again.' : '');
+
+        return redirect()->route('folders.index')->with(
+            $problems ? 'error' : 'success',
+            $message . ($problems ? ' Problems: ' . implode('; ', $problems) . ' Please check these folders.' : '')
+        );
+    }
+
+    /**
+     * Puts one folder's archive (ZIP) back: the folder under its school
+     * year, its files, their document records, checked against the
+     * checksums recorded when it was archived.
+     *
+     * @return array{ok: bool, message: string, files: int, warning: string, folder_id: ?int}
+     */
+    private function restoreArchive(Archive $archive): array
+    {
+        $fail = fn (string $message) => ['ok' => false, 'message' => $message, 'files' => 0, 'warning' => '', 'folder_id' => null];
+
         try {
-            $archive = Archive::findOrFail($id);
-
-            if (! $archive->isManageableBy(Auth::user())) {
-                return back()->with('error', 'You do not have permission to restore this archive.');
-            }
-
             if ($archive->restored_at) {
-                return back()->with('error', 'This archive has already been restored.');
+                return $fail('already restored');
             }
 
-            // Check if folder already exists
-            $existingFolder = Folder::find($archive->record_id);
-            if ($existingFolder) {
-                return back()->with('error', 'Folder already exists. Please delete the existing folder first or restore to a different location.');
+            if (Folder::find($archive->record_id)) {
+                return $fail('a folder with its id already exists');
             }
 
-            // Put the folder back as it was when it was archived - school
-            // year, owner, restriction, stored-away flag - from the copy of
-            // its row FolderArchiver kept. Archives made before that copy
-            // existed (pre 2026-10-11) only recorded the name and the access
-            // rules, so that is all those can get back.
+            // Put the folder back as it was when it was archived - owner,
+            // restriction, ... - from the copy of its row FolderArchiver
+            // kept, under the school year it was archived with: a restored
+            // school year is read-only, like any finished one. Archives
+            // made before that copy existed (pre 2026-10-11) only recorded
+            // the name and the access rules, so that is all those get back.
             $folder = new Folder();
             $folder->forceFill(array_merge(
                 $this->reviveRecord('folders', $archive->folder_record ?? [
@@ -117,11 +197,8 @@ class ArchiveController extends Controller
                     'name'          => $archive->folder_name,
                     'is_restricted' => $archive->is_restricted,
                     'created_by'    => $archive->created_by,
-                ], ['created_by' => 'users', 'officer_term_id' => 'officer_terms']),
-                // Restoring counts as using it. Otherwise a folder that was
-                // auto-archived for sitting unopened would be swept straight
-                // back into the archive by the next retention run.
-                ['last_accessed_at' => now()]
+                ], ['created_by' => 'users', 'officer_term_id' => 'officer_terms', 'added_later_by' => 'users']),
+                ['school_year' => $archive->school_year, 'is_archived' => true, 'last_accessed_at' => now()]
             ))->save();
 
             $folder->allowedUsers()->sync(User::whereIn('id', $archive->allowed_user_ids ?? [])->pluck('id'));
@@ -148,11 +225,11 @@ class ArchiveController extends Controller
                 } catch (\Throwable) {
                     // Delete the folder we just created
                     $folder->forceDelete(); // rollback of the empty folder just created - nothing to keep in Trash
-                    return back()->with('error', 'Archive file not found in any storage');
+                    return $fail('its ZIP was not found on this computer or in cloud storage');
                 }
             } else {
                 $folder->forceDelete(); // rollback of the empty folder just created - nothing to keep in Trash
-                return back()->with('error', 'Archive file location not found');
+                return $fail('its ZIP was not found on this computer and has no cloud copy');
             }
             
             // Fixity: does this ZIP still match what was recorded when it was archived?
@@ -170,15 +247,15 @@ class ArchiveController extends Controller
 
             // Extract ZIP
             $zip = new ZipArchive();
-            $tempExtractPath = storage_path('app/temp/extract_' . time());
-            
+            $tempExtractPath = storage_path('app/temp/extract_' . uniqid());
+
             if ($zip->open($tempZipPath) === TRUE) {
                 FileFacade::makeDirectory($tempExtractPath, 0777, true);
                 $zip->extractTo($tempExtractPath);
                 $zip->close();
             } else {
                 $folder->forceDelete(); // rollback of the empty folder just created - nothing to keep in Trash
-                return back()->with('error', 'Failed to open ZIP file');
+                return $fail('its ZIP could not be opened');
             }
             
             // Get extracted files
@@ -244,7 +321,8 @@ class ArchiveController extends Controller
                     $this->reviveRecord(
                         'files',
                         $kept?->file_record ?? array_filter(['id' => $archive->file_ids[$filename] ?? null]),
-                        ['officer_term_id' => 'officer_terms', 'generated_from_template_id' => 'templates']
+                        ['officer_term_id' => 'officer_terms', 'generated_from_template_id' => 'templates', 'added_later_by' => 'users',
+                         'version_by' => 'users', 'final_by' => 'users']
                     ),
                     [
                         'filename'     => $newFileName,
@@ -257,6 +335,9 @@ class ArchiveController extends Controller
                         'content_hash' => hash('sha256', $fileContent),
                         'duplicate_of_id'      => null,
                         'duplicate_similarity' => null,
+                        // Under its school year, read-only, like its folder.
+                        'school_year'  => ($kept?->file_record['school_year'] ?? null) ?: $archive->school_year,
+                        'is_archived'  => true,
                     ]
                 ))->save();
 
@@ -304,35 +385,11 @@ class ArchiveController extends Controller
                 'remarks' => ($archive->remarks ? $archive->remarks . '; ' : '') . "Restored folder '{$folder->name}' with {$restoredCount} files on " . now() . $integrityNote
             ]);
 
-            ActivityLog::create([
-                'user_name'  => Auth::user()?->name ?? 'System',
-                'activity'   => 'Restored folder: ' . $archive->folder_name . $integrityNote,
-                'ip_address' => request()->ip()
-            ]);
-
-            if ($integrityNote) {
-                return redirect()->route('folders.index')
-                    ->with('error', "Folder '{$archive->folder_name}' restored with {$restoredCount} files, but failed its integrity check.{$integrityNote} The restored data may be incomplete or altered - please verify it.");
-            }
-
-            // Say where it went - a folder that had been stored away under a
-            // past school year goes back there, not onto the Folders page -
-            // and whether anything in it is on the student page again.
-            $restoredTo = $folder->is_archived && $folder->school_year
-                ? "Folder added back under Previous School Years ({$folder->school_year})."
-                : 'Folder added back to main directory.';
-
-            $publicCount = File::publiclyVisible()->where('folder_id', $folder->id)->count();
-            $publicNote  = $publicCount
-                ? " {$publicCount} " . Str::plural('file', $publicCount) . ' in it ' . ($publicCount === 1 ? 'is' : 'are') . ' visible on the student page again.'
-                : '';
-
-            return redirect()->route('folders.index')
-                ->with('success', "Folder '{$archive->folder_name}' restored successfully with {$restoredCount} files, integrity verified. {$restoredTo}{$publicNote}");
+            return ['ok' => true, 'message' => '', 'files' => $restoredCount, 'warning' => $integrityNote, 'folder_id' => $folder->id];
 
         } catch (\Exception $e) {
             Log::error('Restore failed: ' . $e->getMessage());
-            return back()->with('error', 'Restore failed: ' . $e->getMessage());
+            return $fail('restore failed: ' . $e->getMessage());
         }
     }
 
@@ -474,7 +531,7 @@ class ArchiveController extends Controller
     {
         $archive = Archive::findOrFail($id);
 
-        $filenames = array_keys($archive->file_checksums ?? []);
+        $filenames = $archive->filenames();
         sort($filenames);
 
         $layout = Folder::isSuperAdmin(Auth::user()) ? 'SuperAdmin.homeSuperAdmin' : 'Admin.home';
@@ -492,7 +549,7 @@ class ArchiveController extends Controller
     {
         $archive = Archive::findOrFail($id);
 
-        if (! array_key_exists($filename, $archive->file_checksums ?? [])) {
+        if (! in_array($filename, $archive->filenames(), true)) {
             abort(404, 'File not found in this archive.');
         }
 
@@ -500,6 +557,7 @@ class ArchiveController extends Controller
 
         $isImage = in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']);
         $isPdf   = $ext === 'pdf';
+        $isDocx  = $ext === 'docx'; // drawn by docx-preview; old .doc files have no viewer
         $isVideo = in_array($ext, ['mp4', 'mov', 'webm', 'avi']);
         $isAudio = in_array($ext, ['mp3', 'wav', 'ogg', 'm4a']);
         $isText  = in_array($ext, ['txt', 'md', 'csv', 'log', 'json', 'xml', 'html', 'css', 'js', 'php']);
@@ -515,18 +573,27 @@ class ArchiveController extends Controller
 
         return view('Admin.archiveFilePreview', compact(
             'archive', 'filename', 'ext',
-            'isImage', 'isPdf', 'isVideo', 'isAudio', 'isText',
+            'isImage', 'isPdf', 'isDocx', 'isVideo', 'isAudio', 'isText',
             'textContent', 'layout'
         ));
     }
 
     /**
      * Streams one file's raw bytes straight out of the archive ZIP, inline
-     * only (never as an attachment) - used as the src for the image/pdf/
-     * video/audio viewer on the preview page above.
+     * only (never as an attachment) - used as the src for the image/video/
+     * audio viewer on the preview page above, and fetched by its PDF.js
+     * viewer for PDFs.
+     *
+     * View only: opened on its own in a tab or frame, a PDF would show in
+     * the browser's own viewer, with Download and Print. Browsers say where
+     * a request will be shown (Sec-Fetch-Dest), so those are refused.
      */
-    public function streamFile($id, $filename)
+    public function streamFile(Request $request, $id, $filename)
     {
+        if (in_array($request->header('Sec-Fetch-Dest'), ['document', 'iframe', 'frame', 'embed', 'object'], true)) {
+            abort(403, 'Archived files are view only. Open this file from its archive.');
+        }
+
         $archive = Archive::findOrFail($id);
 
         $contents = $this->readArchiveEntry($archive, $filename);

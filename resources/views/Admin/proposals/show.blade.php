@@ -17,6 +17,10 @@
         ->map(fn ($items) => $items->sum(fn ($item) => $item->totalPrice()));
     $paragraphs = fn (?string $text) => array_values(array_filter(array_map('trim', preg_split('/\R+/', (string) $text))));
     $signatoryGroups = $proposal->signatoryGroups();
+    // The price check of each budget row (App\Services\PriceCheck), by item id.
+    $isUnusual = fn ($check) => $check && in_array($check['state'], ['high', 'low'], true);
+    $compared = collect($priceChecks)->filter(fn ($check) => $check && $check['state'] !== 'few');
+    $unusual = $compared->filter($isUnusual);
 @endphp
 
 {{-- Skeleton placeholder, shown until the real content below is revealed --}}
@@ -47,7 +51,8 @@
     <div>
         <h1>{{ $proposal->title }}</h1>
         <p class="sub">
-            {{ $proposal->dateLabel() }}
+            @include('Admin.proposals.partials.status-chip')
+            · {{ $proposal->dateLabel() }}
             @if ($proposal->school_year) · School year {{ $proposal->school_year }} @endif
             · Last changed {{ $proposal->updated_at->format('M j, Y, g:i A') }}
         </p>
@@ -60,11 +65,11 @@
             @csrf
             <button type="submit" class="btn-flat ghost"><i class="fas fa-copy me-1" aria-hidden="true"></i> Copy</button>
         </form>
-        @if ($canChange)
+        @if ($canEdit)
             <a href="{{ route('proposals.edit', $proposal) }}" class="btn-flat"><i class="fas fa-pen me-1" aria-hidden="true"></i> Edit</a>
             <form method="POST" action="{{ route('proposals.destroy', $proposal) }}"
                   data-confirm-title="Delete this proposal?"
-                  data-confirm="“{{ $proposal->title }}” and its budget will be deleted. This cannot be undone."
+                  data-confirm="“{{ $proposal->title }}” will be moved to the Trash. You can restore it from there."
                   data-confirm-ok="Delete">
                 @csrf
                 @method('DELETE')
@@ -74,12 +79,122 @@
     </div>
 </div>
 
+{{-- STATUS + SIGNED COPY. Changed by the maker or the Super Admin; an
+     approved proposal is locked until the Super Admin reopens it. --}}
+<div class="card-panel prop-doc prop-status">
+    <h2>Status and signed copy</h2>
+    <dl class="prop-facts">
+        <dt>Status</dt>
+        <dd>
+            @include('Admin.proposals.partials.status-chip')
+            @if ($proposal->approved_at)
+                <span class="item-meta">approved {{ $proposal->approved_at->format('M j, Y') }}</span>
+            @endif
+        </dd>
+        <dt>Signed copy</dt>
+        <dd>
+            @if ($proposal->signedFile)
+                <a href="{{ route('files.preview', $proposal->signedFile->id) }}"><i class="fas fa-file-signature me-1" aria-hidden="true"></i>{{ $proposal->signedFile->filename }}</a>
+                <span class="item-meta">in {{ \App\Models\ActivityProposal::SIGNED_COPIES_FOLDER }}</span>
+            @else
+                <span class="prop-empty">None yet.</span>
+            @endif
+        </dd>
+        <dt>Student page</dt>
+        <dd>
+            @if ($proposal->isOnStudentPage())
+                <a href="{{ route('student.activity', [$proposal->id, $proposal->slug()]) }}" target="_blank" rel="noopener"><i class="fas fa-globe me-1" aria-hidden="true"></i>Shown to students</a>
+            @elseif ($proposal->is_public)
+                <span>Switched on. It shows once the proposal is approved.</span>
+            @else
+                <span class="prop-empty">Not shown.</span>
+            @endif
+            @if ($canChange)
+                <form method="POST" action="{{ route('proposals.publish', $proposal) }}" style="display:inline;">
+                    @csrf
+                    <input type="hidden" name="is_public" value="{{ $proposal->is_public ? 0 : 1 }}">
+                    <button type="submit" class="btn-flat ghost btn-sm">{{ $proposal->is_public ? 'Hide from student page' : 'Show on student page' }}</button>
+                </form>
+            @endif
+        </dd>
+    </dl>
+    @if ($canChange)
+        <p class="item-meta" style="margin:8px 0 0;">
+            Students see the title, theme, date, objectives and the budget per category. Names, signatures and the signed copy are never shown.
+        </p>
+    @endif
+
+    @if ($proposal->isLocked())
+        <p class="item-meta" style="margin:12px 0 0;">
+            <i class="fas fa-lock me-1" aria-hidden="true"></i>
+            Approved, so it stays as it was signed and can't be edited or deleted. To change it, Copy it into a new proposal{{ $isSuperAdmin ? '' : ', or ask the Super Admin to reopen it' }}.
+        </p>
+    @endif
+
+    @if ($canChange)
+        <div class="status-forms">
+            <form method="POST" action="{{ route('proposals.status', $proposal) }}" class="status-form">
+                @csrf
+                <label for="propStatus">Set status</label>
+                <div class="prop-row">
+                    <select id="propStatus" name="status" class="prop-input">
+                        @foreach ($proposal->statusOptions() as $key => $label)
+                            <option value="{{ $key }}" @selected($proposal->status === $key)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    <button type="submit" class="btn-flat">Save</button>
+                </div>
+                @error('status')<div class="field-error">{{ $message }}</div>@enderror
+            </form>
+
+            <form method="POST" action="{{ route('proposals.signed', $proposal) }}" enctype="multipart/form-data" class="status-form">
+                @csrf
+                <label for="signedUpload">{{ $proposal->signedFile ? 'Replace the signed copy' : 'Upload the signed copy' }}</label>
+                <div class="prop-row">
+                    <input type="file" id="signedUpload" name="files[]" accept=".pdf,.jpg,.jpeg,.png,.webp" class="prop-input" required>
+                    <button type="submit" class="btn-flat">Upload</button>
+                </div>
+                <div class="item-meta" style="margin-top:4px;">
+                    A PDF or photo of the signed paper. It is saved in the “{{ \App\Models\ActivityProposal::SIGNED_COPIES_FOLDER }}” folder{{ $proposal->isLocked() ? '' : ', and the proposal becomes Approved' }}.
+                </div>
+                @error('files')<div class="field-error">{{ $message }}</div>@enderror
+                @error('files.*')<div class="field-error">{{ $message }}</div>@enderror
+            </form>
+
+            @if ($signedChoices->isNotEmpty())
+                <form method="POST" action="{{ route('proposals.signed', $proposal) }}" class="status-form">
+                    @csrf
+                    <label for="signedPick">Or choose a scan already in the folder</label>
+                    <div class="prop-row">
+                        <select id="signedPick" name="file_id" class="prop-input" required>
+                            @foreach ($signedChoices as $choice)
+                                <option value="{{ $choice->id }}">{{ $choice->filename }} ({{ $choice->created_at->format('M j, Y') }})</option>
+                            @endforeach
+                        </select>
+                        <button type="submit" class="btn-flat ghost">Attach</button>
+                    </div>
+                </form>
+            @endif
+        </div>
+    @endif
+
+    @if ($isSuperAdmin && $proposal->isLocked())
+        <form method="POST" action="{{ route('proposals.reopen', $proposal) }}" style="margin-top:14px;"
+              data-confirm-title="Reopen this proposal?"
+              data-confirm="It becomes a draft again and can be edited, so it may no longer match the signed paper. The signed copy stays attached."
+              data-confirm-ok="Reopen">
+            @csrf
+            <button type="submit" class="btn-flat ghost"><i class="fas fa-lock-open me-1" aria-hidden="true"></i> Reopen for changes</button>
+        </form>
+    @endif
+</div>
+
 <form method="GET" action="{{ route('proposals.pdf', $proposal) }}" target="_blank" class="card-panel prop-filters prop-doc" style="align-items:center;">
     <i class="fas fa-file-pdf" style="color:var(--danger);" aria-hidden="true"></i>
     <label for="pdfLetterhead" style="font-weight:600; font-size:.86rem; margin:0;">Print on</label>
     <select id="pdfLetterhead" name="letterhead">
         @foreach ($letterheads as $lh)
-            <option value="{{ $lh->id }}" @selected((int) $letterheadId === $lh->id || (! $letterheadId && $loop->first))>{{ $lh->name }}</option>
+            <option value="{{ $lh->id }}" @selected((int) $letterheadId === $lh->id || (! $letterheadId && $loop->first))>{{ $lh->name }}{{ $lh->is_default ? ' (default)' : '' }}</option>
         @endforeach
         <option value="" @selected($letterheads->isEmpty())>No letterhead</option>
     </select>
@@ -176,12 +291,13 @@
                     </thead>
                     <tbody>
                         @foreach ($proposal->items as $item)
+                            @php $check = $priceChecks[$item->id] ?? null; @endphp
                             <tr>
                                 <td>{{ $item->category ?? '' }}</td>
                                 <td>{{ $item->particular }}</td>
                                 <td class="num">{{ $qty($item->quantity) }}</td>
                                 <td>{{ $item->unit }}</td>
-                                <td class="num">{{ $peso($item->unit_price) }}</td>
+                                <td class="num">@if ($isUnusual($check))<span class="price-mark" title="Unusual price, see Price check"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><span class="sr-only">Unusual price:</span></span>@endif{{ $peso($item->unit_price) }}</td>
                                 <td class="num">{{ $peso($item->totalPrice()) }}</td>
                             </tr>
                         @endforeach
@@ -204,6 +320,35 @@
                         @endforeach
                     </tbody>
                 </table>
+            @endif
+
+            {{-- The price check: what is unusual about each marked price and the
+                 officer's reason. Not in the PDF. --}}
+            @if ($compared->isNotEmpty())
+                <div class="budget-help">
+                    <div class="help-box">
+                        <h3>Price check</h3>
+                        <p class="item-meta">
+                            @if ($unusual->isNotEmpty())
+                                <b class="warn-text">{{ $unusual->count() }} of the {{ $compared->count() }} prices {{ $unusual->count() === 1 ? 'looks' : 'look' }} unusual</b> next to approved proposals.
+                            @else
+                                {{ $compared->count() === 1 ? 'The 1 price' : 'The '.$compared->count().' prices' }} compared with approved proposals {{ $compared->count() === 1 ? 'is' : 'are' }} close to what they paid.
+                            @endif
+                        </p>
+                        @foreach ($proposal->items as $item)
+                            @php $check = $priceChecks[$item->id] ?? null; @endphp
+                            @if ($isUnusual($check))
+                                <div class="help-item is-open">
+                                    <div>
+                                        <b>{{ $item->particular }}</b> · {{ \App\Services\PriceCheck::peso((float) $item->unit_price) }}{{ $item->unit ? ' per '.$item->unit : '' }}<br>
+                                        <span class="item-meta">{{ $check['summary'] }} ({{ $check['proposals'] }} approved {{ Str::plural('proposal', $check['proposals']) }})</span>
+                                    </div>
+                                    <div>{!! filled($item->price_note) ? '<span class="item-meta">Reason:</span> '.e($item->price_note) : '<span class="item-meta">No reason given yet.</span>' !!}</div>
+                                </div>
+                            @endif
+                        @endforeach
+                    </div>
+                </div>
             @endif
         @else
             <p class="prop-empty">No budget yet.</p>

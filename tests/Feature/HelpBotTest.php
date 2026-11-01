@@ -118,7 +118,7 @@ it('answers from the guide by keywords once both models are out of quota', funct
 
     expect($response->json('reply'))
         ->toContain("used up today's free limit")
-        ->toContain('**Archive one folder:** on Folders, three-dot menu → Archive.');
+        ->toContain('**Archive one folder:** not possible any more.');
 
     Http::assertSentCount(2);
 

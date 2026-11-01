@@ -3,9 +3,15 @@
 use App\Models\ActivityLog;
 use App\Models\ActivityProposal;
 use App\Models\ActivityProposalItem;
+use App\Models\File;
+use App\Models\Folder;
 use App\Models\User;
+use App\Services\CloudFileUploader;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
 
@@ -283,16 +289,218 @@ it('lists this school year by default and finds proposals by a particular', func
     $this->get('/proposals?year=all&q=medals')->assertSee('Intramurals')->assertDontSee('Old Fair');
 });
 
-it('deletes a proposal together with its budget rows', function () {
+it('sends a deleted proposal to the Trash, where any officer can restore it and only the Super Admin can delete it for good', function () {
     $maker = proposalOfficer();
+    $other = proposalOfficer('Secretary');
     $proposal = proposalFor($maker);
 
     $this->actingAs($maker)->delete(route('proposals.destroy', $proposal))
         ->assertRedirect(route('proposals.index'));
 
     expect(ActivityProposal::count())->toBe(0)
-        ->and(ActivityProposalItem::count())->toBe(0)
-        ->and(ActivityLog::where('activity', 'Deleted activity proposal "Leadership Training"')->exists())->toBeTrue();
+        ->and(ActivityProposal::onlyTrashed()->count())->toBe(1)
+        ->and(ActivityProposalItem::count())->toBe(2)
+        ->and(ActivityLog::where('activity', 'Moved activity proposal "Leadership Training" to Trash')->exists())->toBeTrue();
+    $this->get('/proposals')->assertDontSee(route('proposals.show', $proposal->id));
+    $this->actingAs($other)->get(route('trash.index'))->assertOk()->assertSee('Leadership Training');
+
+    // Any officer may restore it; an ordinary one may not delete it for good.
+    $this->actingAs($other)->post(route('trash.restore', ['proposal', $proposal->id]))->assertSessionHas('success');
+    expect(ActivityProposal::count())->toBe(1);
+
+    $proposal->delete();
+    $this->actingAs($other)->delete(route('trash.destroy', ['proposal', $proposal->id]))->assertSessionHas('error');
+    $this->actingAs(proposalSuperAdmin())->delete(route('trash.destroy', ['proposal', $proposal->id]))->assertSessionHas('success');
+
+    expect(ActivityProposal::withTrashed()->count())->toBe(0)
+        ->and(ActivityProposalItem::count())->toBe(0);
+});
+
+it('purges proposals that have been in the Trash past the retention days', function () {
+    $old = proposalFor(proposalOfficer(), ['title' => 'Old one']);
+    $old->delete();
+    $this->travel((int) config('trash.retention_days') + 1)->days();
+    $recent = proposalFor(proposalOfficer('Secretary'), ['title' => 'Recent one']);
+    $recent->delete();
+
+    $this->artisan('trash:purge-expired')->assertSuccessful();
+
+    expect(ActivityProposal::withTrashed()->pluck('title')->all())->toBe(['Recent one']);
+});
+
+it('sets the status, which only the maker or the Super Admin may change', function () {
+    $maker = proposalOfficer();
+    $proposal = proposalFor($maker);
+
+    expect($proposal->fresh()->status)->toBe('draft');
+
+    $this->actingAs(proposalOfficer('Secretary'))->post(route('proposals.status', $proposal), ['status' => 'for_signing'])->assertForbidden();
+
+    $this->actingAs($maker)->post(route('proposals.status', $proposal), ['status' => 'for_signing'])
+        ->assertRedirect(route('proposals.show', $proposal));
+    expect($proposal->fresh()->status)->toBe('for_signing')
+        ->and(ActivityLog::where('activity', 'Updated status of activity proposal "Leadership Training" to For signing')->exists())->toBeTrue();
+
+    // Held only after it is approved.
+    $this->post(route('proposals.status', $proposal), ['status' => 'done'])->assertSessionHasErrors('status');
+
+    $this->get('/proposals?status=for_signing')->assertSee('Leadership Training');
+    $this->get('/proposals?status=approved')->assertDontSee('Leadership Training');
+});
+
+it('locks an approved proposal until the Super Admin reopens it', function () {
+    $maker = proposalOfficer();
+    $superAdmin = proposalSuperAdmin();
+    $proposal = proposalFor($maker);
+
+    $this->actingAs($maker)->post(route('proposals.status', $proposal), ['status' => 'approved']);
+    $proposal->refresh();
+    expect($proposal->isLocked())->toBeTrue()->and($proposal->approved_at)->not->toBeNull();
+
+    // Nobody edits or deletes it, not even the Super Admin, while it is
+    // approved; the edit page sends them back to the proposal to print it.
+    foreach ([$maker, $superAdmin] as $user) {
+        $this->actingAs($user)->get(route('proposals.edit', $proposal))
+            ->assertRedirect(route('proposals.show', $proposal))->assertSessionHas('error');
+        $this->actingAs($user)->put(route('proposals.update', $proposal), ['title' => 'Changed'])->assertForbidden();
+        $this->actingAs($user)->delete(route('proposals.destroy', $proposal))->assertForbidden();
+    }
+    expect($proposal->fresh()->title)->toBe('Leadership Training')
+        ->and(ActivityProposal::count())->toBe(1);
+
+    // It can still be held or called off, but not sent back to a draft.
+    $this->actingAs($maker)->post(route('proposals.status', $proposal), ['status' => 'draft'])->assertSessionHasErrors('status');
+    $this->actingAs($maker)->post(route('proposals.status', $proposal), ['status' => 'done']);
+    expect($proposal->fresh()->status)->toBe('done')->and($proposal->fresh()->isLocked())->toBeTrue();
+
+    // A copy is a new draft of the copier's own.
+    $this->actingAs($maker)->post(route('proposals.copy', $proposal));
+    $copy = ActivityProposal::where('copied_from_id', $proposal->id)->sole();
+    expect($copy->status)->toBe('draft')->and($copy->isLocked())->toBeFalse();
+
+    $this->actingAs($maker)->post(route('proposals.reopen', $proposal))->assertForbidden();
+    $this->actingAs($superAdmin)->get(route('proposals.show', $proposal))->assertSee('Reopen for changes');
+    $this->actingAs($superAdmin)->post(route('proposals.reopen', $proposal))->assertRedirect(route('proposals.show', $proposal));
+
+    $proposal->refresh();
+    expect($proposal->status)->toBe('draft')->and($proposal->isLocked())->toBeFalse();
+    $this->actingAs($maker)->get(route('proposals.edit', $proposal))->assertOk();
+});
+
+it('saves the signed copy in the Activity Proposals folder and approves the proposal', function () {
+    Bus::fake();
+    Storage::fake('local');
+    $this->mock(CloudFileUploader::class)->shouldReceive('upload')->andReturn(true);
+
+    $maker = proposalOfficer();
+    $first = proposalFor($maker);
+    $second = proposalFor($maker, ['title' => 'Intramurals']);
+
+    $this->actingAs(proposalOfficer('Secretary'))->post(route('proposals.signed', $first), [
+        'files' => [UploadedFile::fake()->create('signed.pdf', 20, 'application/pdf')],
+    ])->assertForbidden();
+
+    $this->actingAs($maker)->post(route('proposals.signed', $first), [
+        'files' => [UploadedFile::fake()->create('notes.docx', 20)],
+    ])->assertSessionHasErrors('files.0');
+
+    $this->actingAs($maker)->post(route('proposals.signed', $first), [
+        'files' => [UploadedFile::fake()->create('Leadership-Training-signed.pdf', 20, 'application/pdf')],
+    ])->assertRedirect(route('proposals.show', $first));
+
+    $folder = Folder::where('name', 'Activity Proposals')->sole();
+    $file = File::where('folder_id', $folder->id)->sole();
+    $first->refresh();
+
+    expect($file->filename)->toBe('Leadership-Training-signed.pdf')
+        ->and($folder->school_year)->toBe('2026-2027')
+        ->and($first->signed_file_id)->toBe($file->id)
+        ->and($first->status)->toBe('approved')
+        ->and($first->isLocked())->toBeTrue()
+        ->and(ActivityLog::where('activity', 'like', 'Uploaded 1 file(s): Leadership-Training-signed.pdf%')->exists())->toBeTrue()
+        ->and(ActivityLog::where('activity', 'Updated activity proposal "Leadership Training": signed copy "Leadership-Training-signed.pdf" attached, status Approved')->exists())->toBeTrue();
+    $this->get(route('proposals.show', $first))->assertSee('Leadership-Training-signed.pdf');
+
+    // A scan filed into the folder from the Scan Inbox is picked, not uploaded again.
+    $scan = File::create(['filename' => 'Intramurals-signed.pdf', 'filepath' => 'x.pdf', 'size' => 10, 'folder_id' => $folder->id, 'storage_type' => 'local']);
+    $this->get(route('proposals.show', $second))->assertSee('Intramurals-signed.pdf');
+    $this->post(route('proposals.signed', $second), ['file_id' => $scan->id])->assertRedirect(route('proposals.show', $second));
+    expect($second->fresh()->signed_file_id)->toBe($scan->id)
+        ->and(Folder::where('name', 'Activity Proposals')->count())->toBe(1);
+
+    // Only from that folder.
+    $elsewhere = File::create(['filename' => 'other.pdf', 'filepath' => 'y.pdf', 'size' => 10, 'folder_id' => Folder::create(['name' => 'General'])->id, 'storage_type' => 'local']);
+    $third = proposalFor($maker, ['title' => 'Fair']);
+    $this->post(route('proposals.signed', $third), ['file_id' => $elsewhere->id])->assertSessionHas('error');
+    expect($third->fresh()->signed_file_id)->toBeNull()->and($third->fresh()->status)->toBe('draft');
+});
+
+it('shows an approved proposal on the student page once switched on, with its budget per category and no names', function () {
+    $maker = proposalOfficer();
+    $proposal = proposalFor($maker, [
+        'theme'            => 'Lead with purpose',
+        'objectives_intro' => 'The training aims to:',
+        'status'           => 'approved',
+        'approved_at'      => now(),
+        'signatories'      => ['approved' => [['name' => 'DR. EXAMPLE NAME', 'position' => 'University President']]],
+        'master_of_ceremony' => 'HOST EXAMPLE NAME',
+    ]);
+    $page = route('student.activity', [$proposal->id, 'leadership-training']);
+
+    // Off until an officer switches it on.
+    $this->get('/stuDashboard')->assertOk()->assertDontSee('id="activities"', false);
+    $this->get($page)->assertNotFound();
+
+    $this->actingAs(proposalOfficer('Secretary'))->post(route('proposals.publish', $proposal), ['is_public' => 1])->assertForbidden();
+    $this->actingAs($maker)->post(route('proposals.publish', $proposal), ['is_public' => 1])
+        ->assertRedirect(route('proposals.show', $proposal))->assertSessionHas('success', 'Shown on the student page.');
+    expect(ActivityLog::where('activity', 'Updated activity proposal "Leadership Training": shown on the student page')->exists())->toBeTrue();
+    auth()->logout();
+
+    $this->get('/stuDashboard')->assertOk()
+        ->assertSee('id="activities"', false)
+        ->assertSee('<a href="#activities" data-tab="activities">', false)   // its own tab in the installed app
+        ->assertSee('Leadership Training')
+        ->assertSee('Upcoming')
+        ->assertSee('₱4,800.00');
+
+    $this->get($page)->assertOk()
+        ->assertHeader('X-Robots-Tag', 'noindex')
+        ->assertSee('Lead with purpose')
+        ->assertSee('Train officers to plan an activity')
+        ->assertSee('₱4,800.00')
+        ->assertSee('Meals')->assertSee('₱3,600.00')->assertSee('75%')
+        ->assertSee('Supplies')->assertSee('₱1,200.00')
+        ->assertDontSee('DR. EXAMPLE NAME')
+        ->assertDontSee('HOST EXAMPLE NAME')
+        ->assertDontSee('SG Secretary')   // personnel in the schedule
+        ->assertDontSee('Certificates');  // line items stay with the officers
+
+    // An old or missing end of the address goes to the current one.
+    $this->get(route('student.activity', [$proposal->id, 'old-title']))->assertRedirect($page)->assertStatus(301);
+
+    // Hidden again, it is gone from the student page at once.
+    $this->actingAs($maker)->post(route('proposals.publish', $proposal), ['is_public' => 0]);
+    auth()->logout();
+    $this->get('/stuDashboard')->assertDontSee('id="activities"', false)->assertDontSee('<a href="#activities" data-tab="activities">', false);
+    $this->get($page)->assertNotFound();
+});
+
+it('keeps drafts and proposals still being signed off the student page, even when switched on', function () {
+    $maker = proposalOfficer();
+    $draft = proposalFor($maker, ['title' => 'Draft Fair', 'is_public' => true]);
+    $signing = proposalFor($maker, ['title' => 'Signing Fair', 'is_public' => true, 'status' => 'for_signing']);
+    $done = proposalFor($maker, ['title' => 'Held Fair', 'is_public' => true, 'status' => 'done', 'approved_at' => now(), 'starts_on' => '2026-09-01']);
+
+    $this->actingAs($maker)->post(route('proposals.publish', $draft), ['is_public' => 1])
+        ->assertSessionHas('success', 'It will show on the student page once it is approved.');
+    auth()->logout();
+
+    $this->get('/stuDashboard')->assertSee('Held Fair')->assertSee('Done')
+        ->assertDontSee('Draft Fair')->assertDontSee('Signing Fair');
+    $this->get(route('student.activity', [$draft->id, $draft->slug()]))->assertNotFound();
+    $this->get(route('student.activity', [$signing->id, $signing->slug()]))->assertNotFound();
+    $this->get(route('student.activity', [$done->id, $done->slug()]))->assertOk();
 });
 
 /** The tab title as the browser shows it: <title> with its whitespace collapsed. */

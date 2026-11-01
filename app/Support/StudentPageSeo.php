@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\ActivityProposal;
 use App\Models\Announcement;
 use App\Models\AnnouncementImage;
 use App\Models\SiteSetting;
@@ -85,6 +86,36 @@ class StudentPageSeo
                         'itemListElement' => [
                             ['@type' => 'ListItem', 'position' => 1, 'name' => config('seo.site_name'), 'item' => route('student.dashboard')],
                             ['@type' => 'ListItem', 'position' => 2, 'name' => $announcement->title, 'item' => $url],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    /** An approved activity's page. Kept out of search results for now (noindex). */
+    public static function activity(ActivityProposal $activity, SiteSetting $settings): array
+    {
+        $url = route('student.activity', [$activity->id, $activity->slug()]);
+        $description = Str::limit(trim($activity->dateLabel().'. '.($activity->theme ? $activity->theme.'. ' : '')
+            .'Budget: '.ActivityProposal::peso($activity->budgetTotal()).'.'), 160);
+
+        return [
+            'title' => $activity->title.' | '.config('seo.site_name'),
+            'social_title' => $activity->title,
+            'description' => $description,
+            'url' => $url,
+            'type' => 'website',
+            'image' => self::card($settings),
+            'noindex' => true,
+            'schema' => [
+                '@context' => 'https://schema.org',
+                '@graph' => [
+                    [
+                        '@type' => 'BreadcrumbList',
+                        'itemListElement' => [
+                            ['@type' => 'ListItem', 'position' => 1, 'name' => config('seo.site_name'), 'item' => route('student.dashboard')],
+                            ['@type' => 'ListItem', 'position' => 2, 'name' => $activity->title, 'item' => $url],
                         ],
                     ],
                 ],

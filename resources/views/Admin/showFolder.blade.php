@@ -150,6 +150,16 @@
         color: var(--text-2);
         text-transform: uppercase;
     }
+    .added-later {
+        font-size: .7rem;
+        font-weight: 600;
+        background: #fff3d6;
+        color: #7a5200;
+        border-radius: 4px;
+        padding: 1px 6px;
+        white-space: nowrap;
+    }
+    [data-theme="dark"] .added-later { background: #3a2d14; color: #edbb62; }
     .file-date { color: var(--text-2); font-size: .82rem; }
     .file-size {
         font-family: 'DM Mono', monospace;
@@ -361,9 +371,33 @@
 </div>
 
 @if($folders->is_archived)
-<div class="alert alert-warning d-flex align-items-center gap-2" style="border-radius:10px;">
-    <i class="fas fa-lock"></i>
-    <span>This folder is stored under school year <strong>{{ $folders->school_year }}</strong> and is read-only.</span>
+<div class="alert alert-warning d-flex align-items-center gap-2 flex-wrap" style="border-radius:10px;">
+    <i class="fas fa-lock" aria-hidden="true"></i>
+    <span style="flex:1 1 280px;">
+        @if($addingToPastYear)
+            This folder is stored under school year <strong>{{ $folders->school_year }}</strong>. Old records from that year can be added here;
+            once added, officers can't change them. Only the Super Admin can rename or remove a file added by mistake.
+        @else
+            This folder is stored under school year <strong>{{ $folders->school_year }}</strong> and is read-only.
+        @endif
+        @if($folders->added_later_at)
+            <span class="d-block" style="font-size:12px;">Folder added later by {{ $folders->addedLaterBy?->name ?? 'a former officer' }}, {{ $folders->added_later_at->format('M j, Y') }}.</span>
+        @endif
+    </span>
+    {{-- Folder::isLockedFor(): only an added-later folder, only the Super Admin --}}
+    @unless($folders->isLockedFor(auth()->user()))
+        <span class="d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#renameFolderModal">Rename folder</button>
+            <form action="{{ route('folders.destroy', $folders->id) }}" method="POST"
+                  data-confirm-title="Move this folder to Trash?"
+                  data-confirm="“{{ $folders->name }}” and the files added to it can be restored from Trash within {{ config('trash.retention_days') }} days."
+                  data-confirm-ok="Move to Trash">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="btn btn-sm btn-outline-danger">Move folder to Trash</button>
+            </form>
+        </span>
+    @endunless
 </div>
 @endif
 
@@ -462,6 +496,12 @@
                         <span class="file-ext-badge">{{ $ext }}</span>
                         @include('Admin.partials.approval-badge', ['file' => $file])
                         @include('Admin.partials.copy-badge', ['file' => $file])
+                        @include('Admin.partials.version-badge', ['file' => $file])
+                        @if($file->added_later_at)
+                            <span class="added-later" title="Added to school year {{ $file->school_year }} by {{ $file->addedLaterBy?->name ?? 'a former officer' }} on {{ $file->added_later_at->format('M j, Y') }}">
+                                Added later by {{ $file->addedLaterBy?->name ?? 'a former officer' }}, {{ $file->added_later_at->format('M j, Y') }}
+                            </span>
+                        @endif
                     </div>
                 </td>
                 <td  onclick="window.location='{{ route('files.preview', $file->id) }}'" class="file-date">{{ $file->updated_at->format('M d, Y · h:i A') }}</td>
@@ -492,6 +532,37 @@
     </button>
 </li>
                     @endif
+                    {{-- Versions (partials/file-versions). A read-only file's versions can still be opened. --}}
+                    @php $versionsLocked = $file->isLockedFor(auth()->user()); @endphp
+                    @if($file->version_no > 1 || ! $versionsLocked)
+                    <li>
+    <button type="button" class="dropdown-item py-2" data-versions-file
+            data-versions-name="{{ $file->filename }}"
+            data-versions-url="{{ route('files.versions.index', $file->id) }}">
+        <i class="bi bi-clock-history me-2 text-secondary"></i> Versions{{ $file->version_no > 1 ? ' (' . $file->version_no . ')' : '' }}
+    </button>
+</li>
+                    @endif
+                    @unless($versionsLocked)
+                    <li>
+    <button type="button" class="dropdown-item py-2" data-versions-file data-versions-upload
+            data-versions-name="{{ $file->filename }}"
+            data-versions-url="{{ route('files.versions.index', $file->id) }}">
+        <i class="bi bi-upload me-2 text-secondary"></i> Upload new version
+    </button>
+</li>
+                    <li>
+    <form action="{{ route($file->isFinal() ? 'files.final.clear' : 'files.final', $file->id) }}" method="POST">
+        @csrf
+        @if($file->isFinal())
+            @method('DELETE')
+        @endif
+        <button type="submit" class="dropdown-item py-2">
+            <i class="bi bi-check2-circle me-2 text-success"></i> {{ $file->isFinal() ? 'Remove final mark' : 'Mark as final' }}
+        </button>
+    </form>
+</li>
+                    @endunless
                     @if(!$folders->is_archived)
                     <li>
     <button class="dropdown-item py-2"
@@ -542,6 +613,22 @@
 </li>
                     @endif
                     @if($file->duplicate_of_id && ! $file->duplicate_dismissed_at && $file->duplicateOf)
+                    @php $original = $file->duplicateOf; @endphp
+                    {{-- A newer draft saved under another name joins the original's versions (FileVersionController::merge) --}}
+                    @if($file->isNewerDraft() && ! $versionsLocked && $original->isAccessibleBy(auth()->user()) && ! $original->isLockedFor(auth()->user()))
+                    <li>
+    <form action="{{ route('file.mergeIntoOriginal', $file->id) }}" method="POST"
+          data-confirm-title="Make “{{ $file->filename }}” version {{ $original->version_no + 1 }} of “{{ $original->filename }}”?"
+          data-confirm="It will no longer be listed on its own. It becomes the newest version of “{{ $original->filename }}”{{ $original->folder_id !== $file->folder_id && $original->folder ? ' in ' . $original->folder->name : '' }}, and the version there now stays in its Versions list."
+          data-confirm-ok="Make it version {{ $original->version_no + 1 }}"
+          data-confirm-tone="warning">
+        @csrf
+        <button type="submit" class="dropdown-item py-2">
+            <i class="bi bi-layers me-2 text-secondary"></i> Make it version {{ $original->version_no + 1 }} of the original
+        </button>
+    </form>
+</li>
+                    @endif
                     <li>
     <form action="{{ route('file.notACopy', $file->id) }}" method="POST">
         @csrf
@@ -562,6 +649,29 @@
 
         <button type="submit" class="dropdown-item py-2 text-danger">
             <i class="bi bi-trash me-2"></i> Delete
+        </button>
+    </form>
+</li>
+                    {{-- A past year's file added later: the Super Admin may still fix it (File::isLockedFor) --}}
+                    @elseif(! $file->isLockedFor(auth()->user()))
+                    <li>
+    <button class="dropdown-item py-2"
+            data-bs-toggle="modal"
+            data-bs-target="#renameModal{{ $file->id }}">
+        <i class="bi bi-pencil me-2 text-secondary"></i> Rename
+    </button>
+</li>
+                    <li><hr class="dropdown-divider my-1"></li>
+                    <li>
+    <form action="{{ route('files.destroy', $file->id) }}" method="POST"
+          data-confirm-title="Move this file to Trash?"
+          data-confirm="“{{ $file->filename }}” was added later to school year {{ $file->school_year }}. It can be restored from Trash within {{ config('trash.retention_days') }} days."
+          data-confirm-ok="Move to Trash">
+        @csrf
+        @method('DELETE')
+
+        <button type="submit" class="dropdown-item py-2 text-danger">
+            <i class="bi bi-trash me-2"></i> Move to Trash
         </button>
     </form>
 </li>
@@ -634,7 +744,7 @@
     {{-- Optional: no files message --}}
 @endforelse
 
-@if(!$folders->is_archived)
+@if(!$folders->is_archived || $addingToPastYear)
 {{-- FLOATING ACTION BUTTON --}}
 <div class="fab-container" id="fabContainer">
     <div class="fab-options">
@@ -685,6 +795,13 @@
 
                 <div class="modal-body">
 
+                    @if($addingToPastYear)
+                    <p class="text-muted" style="font-size:13px;">
+                        These files go under school year <strong>{{ $folders->school_year }}</strong> and are marked as added later by you.
+                        Officers can't rename or delete them afterwards.
+                    </p>
+                    @endif
+
                     {{-- role/tabindex + the keydown handler in setupDragDrop()
                          make the drop zone work from the keyboard too. --}}
                     <div class="upload-zone"
@@ -705,8 +822,7 @@
                            name="files[]"
                            multiple
                            hidden
-                           accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp"
-                           onchange="showFileNames(this)">
+                           accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp">
 
                     <div id="fileNameList"
                          class="mt-2"
@@ -721,12 +837,15 @@
                         </label>
                     </div>
 
+                    {{-- A past year's record is not waiting for approval (FileController::store ignores it there too) --}}
+                    @unless($folders->is_archived)
                     <div class="form-check mt-2">
                         <input type="checkbox" class="form-check-input" id="pendingApproval" name="pending_approval" value="1">
                         <label class="form-check-label" for="pendingApproval" style="font-size:13px;">
                             Still subject for approval <span class="text-muted">(label it as not yet official)</span>
                         </label>
                     </div>
+                    @endunless
 
                 </div>
 
@@ -744,6 +863,32 @@
         </div>
     </div>
 </div>
+
+@unless(! $folders->is_archived || $folders->isLockedFor(auth()->user()))
+{{-- RENAME AN ADDED-LATER FOLDER (Super Admin; FolderController::update) --}}
+<div class="modal fade" id="renameFolderModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:400px;">
+        <div class="modal-content">
+            <form action="{{ route('folders.update', $folders->id) }}" method="POST">
+                @csrf
+                @method('PUT')
+                <div class="modal-header">
+                    <h5 class="modal-title">Rename folder</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <label for="renameFolderName" class="form-label text-muted" style="font-size:13px;">Folder name</label>
+                    <input type="text" name="name" id="renameFolderName" class="form-control" value="{{ $folders->name }}" required maxlength="255" style="border-radius:8px;">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" style="border-radius:8px;">Rename</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endunless
 
 {{-- UPLOAD PROGRESS TOAST (top right, survives the modal closing) --}}
 <div id="uploadToast" style="display:none; position:fixed; top:20px; right:20px; width:320px; z-index:2000;">
@@ -907,63 +1052,11 @@ document.addEventListener('click', function(e) {
     } catch (e) {}
 })();
 
-function showFileNames(input) {
-    const list = document.getElementById('fileNameList');
-    if (!input.files.length) { list.innerHTML = ''; return; }
-    const names = Array.from(input.files).map(f =>
-        `<div style="padding:3px 0; border-bottom:1px solid #f0f0f0;">
-            <i class="bi bi-file-earmark me-1"></i>${f.name}
-            <span class="text-muted ms-1">(${(f.size / 1024).toFixed(1)} KB)</span>
-         </div>`
-    ).join('');
-    list.innerHTML = `<div style="max-height:120px; overflow-y:auto; border:1px solid #eee;
-                           border-radius:8px; padding:6px 10px; margin-top:6px;">${names}</div>`;
-}
-
-// Without this, dropping files anywhere the browser doesn't explicitly
-// handle makes it navigate to/download the file instead of accepting it.
-window.addEventListener('dragover', e => e.preventDefault());
-window.addEventListener('drop', e => e.preventDefault());
-
-(function setupDragDrop(zoneId, inputId) {
-    const zone = document.getElementById(zoneId);
-    const input = document.getElementById(inputId);
-    if (!zone || !input) return;
-
-    ['dragenter', 'dragover'].forEach(evt => {
-        zone.addEventListener(evt, function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            zone.classList.add('drag-over');
-        });
-    });
-
-    ['dragleave', 'drop'].forEach(evt => {
-        zone.addEventListener(evt, function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            zone.classList.remove('drag-over');
-        });
-    });
-
-    zone.addEventListener('drop', function (e) {
-        if (e.dataTransfer.files && e.dataTransfer.files.length) {
-            input.files = e.dataTransfer.files;
-            showFileNames(input);
-        }
-    });
-
-    // Enter or Space on the focused zone opens the file picker, like a button.
-    zone.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            input.click();
-        }
-    });
-})('uploadZone', 'fileInput');
+@include('Admin.partials.upload-picker')
 
 @include('Admin.partials.upload-script')
 </script>
 
 @include('partials.share-link')
+@include('partials.file-versions')
 @endsection

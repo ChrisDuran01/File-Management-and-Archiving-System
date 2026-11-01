@@ -8,11 +8,15 @@ use App\Models\Backup;
 use App\Models\Document;
 use App\Models\File;
 use App\Models\Folder;
+use App\Models\Letterhead;
 use App\Models\ScanBatch;
 use App\Models\User;
 use App\Services\ArchiveInsights;
+use App\Models\SiteSetting;
 use App\Services\EngagementReport;
+use App\Services\ProposalReport;
 use App\Support\SchoolYear;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
@@ -23,50 +27,20 @@ use Illuminate\Support\Str;
 
 class ReportController extends Controller
 {
-    /**
-     * A folder that hasn't been touched in this many days (and isn't
-     * already archived) gets flagged as needing attention.
-     */
-    private const STALE_WARNING_DAYS = 90;
-
-    private const STALE_CRITICAL_DAYS = 180;
-
-    /**
-     * An account with this many failed login attempts in the lookback
-     * window gets flagged as a possible brute-force target, even if it
-     * never actually tripped the rate-limiter's lockout (e.g. an attacker
-     * pacing attempts to stay just under the threshold, or spreading
-     * attempts across several accounts).
-     */
     private const BRUTE_FORCE_THRESHOLD = 3;
 
-    /**
-     * An account that successfully logged in from this many distinct IPs
-     * within the lookback window gets flagged - could be legitimate (a
-     * mobile officer switching networks), but is also the pattern shared
-     * credentials or a compromised account produce.
-     */
+   
     private const MULTI_IP_THRESHOLD = 3;
 
     private const ANOMALY_LOOKBACK_DAYS = 7;
 
-    /**
-     * How far back "new location" detection looks for a user's prior login
-     * history before treating an unfamiliar IP as their actual first login
-     * ever (which isn't anomalous) rather than a new location for an
-     * established account (which is). Bounded rather than the whole table's
-     * history, to keep the query cost predictable as activity_logs grows.
-     */
+
     private const LOGIN_HISTORY_LOOKBACK_MONTHS = 6;
 
     /** Preset report windows, in days. */
     private const PRESETS = ['7d' => 7, '30d' => 30, '90d' => 90, '12m' => 365];
 
-    /**
-     * Activity-log strings carry names and counts, so they're bucketed by
-     * pattern (first match wins - order matters, e.g. "Downloaded backup"
-     * must be caught before the generic "Downloaded").
-     */
+   
     private const ACTIVITY_CATEGORIES = [
         'Backup & restore'    => '/^(Created backup|Downloaded backup|Restored system|Turned automatic backup|Changed backup)/',
         'Failed sign-ins'     => '/^(Failed login|Login blocked|Login attempt on disabled)/',
@@ -85,9 +59,7 @@ class ReportController extends Controller
     {
         $now = Carbon::now();
 
-        // =============================
-        // REPORT WINDOW - a school year, a preset, or a custom from/to range.
-        // =============================
+        
         [$from, $to, $rangeKey, $schoolYear] = $this->resolveRange($request, $now);
         $days = max(1, (int) $from->diffInDays($to) + 1);
 
@@ -105,23 +77,16 @@ class ReportController extends Controller
 
         $periodLabel = ($schoolYear ? 'SY ' . $schoolYear . ', ' : '') . $from->format('M j, Y') . ' – ' . $to->format('M j, Y');
         $schoolYears = SchoolYear::options();
-        $tab = $request->query('tab') === 'engagement' ? 'engagement' : 'records';
+        $tab = in_array($request->query('tab'), ['engagement', 'proposals'], true) ? $request->query('tab') : 'records';
 
-        // Time buckets for every trend chart: daily for short windows,
-        // weekly for medium ones, monthly for the long ones.
+        
         $buckets = $this->makeBuckets($from, $to);
 
-        // The report follows the same access as the pages its numbers come
-        // from. Activity Logs and Backups are SuperAdmin pages, so every
-        // section built on them (officer activity, usage patterns, backups,
-        // sign-in security) is SuperAdmin-only here too - for a regular
-        // Admin they are never queried, not merely hidden in the view.
+       
         $isSuperAdmin = Folder::isSuperAdmin(Auth::user());
         $layout = $isSuperAdmin ? 'SuperAdmin.homeSuperAdmin' : 'Admin.home';
 
-        // =============================
-        // STUDENT ENGAGEMENT TAB - anonymous events from the public page.
-        // =============================
+        
         if ($tab === 'engagement') {
             $engagement = app(EngagementReport::class)->build($from, $to, $prevFrom, $prevTo, $buckets, $comparedWith);
 
@@ -129,35 +94,45 @@ class ReportController extends Controller
                 return $this->exportEngagementCsv($periodLabel, $engagement);
             }
 
-            return view('Admin.reports', compact(
-                'tab', 'engagement', 'rangeKey', 'from', 'to', 'periodLabel', 'days',
+            $data = compact(
+                'tab', 'engagement', 'buckets', 'rangeKey', 'from', 'to', 'periodLabel', 'days',
                 'schoolYear', 'schoolYears', 'comparedWith', 'isSuperAdmin', 'layout'
-            ));
+            );
+
+            return $request->query('export') === 'pdf' ? $this->pdf($data) : view('Admin.reports', $data);
         }
 
-        // =============================
-        // RAW ROWS FOR THE WINDOW - one query each, reused by many panels.
-        // =============================
+       
+        if ($tab === 'proposals') {
+            $proposalReport = app(ProposalReport::class)->build($from, $to);
+
+            if ($request->query('export') === 'csv') {
+                return $this->exportProposalsCsv($periodLabel, $proposalReport);
+            }
+
+            $data = compact(
+                'tab', 'proposalReport', 'buckets', 'rangeKey', 'from', 'to', 'periodLabel', 'days',
+                'schoolYear', 'schoolYears', 'comparedWith', 'isSuperAdmin', 'layout'
+            );
+
+            return $request->query('export') === 'pdf' ? $this->pdf($data) : view('Admin.reports', $data);
+        }
+
+        
         $filesInRange = File::whereBetween('created_at', [$from, $to])->get(['created_at', 'size', 'generated_from_template_id']);
         $docsInRange = Document::whereBetween('created_at', [$from, $to])->get(['created_at', 'document_type', 'status', 'created_by', 'page_count']);
         $logsInRange = $isSuperAdmin
             ? ActivityLog::whereBetween('created_at', [$from, $to])->get(['user_name', 'activity', 'created_at'])
             : null;
 
-        // =============================
-        // KPI ROW - each with the same-length previous period for context.
-        // =============================
+       
         $kpis = [
             $this->kpi('Files uploaded', $filesInRange->count(),
                 File::whereBetween('created_at', [$prevFrom, $prevTo])->count()),
             $this->kpi('Documents digitized', $docsInRange->count(),
                 Document::whereBetween('created_at', [$prevFrom, $prevTo])->count()),
-            $this->kpi('Pages digitized', (int) $docsInRange->sum('page_count'),
-                (int) Document::whereBetween('created_at', [$prevFrom, $prevTo])->sum('page_count')),
         ];
         if ($isSuperAdmin) {
-            $kpis[] = $this->kpi('Logged actions', $logsInRange->count(),
-                ActivityLog::whereBetween('created_at', [$prevFrom, $prevTo])->count());
             $kpis[] = $this->kpi('Active officers', $logsInRange->pluck('user_name')->unique()->count(),
                 ActivityLog::whereBetween('created_at', [$prevFrom, $prevTo])->distinct('user_name')->count('user_name'));
         }
@@ -177,26 +152,11 @@ class ReportController extends Controller
             'documents' => $this->countByBucket($docsInRange->pluck('created_at'), $buckets),
         ];
 
-        // =============================
-        // OFFICER ACTIVITY (SuperAdmin only) - actions over time, when the
-        // system is used, action categories, leaderboard, latest actions.
-        // =============================
-        $byHour = $byWeekday = $activityByCategory = $activeOfficers = null;
+       
+        $activityByCategory = $activeOfficers = null;
 
         if ($isSuperAdmin) {
             $trend['actions'] = $this->countByBucket($logsInRange->pluck('created_at'), $buckets);
-
-            // Hour-of-day profile: when the system is actually being used.
-            $byHour = array_fill(0, 24, 0);
-            foreach ($logsInRange as $log) {
-                $byHour[(int) $log->created_at->format('G')]++;
-            }
-
-            // Day-of-week profile (Mon..Sun).
-            $byWeekday = array_fill(1, 7, 0);
-            foreach ($logsInRange as $log) {
-                $byWeekday[(int) $log->created_at->isoWeekday()]++;
-            }
 
             $activityByCategory = $logsInRange
                 ->groupBy(fn ($l) => $this->categorize($l->activity))
@@ -215,10 +175,6 @@ class ReportController extends Controller
                 ->take(8)
                 ->values();
 
-            // officerScatter() is not shown: comparing officers with each other
-            // flags whoever runs the tests, and test accounts skew the line.
-            // ArchiveInsights::unusualActivity() (each officer against their
-            // own baseline) is the better fit if this comes back.
         }
 
         // =============================
@@ -301,24 +257,6 @@ class ReportController extends Controller
             'formatted' => $this->formatBytes((float) $r->bytes),
         ]);
 
-        $imgCount = File::whereIn(DB::raw('LOWER(RIGHT(filename, 3))'), ['png', 'jpg', 'gif'])
-            ->orWhereIn(DB::raw('LOWER(RIGHT(filename, 4))'), ['jpeg', 'webp'])
-            ->count();
-        $pdfCount = File::where(DB::raw('LOWER(RIGHT(filename, 3))'), 'pdf')->count();
-        $docCount = File::whereIn(DB::raw('LOWER(RIGHT(filename, 4))'), ['docx', 'xlsx'])
-            ->orWhereIn(DB::raw('LOWER(RIGHT(filename, 3))'), ['doc', 'xls'])
-            ->count();
-        $otherCount = max(0, $totalFiles - $imgCount - $pdfCount - $docCount);
-
-        $fileTypes = collect([
-            ['label' => 'PDFs', 'total' => $pdfCount],
-            ['label' => 'Images', 'total' => $imgCount],
-            ['label' => 'Documents', 'total' => $docCount],
-            ['label' => 'Other', 'total' => $otherCount],
-        ])->map(fn ($t) => $t + [
-            'percent' => $totalFiles > 0 ? round(($t['total'] / $totalFiles) * 100) : 0,
-        ]);
-
         // =============================
         // PRESERVATION: ARCHIVES (fixity) + BACKUPS
         // =============================
@@ -348,37 +286,6 @@ class ReportController extends Controller
             ];
         }
 
-        // =============================
-        // FOLDERS NEEDING ATTENTION - stale, not archived, actionable.
-        // =============================
-        $allStaleFolders = Folder::where('is_archived', false)
-            ->where(function ($q) use ($now) {
-                $q->where('last_accessed_at', '<', $now->copy()->subDays(self::STALE_WARNING_DAYS))
-                    ->orWhereNull('last_accessed_at');
-            })
-            ->where('created_at', '<', $now->copy()->subDays(self::STALE_WARNING_DAYS))
-            ->get()
-            ->map(function (Folder $folder) use ($now) {
-                $lastTouch = $folder->last_accessed_at ?? $folder->created_at;
-                $daysStale = (int) $lastTouch->diffInDays($now);
-
-                return [
-                    'name' => $folder->name,
-                    'days_stale' => $daysStale,
-                    'status' => $daysStale >= self::STALE_CRITICAL_DAYS ? 'critical' : 'warning',
-                ];
-            })
-            ->sortByDesc('days_stale');
-        $staleCount = $allStaleFolders->count();
-        $staleFolders = $allStaleFolders->take(8)->values();
-
-        // =============================
-        // TEXT MINING - copies of the same document (flagged by
-        // DuplicateDetector as each file is saved), and from the files'
-        // TF-IDF vectors: a map of which documents read alike, possibly
-        // misfiled files, and what each folder is about. All time, and only
-        // the folders this officer may open.
-        // =============================
         $copies = $this->possibleCopies();
         $insights = $this->textInsights();
 
@@ -389,48 +296,58 @@ class ReportController extends Controller
             return $this->exportCsv($periodLabel, $kpis, $trend, $activityByCategory, $activeOfficers, $documentTypes, $batchStatuses, $topFolders, $pipeline, $preservation, $backups, $copies);
         }
 
-        // =============================
-        // SECURITY: LOGIN ANOMALIES - SuperAdmin only, since this surfaces
-        // who might be under attack or have a compromised account, not
-        // something every officer needs visibility into.
-        // =============================
+       
         $loginAnomalies = $isSuperAdmin ? $this->detectLoginAnomalies() : null;
 
-        $hourLabels = array_map(fn ($h) => sprintf('%02d:00', $h), range(0, 23));
-        $weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-        // Every panel is a question; these are the computed one-line answers.
+        // Every panel's computed one-line answer, shown under its title.
         $answers = $this->recordsAnswers(compact(
             'trend', 'buckets', 'pipeline', 'batchStatuses', 'documentTypes', 'storageTrend', 'projection',
-            'projectedTarget', 'storageFormatted', 'totalStorage', 'topFolders', 'fileTypes', 'staleFolders',
-            'staleCount', 'preservation', 'ocr'
+            'projectedTarget', 'storageFormatted', 'totalStorage', 'topFolders',
+            'preservation', 'ocr'
         )) + $this->textMiningAnswers($copies, $insights);
         if ($isSuperAdmin) {
             $answers += $this->superAdminAnswers(compact(
-                'activityByCategory', 'logsInRange', 'byHour', 'byWeekday', 'activeOfficers',
-                'backups', 'loginAnomalies'
+                'activityByCategory', 'logsInRange', 'activeOfficers', 'backups', 'loginAnomalies'
             ));
         }
 
-        return view('Admin.reports', compact(
+        $data = compact(
             'tab', 'schoolYear', 'schoolYears', 'comparedWith', 'answers', 'buckets',
             'rangeKey', 'from', 'to', 'periodLabel', 'days',
             'kpis', 'totalFiles', 'totalDocuments', 'totalFolders', 'storageFormatted',
-            'trend', 'byHour', 'byWeekday', 'hourLabels', 'weekdayLabels',
-            'activityByCategory', 'activeOfficers', /* 'officerScatter', */
+            'trend', 'activityByCategory', 'activeOfficers', /* 'officerScatter', */
             'pipeline', 'batchStatuses', 'documentTypes', 'ocr',
-            'storageTrend', 'projection', 'projectedTarget', 'topFolders', 'fileTypes',
+            'storageTrend', 'projection', 'projectedTarget', 'topFolders',
             'preservation', 'backups',
-            'staleFolders', 'copies', 'insights',
+            'copies', 'insights',
             'loginAnomalies', 'isSuperAdmin', 'layout'
-        ));
+        );
+
+        return $request->query('export') === 'pdf' ? $this->pdf($data) : view('Admin.reports', $data);
     }
 
-    /**
-     * Files flagged as a copy of an older file, that the viewer may open,
-     * most alike first. The original is named only when the viewer may
-     * open it too - a restricted folder's contents stay private.
-     */
+
+    private function pdf(array $data)
+    {
+        $letterhead = Letterhead::defaultOne();
+
+        $pdf = Pdf::loadView('Admin.reports-pdf', $data + [
+            'letterhead'  => $letterhead,
+            'borderBox'   => $letterhead?->borderCoverBox(Letterhead::PAGE_WIDTH_PT, Letterhead::PAGE_HEIGHT_PT),
+            'generatedBy' => Auth::user()->name,
+            'generatedAt' => Carbon::now(),
+        ])->setPaper([0, 0, Letterhead::PAGE_WIDTH_PT, Letterhead::PAGE_HEIGHT_PT]);
+
+        $name = match ($data['tab']) {
+            'engagement' => 'student-engagement-report',
+            'proposals'  => 'proposals-budget-report',
+            default      => 'records-report',
+        };
+
+        return $pdf->stream($name . '-' . $data['from']->format('Ymd') . '-' . $data['to']->format('Ymd') . '.pdf');
+    }
+
+   
     private function possibleCopies()
     {
         $user = Auth::user();
@@ -457,11 +374,7 @@ class ReportController extends Controller
             ->values();
     }
 
-    /**
-     * ArchiveInsights for this viewer. It compares every pair of files, so
-     * it is kept for an hour - and worked out again as soon as a file is
-     * added, changed, read by OCR or a folder's access changes.
-     */
+
     private function textInsights(): array
     {
         $user = Auth::user();
@@ -470,7 +383,8 @@ class ReportController extends Controller
         ]);
 
         return Cache::remember(
-            'report-text-insights:' . $user->id . ':' . md5($stamp),
+            // v2: rows say why a file may be misfiled (title / words).
+            'report-text-insights-v2:' . $user->id . ':' . md5($stamp),
             now()->addHour(),
             fn () => app(ArchiveInsights::class)->build($user)
         );
@@ -501,36 +415,21 @@ class ReportController extends Controller
                         . ' Open the folder to delete a copy, or mark it “not a copy” to keep both.'),
         };
 
-        // Which documents read alike?
-        $a['map'] = $insights['corpus'] < 3
-            ? 'Needs at least 3 files with readable text (has ' . $insights['corpus'] . ').'
-            : $b($insights['corpus'] . ' files') . ' placed by how alike their words are. Dots close together read alike; dots on top of each other are copies.';
-
         // Are any files in the wrong folder?
         $m = $insights['misfiled'];
         $a['misfiled'] = match (true) {
-            $insights['corpus'] < 4 => 'Not enough text yet to judge (needs files with text in at least two folders of 3 or more).',
-            $m === [] => 'Every file reads most like its own folder. Nothing to move.',
-            default => $b(count($m) . ' ' . Str::plural('file', count($m))) . ' read more like another folder. The clearest: '
-                . $b('“' . $m[0]['file']['name'] . '”') . ' reads like ' . $b('“' . $m[0]['suggested']['name'] . '”') . '.',
+            $m !== [] => $b(count($m) . ' ' . Str::plural('file', count($m))) . ' may be in the wrong folder. The clearest: '
+                . $b('“' . $m[0]['file']['name'] . '”')
+                . ($m[0]['reason'] === 'title'
+                    ? ' is titled as a ' . e($m[0]['kind']) . ' but is in ' . $b('“' . $m[0]['file']['folder'] . '”') . '.'
+                    : ' reads like ' . $b('“' . $m[0]['suggested']['name'] . '”') . '.'),
+            $insights['corpus'] < 4 => 'Not enough text yet to judge (needs at least 4 files with readable text).',
+            default => 'Every file is in a folder that fits its title or its words. Nothing to move.',
         };
-
-        // What is each folder about?
-        $t = $insights['folderTopics'][0] ?? null;
-        $a['topics'] = $t
-            ? $b('“' . $t['folder'] . '”') . ' is mostly about ' . e(implode(', ', array_slice($t['terms'], 0, 3))) . '.'
-            : 'Not enough text yet.';
 
         return $a;
     }
 
-    /**
-     * One point per officer: x = all logged actions, y = sensitive actions
-     * (downloads / deletions). A least-squares line through the points is
-     * the "expected" sensitive count for that much activity; officers well
-     * above it (residual > 1.5 standard deviations) are flagged outliers.
-     * Needs at least 4 officers to say anything meaningful.
-     */
     private function officerScatter($logs): array
     {
         $sensitive = '/^(Downloaded|Moved .* to Trash|Permanently deleted|Emptied the Trash|Deleted )/';
@@ -681,8 +580,8 @@ class ReportController extends Controller
     }
 
     /**
-     * One-line answers for the Records tab - each panel is a question, and
-     * the chart under it is the evidence. HTML: dynamic text goes through
+     * One-line answers for the Records tab - each panel's finding, with the
+     * chart under it as the evidence. HTML: dynamic text goes through
      * e(), only <strong> is added. These are the panels every officer sees;
      * the SuperAdmin-only ones are answered in superAdminAnswers().
      *
@@ -718,8 +617,9 @@ class ReportController extends Controller
         $waiting = $p['awaiting'] > 0
             ? ' ' . $b($n($p['awaiting'])) . ' ' . Str::plural('batch', $p['awaiting']) . ' ' . ($p['awaiting'] === 1 ? 'is' : 'are') . ' waiting for review right now.'
             : ' Nothing is waiting for review.';
+        $minutes = max(1, (int) round(($p['turnaround'] ?? 0) * 60));
         $turnaround = $p['turnaround'] === null ? null
-            : ($p['turnaround'] < 1 ? max(1, (int) round($p['turnaround'] * 60)) . ' minutes' : $p['turnaround'] . ' hours');
+            : ($p['turnaround'] < 1 ? $minutes . ' ' . Str::plural('minute', $minutes) : $p['turnaround'] . ' hours');
         $a['pipeline'] = $p['batches'] === 0
             ? 'No hard copies were scanned in this period.' . ($p['awaiting'] > 0 ? $waiting : '')
             : $b($p['filed'] . ' of ' . $p['batches']) . ' scan batches were filed'
@@ -751,20 +651,6 @@ class ReportController extends Controller
         $a['folders'] = $topFolder && $d['totalStorage'] > 0
             ? $b('“' . $topFolder->name . '”') . ' alone holds ' . $b(round($topFolder->bytes / $d['totalStorage'] * 100) . '%') . ' of all stored files (' . e($topFolder->formatted) . ').'
             : 'No files stored in folders yet.';
-
-        // What is the library made of?
-        $sortedTypes = $d['fileTypes']->sortByDesc('total')->values();
-        $a['fileTypes'] = $sortedTypes->sum('total') === 0
-            ? 'The library is empty.'
-            : $b($sortedTypes[0]['label']) . ' make up ' . $b($sortedTypes[0]['percent'] . '%') . ' of the library'
-                . ($sortedTypes[1]['total'] > 0 ? ', then ' . e($sortedTypes[1]['label']) . ' (' . $sortedTypes[1]['percent'] . '%).' : '.');
-
-        // Which folders have gone quiet?
-        $oldest = $d['staleFolders']->first();
-        $a['stale'] = $d['staleCount'] === 0
-            ? 'None. Every active folder was used in the last ' . self::STALE_WARNING_DAYS . ' days.'
-            : $b($d['staleCount'] . ' active ' . Str::plural('folder', $d['staleCount'])) . ' untouched for ' . self::STALE_WARNING_DAYS . '+ days; the oldest, '
-                . $b('“' . $oldest['name'] . '”') . ', for ' . $oldest['days_stale'] . ' days. Consider archiving them.';
 
         // Are archived records still intact?
         $pr = $d['preservation'];
@@ -810,32 +696,6 @@ class ReportController extends Controller
                 $a['categories'] .= ', then ' . $b($second['label']) . ' (' . round($second['total'] / $actions * 100) . '%)';
             }
             $a['categories'] .= '.';
-        }
-
-        // When do officers work in the system?
-        $hourTotal = array_sum($d['byHour']);
-        if ($hourTotal < 10) {
-            $a['hours'] = 'Too little activity in this period to see a pattern.';
-        } else {
-            $bestStart = 0;
-            $bestSum = -1;
-            for ($h = 0; $h <= 22; $h++) {
-                if ($d['byHour'][$h] + $d['byHour'][$h + 1] > $bestSum) {
-                    [$bestStart, $bestSum] = [$h, $d['byHour'][$h] + $d['byHour'][$h + 1]];
-                }
-            }
-            $clock = fn ($h) => Carbon::createFromTime($h % 24)->format('g A');
-            $a['hours'] = 'Most work happens between ' . $b($clock($bestStart) . ' and ' . $clock($bestStart + 2))
-                . ' (' . round($bestSum / $hourTotal * 100) . '% of actions).';
-        }
-
-        $dayNames = [1 => 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays', 'Sundays'];
-        if (array_sum($d['byWeekday']) < 10) {
-            $a['weekdays'] = 'Too little activity in this period to see a pattern.';
-        } else {
-            $busiest = array_search(max($d['byWeekday']), $d['byWeekday'], true);
-            $quietest = array_search(min($d['byWeekday']), $d['byWeekday'], true);
-            $a['weekdays'] = $b($dayNames[$busiest]) . ' are busiest; ' . $b($dayNames[$quietest]) . ' are the quietest.';
         }
 
         // Is the work shared across officers?
@@ -907,7 +767,7 @@ class ReportController extends Controller
         for ($i = $monthsOfHistory - 1; $i >= 0; $i--) {
             $month = $now->copy()->subMonthsNoOverflow($i);
             $running += $monthlyAdds[$month->format('Y-m')] ?? 0;
-            $storageTrend[] = ['label' => $month->format('M y'), 'bytes' => (float) $running];
+            $storageTrend[] = ['label' => $month->format('M y'), 'bytes' => (float) $running, 'formatted' => $this->formatBytes((float) $running)];
         }
 
         $projection = [];
@@ -920,8 +780,9 @@ class ReportController extends Controller
             for ($i = 1; $i <= 3; $i++) {
                 $cursor += $avgMonthlyGrowth;
                 $projection[] = [
-                    'label' => $now->copy()->addMonthsNoOverflow($i)->format('M y'),
-                    'bytes' => max(0, $cursor),
+                    'label'     => $now->copy()->addMonthsNoOverflow($i)->format('M y'),
+                    'bytes'     => max(0, $cursor),
+                    'formatted' => $this->formatBytes(max(0, $cursor)),
                 ];
             }
         }
@@ -929,10 +790,7 @@ class ReportController extends Controller
         return [$storageTrend, $projection];
     }
 
-    /**
-     * $activityByCategory, $activeOfficers and $backups are null for a regular
-     * Admin (SuperAdmin-only sections), and their rows are left out.
-     */
+   
     private function exportCsv(string $periodLabel, array $kpis, array $trend, $activityByCategory, $activeOfficers, $documentTypes, $batchStatuses, $topFolders, array $pipeline, array $preservation, ?array $backups, $copies)
     {
         $filename = 'libris-report-' . Carbon::now()->format('Ymd-His') . '.csv';
@@ -1023,7 +881,7 @@ class ReportController extends Controller
         }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 
-    /** The Student engagement tab as CSV: every panel's question, answer and numbers. */
+    /** The Student engagement tab as CSV: every panel's title, answer and numbers. */
     private function exportEngagementCsv(string $periodLabel, array $e)
     {
         $filename = 'libris-student-engagement-' . Carbon::now()->format('Ymd-His') . '.csv';
@@ -1049,8 +907,8 @@ class ReportController extends Controller
             }
             fputcsv($out, []);
 
-            $section = function (string $question, string $answer, array $header, array $rows) use ($out, $plain, $safe) {
-                fputcsv($out, [$question]);
+            $section = function (string $title, string $answer, array $header, array $rows) use ($out, $plain, $safe) {
+                fputcsv($out, [$title]);
                 fputcsv($out, [$plain($answer)]);
                 fputcsv($out, $header);
                 foreach ($rows as $row) {
@@ -1059,57 +917,110 @@ class ReportController extends Controller
                 fputcsv($out, []);
             };
 
-            $section('Are students visiting the student page?', $e['visits']['answer'], ['Period', 'Visits', 'First-time visitors'],
+            $section('Visits', $e['visits']['answer'], ['Period', 'Visits', 'First-time visitors'],
                 array_map(fn ($label, $v, $f) => [$label, $v, $f], $e['visits']['labels'], $e['visits']['visits'], $e['visits']['fresh']));
 
+            $section('Unusual days', $e['spikes']['answer'], ['Day', 'Visits', 'Usual day', 'Times usual', 'Modified z-score', 'What happened'],
+                array_map(fn ($s) => [$s['date']->format('Y-m-d'), $s['visits'], $s['usual'], $s['times'] ?? 'n/a', $s['score'], $s['cause'] ?? ''], $e['spikes']['spikes']));
+
             $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-            $section('When are students on the page?', $e['timing']['answer'], array_merge(['Day'], array_map(fn ($h) => sprintf('%02d:00', $h), range(0, 23))),
+            $section('When students visit', $e['timing']['answer'], array_merge(['Day'], array_map(fn ($h) => sprintf('%02d:00', $h), range(0, 23))),
                 array_map(fn ($i) => array_merge([$days[$i]], $e['timing']['grid'][$i]), range(0, 6)));
 
-            $section('Do students use phones or computers?', $e['devices']['answer'], ['Device', 'Visits', 'Share %'],
+            $section('Devices', $e['devices']['answer'], ['Device', 'Visits', 'Share %'],
                 array_map(fn ($d) => [$d['label'], $d['total'], $d['percent']], $e['devices']['rows']));
 
             $n = $e['notifications'];
-            $section('Do notifications bring students back?', $n['answer'], ['Measure', 'Value'], [
+            $section('Notifications', $n['answer'], ['Measure', 'Value'], [
                 ['Devices getting notifications now', $n['active']],
                 ['Turned on in this period', $n['on']],
                 ['Turned off in this period', $n['off']],
                 ['Visits from a notification tap', $n['from_push']],
             ]);
 
-            $section('Which announcements reached the most students?', $e['announcements']['answer'], ['Announcement', 'Students reached', 'Opened in full', 'Attachment downloads'],
+            $section('Top announcements', $e['announcements']['answer'], ['Announcement', 'Students reached', 'Opened in full', 'Attachment downloads'],
                 array_map(fn ($r) => [$r['title'], $r['views'], $r['opens'], $r['downloads']], $e['announcements']['rows']));
 
-            $section('How quickly do students see a new announcement?', $e['reach']['answer'], ['Time after posting', 'Share of views %'],
-                array_map(fn ($label, $pct) => [$label, $pct], $e['reach']['labels'], $e['reach']['percent']));
-
-            $section('Which documents do students use?', $e['documents']['answer'], ['Document', 'Previews', 'Downloads'],
+            $section('Most used documents', $e['documents']['answer'], ['Document', 'Previews', 'Downloads'],
                 array_map(fn ($r) => [$r['name'], $r['previews'], $r['downloads']], $e['documents']['rows']));
 
-            $section('What are students searching for but not finding?', $e['searches']['answer'], ['Search with no results', 'Times'],
+            $section('Student searches', $e['searches']['answer'], ['Search with no results', 'Times'],
                 array_map(fn ($r) => [$r->term, $r->n], $e['searches']['missing']));
 
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 
-    /**
-     * Pattern-detection over activity_logs, not just a count - three
-     * different anomaly shapes, each catching something a flat "X failed
-     * logins today" number would miss:
-     *
-     *  - Brute force: an account/email with repeated failed attempts,
-     *    even if it never actually tripped the rate-limiter's lockout
-     *    (an attacker pacing themselves under the threshold, or spread
-     *    across several target accounts, would otherwise leave no trace).
-     *  - Multi-IP: an account successfully logging in from several
-     *    different IPs in a short window - the pattern shared or
-     *    compromised credentials produce, not just one person moving
-     *    around.
-     *  - New location: a successful login from an IP that account has
-     *    never used before, for an account with real prior history (so a
-     *    brand new account's first-ever login isn't flagged as "unusual").
-     */
+    /** The Proposals tab as CSV: both panels' answers and rows. */
+    private function exportProposalsCsv(string $periodLabel, array $p)
+    {
+        $filename = 'libris-proposals-budget-' . Carbon::now()->format('Ymd-His') . '.csv';
+        $plain = fn (string $html) => html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        return response()->streamDownload(function () use ($periodLabel, $p, $plain) {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\xEF\xBB\xBF"); // UTF-8 BOM so Excel reads it correctly
+
+            // Titles, items and reasons are typed by officers; a cell starting
+            // with = + - @ would run as a formula.
+            $safe = fn ($v) => is_string($v) && preg_match('/^[=+\-@\t\r]/', $v) ? "'" . $v : $v;
+            $row = fn (array $cells) => fputcsv($out, array_map($safe, $cells));
+
+            $row(['Libris Reports & Analytics - Proposals']);
+            $row(['Period', $periodLabel]);
+            $row(['Generated', Carbon::now()->format('Y-m-d H:i')]);
+            $row([]);
+
+            $prices = $p['prices'];
+            $row(['Unusual prices']);
+            $row([$plain($prices['answer'])]);
+            $row(['Older prices brought up to today at ' . rtrim(rtrim(number_format($prices['rate'], 2), '0'), '.') . '% a year; compared with this school year and the ' . $prices['years'] . ' before']);
+            $row(['Proposal', 'School year', 'Particular', 'Unit', 'Unit price', 'Usual (median)', 'Check', 'Prices compared', 'Robust z-score', "Officer's reason"]);
+            foreach ($prices['flagged'] as $f) {
+                $row([
+                    $f['proposal']->title, $f['proposal']->school_year, $f['item']->particular, $f['item']->unit,
+                    (float) $f['item']->unit_price, $f['check']['median'], $f['check']['summary'], $f['check']['count'], $f['check']['z'], $f['reason'] ?? '',
+                ]);
+            }
+            $row([]);
+
+            $rules = $p['rules'];
+            $row(['Often budgeted together']);
+            $row([$plain($rules['answer'])]);
+            $row(['If the budget has', 'It also had', 'Proposals with both', 'Proposals with the first', 'Support %', 'Confidence %', 'Lift']);
+            foreach ($rules['rules'] as $r) {
+                $row([$r['if_label'], $r['then_label'], $r['together'], $r['with_if'], round($r['support'] * 100), round($r['confidence'] * 100), $r['lift']]);
+            }
+
+            fclose($out);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+   
+    public function priceSettings(Request $request)
+    {
+        abort_unless(Folder::isSuperAdmin(Auth::user()), 403, 'Only the Super Admin can change the price check settings.');
+
+        $data = $request->validate([
+            'price_inflation_rate' => ['required', 'numeric', 'min:0', 'max:30'],
+            'price_compare_years'  => ['required', 'integer', 'min:1', 'max:5'],
+        ], [
+            'price_inflation_rate.max' => 'Inflation can be at most 30% a year.',
+        ]);
+
+        SiteSetting::current()->update($data);
+
+        $rate = rtrim(rtrim(number_format((float) $data['price_inflation_rate'], 2), '0'), '.');
+        ActivityLog::create([
+            'user_name'  => Auth::user()->name,
+            'activity'   => 'Updated price check settings: ' . $rate . '% inflation a year, this school year and the ' . $data['price_compare_years'] . ' before',
+            'ip_address' => $request->ip(),
+        ]);
+
+        return redirect()->route('reports.index', array_filter($request->only(['range', 'from', 'to', 'sy'])) + ['tab' => 'proposals'])
+            ->with('success', 'Price check settings saved.');
+    }
+    
     private function detectLoginAnomalies(): array
     {
         $now = Carbon::now();
@@ -1145,14 +1056,7 @@ class ReportController extends Controller
         ];
     }
 
-    /**
-     * Walks successful logins in chronological order, tracking every
-     * (user, IP) pair seen so far, and flags a login in the recent window
-     * as "new location" only if that exact pair has never appeared before
-     * AND the account has login history predating it - otherwise every
-     * brand new account's very first login would get flagged, which isn't
-     * unusual, it's just... their first login.
-     */
+   
     private function findNewLocationLogins(Carbon $anomalyWindowStart): array
     {
         $logins = ActivityLog::where('activity', 'Logged in')

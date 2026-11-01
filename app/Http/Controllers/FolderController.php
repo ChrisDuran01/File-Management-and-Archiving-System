@@ -6,6 +6,7 @@ use App\Models\File;
 use App\Models\Folder;
 use App\Models\OfficerTerm;
 use App\Models\User;
+use App\Support\SchoolYear;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -19,33 +20,48 @@ class FolderController extends Controller
    public function store(Request $request)
 {
     $request->validate([
-        'folder_name' => 'required',
+        'folder_name' => 'required|string|max:255',
+        'school_year' => 'nullable|string',
     ]);
 
-    $baseName = $request->folder_name;
-    $name = $baseName;
-    $counter = 1;
+    // A folder for an earlier school year: old records brought into the
+    // system. It is stored away (read-only) from the start, like the rest
+    // of that year, and remembers who added it.
+    $pastYear = $request->filled('school_year') ? $request->school_year : null;
+    if ($pastYear !== null && ! Folder::canAddToPastYear($pastYear)) {
+        $open = Folder::pastYearsOpen();
 
-    // Keep checking until we find a unique name
-    while (Folder::where('name', $name)->exists()) {
-        $name = $baseName . ' (' . $counter . ')';
-        $counter++;
+        return back()->with('error', 'Old records can only be added to the last '.Folder::PAST_YEARS_OPEN.' school years, '
+            .end($open).' to '.$open[0].'.');
     }
 
     $term = OfficerTerm::activeFor(Auth::id());
 
+    // Unique among the folders shown together: the current folders, or one
+    // past school year. So every year can have its own "Resolution".
     $folder = Folder::create([
-        'name' => $name,
+        'name' => Folder::uniqueName($request->folder_name, $pastYear),
         'created_by' => Auth::id(),
         'officer_term_id' => $term?->id,
+    ] + ($pastYear ? [
+        'school_year'    => $pastYear,
+        'is_archived'    => true,
+        'added_later_at' => now(),
+        'added_later_by' => Auth::id(),
+    ] : [
         'school_year' => $term?->school_year,
-    ]);
+    ]));
 
     ActivityLog::create([
         'user_name' => Auth::user()->name,
-        'activity'  => 'Added folder: ' . $folder->name,
+        'activity'  => 'Added folder: ' . $folder->name . ($pastYear ? ' (to past school year '.$pastYear.')' : ''),
         'ip_address' => $request->ip()
     ]);
+
+    if ($pastYear) {
+        return redirect()->route('folders.history', $pastYear)
+            ->with('success', 'Folder "'.$folder->name.'" added to school year '.$pastYear.'. Open it to add that year\'s files.');
+    }
 
     return redirect()->back()->with('success', 'Folder created successfully.');
 }
@@ -83,6 +99,9 @@ class FolderController extends Controller
             ->orderByDesc('school_year')
             ->pluck('school_year');
 
+        // School years old records can be added to.
+        $earlierYears = Folder::pastYearsOpen();
+
         // Officers only (SuperAdmin always has access, so isn't listed) -
         // for the restricted-folder access picker.
         $officerIds = DB::table('officer_terms')->pluck('user_id')->unique();
@@ -94,7 +113,7 @@ class FolderController extends Controller
         $layout = Folder::isSuperAdmin($user) ? 'SuperAdmin.homeSuperAdmin' : 'Admin.home';
 
         // Pass data to view
-        return view('Admin.folders', compact('folders', 'rootFiles', 'pastSchoolYears', 'officers', 'layout'));
+        return view('Admin.folders', compact('folders', 'rootFiles', 'pastSchoolYears', 'earlierYears', 'officers', 'layout'));
     }
 
     /**
@@ -102,16 +121,22 @@ class FolderController extends Controller
      */
     public function history($year)
     {
-        $folders = Folder::where('is_archived', true)->where('school_year', $year)->get();
+        abort_unless(SchoolYear::isValid($year), 404);
+
+        $folders = Folder::where('is_archived', true)->where('school_year', $year)
+            ->with('addedLaterBy:id,name')->orderBy('name')->get();
 
         $rootFiles = File::whereNull('folder_id')
             ->where('is_archived', true)
             ->where('school_year', $year)
             ->get();
 
+        // Old records may be brought into any earlier school year.
+        $canAdd = Folder::canAddToPastYear($year);
+
         $layout = Folder::isSuperAdmin(Auth::user()) ? 'SuperAdmin.homeSuperAdmin' : 'Admin.home';
 
-        return view('Admin.folderHistory', compact('folders', 'rootFiles', 'year', 'layout'));
+        return view('Admin.folderHistory', compact('folders', 'rootFiles', 'year', 'canAdd', 'layout'));
     }
 
     /**
@@ -137,12 +162,16 @@ class FolderController extends Controller
         $folders->manageable = $folders->isManageableBy(Auth::user());
 
         // Files inside this folder
-        $files = File::where('folder_id', $id)->with('duplicateOf.folder')->get();
+        $files = File::where('folder_id', $id)->with(['duplicateOf.folder', 'addedLaterBy:id,name'])->get();
+
+        // A past school year's folder takes new files (old records brought
+        // in), but its own records stay as they are.
+        $addingToPastYear = $folders->is_archived && Folder::canAddToPastYear($folders->school_year);
 
         $layout = Folder::isSuperAdmin(Auth::user()) ? 'SuperAdmin.homeSuperAdmin' : 'Admin.home';
 
         // Return folder view
-        return view('Admin.showFolder', compact('folders', 'files', 'layout'));
+        return view('Admin.showFolder', compact('folders', 'files', 'addingToPastYear', 'layout'));
     }
 
     /**
@@ -200,7 +229,7 @@ class FolderController extends Controller
             return back()->with('error', 'This folder is restricted — you don\'t have access to it.');
         }
 
-        if ($folder->is_archived) {
+        if ($folder->isLockedFor(Auth::user())) {
             return back()->with('error', 'This folder is stored under a past school year and cannot be modified.');
         }
 
@@ -233,8 +262,14 @@ class FolderController extends Controller
             return back()->with('error', 'This folder is restricted — you don\'t have access to it.');
         }
 
-        if ($folder->is_archived) {
+        if ($folder->isLockedFor(Auth::user())) {
             return back()->with('error', 'This folder is stored under a past school year and cannot be modified.');
+        }
+
+        // An added-later folder may hold only added-later files; anything
+        // made during that school year keeps it from being trashed.
+        if ($folder->is_archived && File::where('folder_id', $folder->id)->whereNull('added_later_at')->exists()) {
+            return back()->with('error', 'This folder holds records from its own school year, so it cannot be moved to Trash.');
         }
 
         $folderName = $folder->name;
@@ -250,7 +285,12 @@ class FolderController extends Controller
             'ip_address' => request()->ip()
         ]);
 
-        return redirect()->back()->with('success', 'Folder and its contents moved to Trash. They can be restored from there within ' . config('trash.retention_days') . ' days.');
+        $message = 'Folder and its contents moved to Trash. They can be restored from there within ' . config('trash.retention_days') . ' days.';
+
+        // From inside the folder there is no page to go back to.
+        return $folder->is_archived && $folder->school_year
+            ? redirect()->route('folders.history', $folder->school_year)->with('success', $message)
+            : redirect()->back()->with('success', $message);
 
 
 

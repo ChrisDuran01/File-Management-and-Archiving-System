@@ -82,6 +82,10 @@
 }
 .file-meta { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 
+.added-later { display: inline-block; margin-top: 6px; font-size: 10.5px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; background: #fff3d6; color: #7a5200; }
+.added-by { font-size: 11px; color: var(--text-3); margin-top: 2px; line-height: 1.35; }
+[data-theme="dark"] .added-later { background: #3a2d14; color: #edbb62; }
+
 /* ===== DARK MODE (most classes handled by partials/theme shared block) ===== */
 [data-theme="dark"] .folder-card,
 [data-theme="dark"] .file-card { background: var(--card); border-color: var(--border); }
@@ -120,11 +124,24 @@
 <div class="page-header">
     <div>
         <h1>School Year {{ $year }}</h1>
-        <p class="sub">Read-only view of folders and files stored under this school year</p>
+        <p class="sub">
+            @if($canAdd)
+                Records of this school year can't be changed. Old records that belong to it can be added.
+            @else
+                Read-only view of folders and files stored under this school year
+            @endif
+        </p>
     </div>
-    <a href="{{ route('folders.index') }}" class="btn btn-light">
-        <i class="bi bi-arrow-left me-1"></i> Back to Current Folders
-    </a>
+    <div class="d-flex gap-2 flex-wrap">
+        @if($canAdd)
+        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addYearFolderModal">
+            <i class="bi bi-folder-plus me-1" aria-hidden="true"></i> New folder
+        </button>
+        @endif
+        <a href="{{ route('folders.index') }}" class="btn btn-light">
+            <i class="bi bi-arrow-left me-1"></i> Back to Current Folders
+        </a>
+    </div>
 </div>
 
 <span class="folder-count">{{ $folders->count() }} folders</span>
@@ -141,17 +158,54 @@
                 <div class="mt-2 text-truncate" style="font-size:13px; font-weight:500;">
                     {{ $folder->name }}
                 </div>
+                @if($folder->added_later_at)
+                    <span class="added-later">Added later</span>
+                    <div class="added-by">by {{ $folder->addedLaterBy?->name ?? 'a former officer' }}, {{ $folder->added_later_at->format('M j, Y') }}</div>
+                @endif
             </a>
         </div>
     </div>
     @empty
     <div class="col-12 text-center py-5 text-muted">
         <i class="bi bi-folder-x" style="font-size:4rem; opacity:0.3;"></i>
-        <p class="mt-3">No folders were stored under this school year.</p>
+        <p class="mt-3">
+            No folders were stored under this school year.
+            @if($canAdd) Use <strong>New folder</strong> to start adding its old records. @endif
+        </p>
     </div>
     @endforelse
 </div>
 
 </div>
+
+@if($canAdd)
+{{-- NEW FOLDER IN THIS PAST SCHOOL YEAR (FolderController::store) --}}
+<div class="modal fade" id="addYearFolderModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:400px;">
+        <div class="modal-content">
+            <form action="{{ route('folders.store') }}" method="POST">
+                @csrf
+                <input type="hidden" name="school_year" value="{{ $year }}">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-folder-plus me-2 text-success" aria-hidden="true"></i>New folder in SY {{ $year }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <label for="yearFolderName" class="form-label text-muted" style="font-size:13px;">Folder name</label>
+                    <input type="text" name="folder_name" id="yearFolderName" class="form-control"
+                           placeholder="e.g. Minutes of the Meetings" required maxlength="255" style="border-radius:8px;">
+                    <p class="text-muted mt-2 mb-0" style="font-size:12px;">It will be marked as added later by you.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success" style="border-radius:8px;">
+                        <i class="bi bi-check-lg me-1" aria-hidden="true"></i> Create folder
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
 
 @endsection

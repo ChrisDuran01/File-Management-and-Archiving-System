@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
+use App\Models\ActivityProposal;
 use App\Models\Document;
 use App\Models\File;
 use App\Models\Folder;
@@ -11,8 +12,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * The recycle bin. Deleting a file/folder/document anywhere in the app only
- * soft-deletes it; this screen lists what's in the bin and offers Restore
+ * The recycle bin. Deleting a file/folder/document/activity proposal anywhere
+ * in the app only soft-deletes it; this screen lists what's in the bin and offers Restore
  * (any officer with access) and Delete permanently / Empty trash
  * (SuperAdmin only). trash:purge-expired empties old items automatically.
  */
@@ -53,11 +54,14 @@ class TrashController extends Controller
             ->filter(fn (Document $doc) => ! $doc->folder || $doc->folder->isAccessibleBy($user))
             ->values();
 
+        // Any officer can open a proposal, so every deleted one is listed.
+        $proposals = ActivityProposal::onlyTrashed()->with('creator')->latest('deleted_at')->get();
+
         $isSuperAdmin  = Folder::isSuperAdmin($user);
         $retentionDays = config('trash.retention_days');
         $layout        = $isSuperAdmin ? 'SuperAdmin.homeSuperAdmin' : 'Admin.home';
 
-        return view('Admin.trash', compact('folders', 'files', 'documents', 'isSuperAdmin', 'retentionDays', 'layout'));
+        return view('Admin.trash', compact('folders', 'files', 'documents', 'proposals', 'isSuperAdmin', 'retentionDays', 'layout'));
     }
 
     public function restore(Request $request, string $type, int $id)
@@ -101,6 +105,7 @@ class TrashController extends Controller
             'file'     => $purger->purgeFile($item),
             'folder'   => $purger->purgeFolder($item),
             'document' => $purger->purgeDocument($item),
+            'proposal' => $purger->purgeProposal($item),
         };
 
         ActivityLog::create([
@@ -135,6 +140,11 @@ class TrashController extends Controller
             $count++;
         });
 
+        ActivityProposal::onlyTrashed()->get()->each(function (ActivityProposal $proposal) use ($purger, &$count) {
+            $purger->purgeProposal($proposal);
+            $count++;
+        });
+
         ActivityLog::create([
             'user_name'  => Auth::user()->name,
             'activity'   => "Emptied the Trash ({$count} item(s) permanently deleted)",
@@ -144,7 +154,7 @@ class TrashController extends Controller
         return back()->with('success', "Trash emptied - {$count} item(s) permanently deleted.");
     }
 
-    private function findTrashed(string $type, int $id): File|Folder|Document|null
+    private function findTrashed(string $type, int $id): File|Folder|Document|ActivityProposal|null
     {
         // Folders are eager-loaded withTrashed on files/documents so their
         // isAccessibleBy() checks still see a restricted parent folder even
@@ -153,16 +163,18 @@ class TrashController extends Controller
             'file'     => File::onlyTrashed()->with(['folder' => fn ($q) => $q->withTrashed()])->find($id),
             'folder'   => Folder::onlyTrashed()->find($id),
             'document' => Document::onlyTrashed()->with(['folder' => fn ($q) => $q->withTrashed()])->find($id),
+            'proposal' => ActivityProposal::onlyTrashed()->find($id),
             default    => null,
         };
     }
 
-    private function label(File|Folder|Document $item): string
+    private function label(File|Folder|Document|ActivityProposal $item): string
     {
         return match (true) {
-            $item instanceof File   => 'file "' . $item->filename . '"',
-            $item instanceof Folder => 'folder "' . $item->name . '"',
-            default                 => 'document "' . $item->title . '"',
+            $item instanceof File             => 'file "' . $item->filename . '"',
+            $item instanceof Folder           => 'folder "' . $item->name . '"',
+            $item instanceof ActivityProposal => 'activity proposal "' . $item->title . '"',
+            default                           => 'document "' . $item->title . '"',
         };
     }
 }

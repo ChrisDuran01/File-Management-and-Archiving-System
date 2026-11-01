@@ -21,10 +21,6 @@ use Illuminate\Support\Facades\DB;
  */
 class EngagementReport
 {
-    private const DELAY_LABELS = ['Within 1 hour', '1–6 hours', '6–24 hours', '1–3 days', '3–7 days', 'After a week'];
-
-    private const HALF_SEEN = ['within the first hour', 'within 6 hours', 'within a day', 'within 3 days', 'within a week', 'only after a week'];
-
     private const WEEKDAYS = ['Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays', 'Sundays'];
 
     /** Fewer events than this and a pattern is just noise - say so instead. */
@@ -33,6 +29,10 @@ class EngagementReport
     private Carbon $from;
 
     private Carbon $to;
+
+    public function __construct(private readonly VisitSpikes $spikes)
+    {
+    }
 
     public function build(Carbon $from, Carbon $to, Carbon $prevFrom, Carbon $prevTo, array $buckets, string $comparedWith): array
     {
@@ -67,11 +67,11 @@ class EngagementReport
                 $kpi('Messages sent', (int) ($counts['message_sent'] ?? 0), $comparable ? (int) ($prevCounts['message_sent'] ?? 0) : null),
             ],
             'visits' => $this->visitsOverTime($buckets, $visitTotals, $prevVisits, $comparedWith, $since),
+            'spikes' => $this->spikes->find($from, $to, $since),
             'timing' => $this->whenStudentsVisit(),
             'devices' => $this->devices(),
             'notifications' => $this->notifications($counts, $visitTotals),
             'announcements' => $this->topAnnouncements(),
-            'reach' => $this->howFastAnnouncementsReach(),
             'documents' => $this->topDocuments(),
             'searches' => $this->searches((int) ($counts['search'] ?? 0)),
         ];
@@ -251,54 +251,6 @@ class EngagementReport
         }
 
         return ['rows' => $rows->all(), 'answer' => $answer];
-    }
-
-    /** How quickly do students see a new announcement? */
-    private function howFastAnnouncementsReach(): array
-    {
-        $byBucket = DB::table('engagement_events as e')
-            ->join('announcements as a', 'a.id', '=', 'e.subject_id')
-            ->where('e.type', 'announcement_view')
-            ->whereBetween('a.created_at', [$this->from, $this->to])
-            ->selectRaw('CASE
-                WHEN TIMESTAMPDIFF(MINUTE, a.created_at, e.created_at) < 60 THEN 0
-                WHEN TIMESTAMPDIFF(MINUTE, a.created_at, e.created_at) < 360 THEN 1
-                WHEN TIMESTAMPDIFF(MINUTE, a.created_at, e.created_at) < 1440 THEN 2
-                WHEN TIMESTAMPDIFF(MINUTE, a.created_at, e.created_at) < 4320 THEN 3
-                WHEN TIMESTAMPDIFF(MINUTE, a.created_at, e.created_at) < 10080 THEN 4
-                ELSE 5 END as bucket, COUNT(*) as n')
-            ->groupBy('bucket')
-            ->pluck('n', 'bucket');
-
-        $counts = array_map(fn ($i) => (int) ($byBucket[$i] ?? 0), array_keys(self::DELAY_LABELS));
-        $total = array_sum($counts);
-        $percent = array_map(fn ($n) => $total ? round($n / $total * 100, 1) : 0, $counts);
-
-        if ($total < self::MIN_FOR_PATTERN) {
-            return [
-                'labels' => self::DELAY_LABELS, 'percent' => $percent, 'enough' => false,
-                'answer' => 'Not enough views of announcements posted in this period yet (needs at least '.self::MIN_FOR_PATTERN.', has '.$total.').',
-            ];
-        }
-
-        $cumulative = 0;
-        $half = count($counts) - 1;
-        foreach ($counts as $i => $n) {
-            $cumulative += $n;
-            if ($cumulative * 2 >= $total) {
-                $half = $i;
-                break;
-            }
-        }
-        $withinThreeDays = (int) round(array_sum(array_slice($counts, 0, 4)) / $total * 100);
-
-        // Bucket 3 is "within 3 days" itself - don't say the same window twice.
-        $answer = 'Half of all views come '.$this->b(self::HALF_SEEN[$half]).' of posting'
-            .($half === 3 ? '' : ', and '.$this->b($withinThreeDays.'%').' within 3 days')
-            .'.'
-            .($withinThreeDays >= 75 ? ' Post at least 3 days before an event.' : ' Students keep finding posts for days, so reminders help.');
-
-        return ['labels' => self::DELAY_LABELS, 'percent' => $percent, 'enough' => true, 'answer' => $answer];
     }
 
     /** Which documents do students actually use? */

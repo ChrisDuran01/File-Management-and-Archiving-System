@@ -3,7 +3,9 @@
     (App\Services\DuplicateDetector). Links to the original when the viewer
     may open it; otherwise it only says the original is somewhere they
     can't see. Hidden once an officer answered "not a copy", or once the
-    original is in Trash.
+    original is in Trash. A file alike by its text and saved after the
+    original is labelled "Possibly a newer draft" instead: it can become the
+    original's next version (showFolder's ⋮ menu).
 
         @include('Admin.partials.copy-badge', ['file' => $file])
 
@@ -18,7 +20,20 @@
             ? '“' . $original->filename . '”' . ($original->folder ? ' in ' . $original->folder->name : '')
             : 'a file in a folder you can’t open';
     @endphp
-    @if($canOpen)
+    @if($file->isNewerDraft())
+        {{-- Alike by text and saved later: a fixed draft under another name (File::isNewerDraft) --}}
+        @if($canOpen)
+            <a href="{{ route('files.preview', $original->id) }}" class="chip warning" style="white-space:nowrap; flex-shrink:0;"
+               title="Possibly a newer draft of {{ $where }} ({{ $alike }}). The ⋮ menu can make it that file's next version. Click to open that file."
+               onclick="event.stopPropagation()">
+                <i class="bi bi-layers"></i> Possibly a newer draft
+            </a>
+        @else
+            <span class="chip warning" style="white-space:nowrap; flex-shrink:0;" title="Possibly a newer draft of {{ $where }} ({{ $alike }})">
+                <i class="bi bi-layers"></i> Possibly a newer draft
+            </span>
+        @endif
+    @elseif($canOpen)
         <a href="{{ route('files.preview', $original->id) }}" class="chip neutral" style="white-space:nowrap; flex-shrink:0;"
            title="Possible copy of {{ $where }} ({{ $alike }}). Open the original."
            onclick="event.stopPropagation()">

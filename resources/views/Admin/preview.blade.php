@@ -145,7 +145,9 @@
 
 .file-header-actions { display: flex; gap: 8px; flex-shrink: 0; }
 
-.btn-share {
+/* Share, and Versions (partials/file-versions) in the same outline style */
+.btn-share,
+.btn-versions {
     display: inline-flex;
     align-items: center;
     gap: 7px;
@@ -160,10 +162,10 @@
     white-space: nowrap;
     transition: background 0.2s, transform 0.15s;
 }
-.btn-share:hover { background: #e9f5ee; transform: translateY(-1px); }
-.btn-share i { font-size: 12px; }
-[data-theme="dark"] .btn-share { background: transparent; color: var(--primary); border-color: var(--primary); }
-[data-theme="dark"] .btn-share:hover { background: var(--primary-dim); }
+.btn-share:hover, .btn-versions:hover { background: #e9f5ee; transform: translateY(-1px); }
+.btn-share i, .btn-versions i { font-size: 12px; }
+[data-theme="dark"] .btn-share, [data-theme="dark"] .btn-versions { background: transparent; color: var(--primary); border-color: var(--primary); }
+[data-theme="dark"] .btn-share:hover, [data-theme="dark"] .btn-versions:hover { background: var(--primary-dim); }
 
 /* ── "Subject for approval" notice ── */
 .approval-notice {
@@ -423,10 +425,20 @@
                 @if(isset($file->folder) && $file->folder)
                 <span><i class="fas fa-folder"></i> {{ $file->folder->name }}</span>
                 @endif
+
+                {{-- Version (App\Services\FileVersions) --}}
+                @if($file->version_no > 1 || $file->isFinal())
+                <span><i class="fas fa-layer-group"></i> Version {{ $file->version_no }}{{ $file->isFinal() ? ' · Final' : '' }}</span>
+                @endif
             </div>
         </div>
 
         <div class="file-header-actions">
+            <button type="button" class="btn-versions" data-versions-file
+                    data-versions-name="{{ $file->filename }}"
+                    data-versions-url="{{ route('files.versions.index', $file->id) }}">
+                <i class="fas fa-layer-group"></i> Versions
+            </button>
             {{-- Same rule as ShareLinkController::store() --}}
             @if($file->isShareableBy(auth()->user()))
             <button type="button" class="btn-share" data-share-file
@@ -527,5 +539,6 @@
 </div>
 
 @include('partials.share-link')
+@include('partials.file-versions')
 
 @endsection

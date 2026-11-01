@@ -10,6 +10,7 @@ use App\Jobs\RunRestoreJob;
 use App\Models\ActivityLog;
 use App\Models\Backup;
 use App\Models\File;
+use App\Models\FileVersion;
 use App\Models\SiteSetting;
 use App\Models\User;
 use App\Notifications\BackupFailed;
@@ -937,6 +938,8 @@ class BackupController extends Controller
      *   Looking that id up (including soft-deleted rows, same as
      *   buildZipEntryNames() when it built the name) gives back the real
      *   filepath column.
+     * - "versions/<year>/<folder>/<id>_<name> (vN)" entries are older
+     *   versions of a file; the id is the file_versions row's.
      *
      * Returns null for anything that can't be mapped (id no longer exists,
      * unrecognized layout) rather than guessing - a skipped file is
@@ -956,6 +959,11 @@ class BackupController extends Controller
                     return $file->filepath;
                 }
             }
+        }
+
+        // "versions/<year>/<folder>/<file_versions id>_<name> (v1).ext"
+        if (str_starts_with($entryName, 'versions/') && preg_match('/^(\d+)_/', basename($entryName), $m)) {
+            return FileVersion::find((int) $m[1])?->filepath;
         }
 
         return null;
@@ -1239,6 +1247,14 @@ class BackupController extends Controller
             ->get()
             ->keyBy('filepath');
 
+        // Older versions of a file (FileVersions) have their own storage
+        // paths. They go under versions/, named by their own row id, which
+        // resolveOriginalCloudPath() reads back.
+        $versionMeta = FileVersion::with(['file' => fn ($q) => $q->withTrashed()->with(['folder' => fn ($f) => $f->withTrashed()])])
+            ->whereNotNull('filepath')
+            ->get()
+            ->keyBy('filepath');
+
         $entryNames = [];
 
         foreach ($files as $file) {
@@ -1248,6 +1264,18 @@ class BackupController extends Controller
             }
 
             $record = $fileMeta->get($name);
+            if (!$record && ($version = $versionMeta->get($name)) && $version->file) {
+                $owner = $version->file;
+                $entryNames[$name] = sprintf(
+                    'versions/%s/%s/%d_%s',
+                    $this->sanitizeForZipPath((string) ($owner->school_year ?: ($owner->folder->school_year ?? null) ?: 'unknown-year')),
+                    $this->sanitizeForZipPath($owner->folder->name ?? 'root'),
+                    $version->id,
+                    $this->sanitizeForZipPath(pathinfo($version->filename, PATHINFO_FILENAME) . ' (v' . $version->version_no . ')'
+                        . (pathinfo($version->filename, PATHINFO_EXTENSION) !== '' ? '.' . pathinfo($version->filename, PATHINFO_EXTENSION) : ''))
+                );
+                continue;
+            }
             if (!$record) {
                 // No metadata to rename with - fulfilled() falls back to
                 // $name, except where that would be mistaken for one of the

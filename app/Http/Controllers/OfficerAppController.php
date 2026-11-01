@@ -179,6 +179,12 @@ class OfficerAppController extends Controller
 
         abort_unless($folder->isAccessibleBy(Auth::user()), 403, 'This folder is restricted. You do not have access to it.');
 
+        // Old records go into past school years from the website or
+        // Digitize Hardcopy only (the SG's choice, 2026-10-25), not the phone.
+        if ($folder->is_archived) {
+            return redirect()->route('app.folder', $folder->id)->with('error', 'This folder is stored under a past school year and is read-only.');
+        }
+
         $request->merge(['folder_id' => $folder->id]);
 
         app()->call([app(FileController::class), 'store'], ['request' => $request]);
@@ -245,7 +251,7 @@ class OfficerAppController extends Controller
     {
         $archive = Archive::findOrFail($id);
 
-        $filenames = array_keys($archive->file_checksums ?? []);
+        $filenames = $archive->filenames();
         sort($filenames);
 
         return view('OfficerApp.archive', compact('archive', 'filenames'));
@@ -255,7 +261,7 @@ class OfficerAppController extends Controller
     {
         $archive = Archive::findOrFail($id);
 
-        abort_unless(array_key_exists($filename, $archive->file_checksums ?? []), 404, 'File not found in this archive.');
+        abort_unless(in_array($filename, $archive->filenames(), true), 404, 'File not found in this archive.');
 
         $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
 

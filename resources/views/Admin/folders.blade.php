@@ -391,8 +391,7 @@
          available on every Admin/SuperAdmin page instead of just this one. --}}
     <div class="d-flex gap-2 flex-wrap align-items-center">
 
-        {{-- Previous School Years --}}
-        @if(isset($pastSchoolYears) && $pastSchoolYears->count())
+        {{-- Previous School Years, and adding old records to one of them --}}
         <div class="dropdown">
             <button class="btn-year btn-year-prev dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-display="static">
                 <i class="bi bi-clock-history"></i> Previous School Years
@@ -405,9 +404,16 @@
                     </a>
                 </li>
                 @endforeach
+                @if($pastSchoolYears->count())
+                <li><hr class="dropdown-divider"></li>
+                @endif
+                <li>
+                    <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#addEarlierYearModal">
+                        <i class="bi bi-plus-lg"></i> Add an earlier school year
+                    </button>
+                </li>
             </ul>
         </div>
-        @endif
 
     </div>
 </div>
@@ -440,18 +446,6 @@
                             <i class="bi bi-pencil me-2 text-secondary"></i> Rename
                         </button>
                     </li>
-                    <li>
-    <form action="{{ route('folders.archive', $folder->id) }}" method="POST"
-          data-confirm-title="Archive this folder?"
-          data-confirm="“{{ $folder->name }}” and its files are packed into a ZIP and leave the Folders page. You can restore it from Archives."
-          data-confirm-ok="Archive" data-confirm-tone="warning">
-        @csrf
-        <button type="submit" class="dropdown-item py-2 text-warning">
-            <i class="bi bi-archive me-2"></i> Archive
-        </button>
-
-    </form>
-</li>
                     @else
                     <li><span class="dropdown-item py-2 text-muted disabled"><i class="bi bi-lock-fill me-2"></i> Restricted</span></li>
                     @endif
@@ -509,96 +503,6 @@
     </div>
     @endforelse
 </div>
-</div>
-
-    {{-- ARCHIVE MULTIPLE FOLDERS MODAL --}}
-<div class="modal fade" id="archiveFolderModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
-
-            <form action="{{ route('folders.archive.selected') }}" method="POST">
-                @csrf
-
-                <div class="modal-header">
-                    <h5 class="modal-title">
-                        <i class="bi bi-archive me-2 text-warning"></i>
-                        Archive Selected Folders
-                    </h5>
-                    <button type="button" class="btn-close"
-                            data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-
-                <div class="modal-body">
-
-                    <label class="fw-semibold mb-2">
-                        Select folders to archive
-                    </label>
-
-                    <div style="max-height:260px; overflow-y:auto;"
-                         class="border rounded p-2">
-
-                        @foreach($folders as $folder)
-                        <div class="form-check mb-2">
-                            <input class="form-check-input"
-                                   type="checkbox"
-                                   name="folders[]"
-                                   value="{{ $folder->id }}"
-                                   id="folder{{ $folder->id }}">
-
-                            <label class="form-check-label"
-                                   for="folder{{ $folder->id }}">
-                                <i class="bi bi-folder-fill text-warning me-1"></i>
-                                {{ $folder->name }}
-                            </label>
-                        </div>
-                        @endforeach
-
-                    </div>
-
-                    <div class="mt-3">
-                        <label class="form-label" for="archiveZipName">
-                            Archive Name / ZIP File
-                        </label>
-
-                        <input type="text"
-                               name="zip_name" id="archiveZipName"
-                               class="form-control"
-                               placeholder="Example: SY-2026-2027-Archive.zip"
-                               required>
-                    </div>
-
-                    <div class="mt-3">
-                        <label class="form-label" for="archiveSchoolYear">
-                            School Year Tag
-                        </label>
-
-                        <select name="school_year" id="archiveSchoolYear"
-                                class="form-select">
-                            <option value="2026-2027">2026-2027</option>
-                            <option value="2025-2026">2025-2026</option>
-                        </select>
-                    </div>
-
-                </div>
-
-                <div class="modal-footer">
-                    <button type="button"
-                            class="btn btn-light"
-                            data-bs-dismiss="modal">
-                        Cancel
-                    </button>
-
-                    <button type="submit"
-                            class="btn btn-warning">
-                        <i class="bi bi-archive me-1"></i>
-                        Archive Now
-                    </button>
-                </div>
-
-            </form>
-
-        </div>
-    </div>
 </div>
 
 @foreach($folders as $folder)
@@ -742,6 +646,44 @@
 </div>
 
 
+{{-- ADD AN EARLIER SCHOOL YEAR: a first folder for old records (FolderController::store) --}}
+<div class="modal fade" id="addEarlierYearModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
+        <div class="modal-content">
+            <form action="{{ route('folders.store') }}" method="POST">
+                @csrf
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-clock-history me-2 text-success" aria-hidden="true"></i>Add an earlier school year</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted" style="font-size:13px;">
+                        For old records from before they were kept here. Pick the school year they belong to and name its first folder.
+                        Files added there can't be changed afterwards; only the Super Admin can remove one added by mistake.
+                    </p>
+                    <label for="earlierYear" class="form-label text-muted" style="font-size:13px;">School year</label>
+                    <select name="school_year" id="earlierYear" class="form-select mb-3" required style="border-radius:8px;">
+                        @foreach($earlierYears as $year)
+                            <option value="{{ $year }}">{{ $year }}</option>
+                        @endforeach
+                    </select>
+                    <label for="earlierFolderName" class="form-label text-muted" style="font-size:13px;">First folder</label>
+                    <input type="text" name="folder_name" id="earlierFolderName" class="form-control"
+                           placeholder="e.g. Resolution" required maxlength="255" style="border-radius:8px;">
+                    <p class="text-muted mt-2 mb-0" style="font-size:12px;">Only the last {{ count($earlierYears) }} school years can take old records.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success" style="border-radius:8px;">
+                        <i class="bi bi-check-lg me-1" aria-hidden="true"></i> Add folder
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
 {{-- UPLOAD FILES MODAL --}}
 <div class="modal fade" id="uploadModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
@@ -754,16 +696,20 @@
                 </div>
                 <div class="modal-body">
 
-                    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
-                        <i class="fas fa-cloud-upload-alt"></i>
+                    {{-- role/tabindex + the keydown handler in partials/upload-picker
+                         make the drop zone work from the keyboard too. --}}
+                    <div class="upload-zone" id="uploadZone"
+                         role="button" tabindex="0"
+                         aria-label="Choose files to upload, or drag and drop them here"
+                         onclick="document.getElementById('fileInput').click()">
+                        <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
                         <div style="font-weight:500; color:#555; margin-bottom:4px;">Click to browse</div>
                         <div>or drag and drop files here</div>
                     </div>
                     <input type="file" id="fileInput" name="files[]" multiple hidden
-                           accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp"
-                           onchange="showFileNames(this)">
+                           accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp">
 
-                    <div id="fileNameList" class="mt-2" style="font-size:12px; color:#666;"></div>
+                    <div id="fileNameList" class="mt-2" aria-live="polite" style="font-size:12px; color:#666;"></div>
 
                     @if($folders->count())
                     <div class="mt-3">
@@ -865,54 +811,12 @@ document.addEventListener('click', function(e) {
 
 // Search now lives in the topbar (partials/header-search.blade.php).
 
-function showFileNames(input) {
-    const list = document.getElementById('fileNameList');
-    if (!input.files.length) { list.innerHTML = ''; return; }
-    const names = Array.from(input.files).map(f =>
-        `<div style="padding:3px 0; border-bottom:1px solid #f0f0f0;">
-            <i class="bi bi-file-earmark me-1"></i>${f.name}
-            <span class="text-muted ms-1">(${(f.size / 1024).toFixed(1)} KB)</span>
-         </div>`
-    ).join('');
-    list.innerHTML = `<div style="max-height:120px; overflow-y:auto; border:1px solid #eee;
-                           border-radius:8px; padding:6px 10px; margin-top:6px;">${names}</div>`;
-}
-
-// Without this, dropping files anywhere the browser doesn't explicitly
-// handle makes it navigate to/download the file instead of accepting it.
-window.addEventListener('dragover', e => e.preventDefault());
-window.addEventListener('drop', e => e.preventDefault());
-
-(function setupDragDrop(zoneId, inputId) {
-    const zone = document.getElementById(zoneId);
-    const input = document.getElementById(inputId);
-    if (!zone || !input) return;
-
-    ['dragenter', 'dragover'].forEach(evt => {
-        zone.addEventListener(evt, function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            zone.classList.add('drag-over');
-        });
-    });
-
-    ['dragleave', 'drop'].forEach(evt => {
-        zone.addEventListener(evt, function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            zone.classList.remove('drag-over');
-        });
-    });
-
-    zone.addEventListener('drop', function (e) {
-        if (e.dataTransfer.files && e.dataTransfer.files.length) {
-            input.files = e.dataTransfer.files;
-            showFileNames(input);
-        }
-    });
-})('uploadZone', 'fileInput');
+@include('Admin.partials.upload-picker')
 
 @include('Admin.partials.upload-script')
 </script>
+
+{{-- The same-name question for files uploaded here (not in a folder) --}}
+@include('partials.file-versions')
 
 @endsection

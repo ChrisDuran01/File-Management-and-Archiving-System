@@ -17,10 +17,14 @@ class SiteSetting extends Model
         'mission_image_path',
         'backup_frequency',
         'backup_enabled',
+        'price_inflation_rate',
+        'price_compare_years',
     ];
 
     protected $casts = [
-        'backup_enabled' => 'boolean',
+        'backup_enabled'       => 'boolean',
+        'price_inflation_rate' => 'float',
+        'price_compare_years'  => 'integer',
     ];
 
     /**

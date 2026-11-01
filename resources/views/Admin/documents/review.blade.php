@@ -178,6 +178,14 @@
                 @foreach ($folders as $folder)
                     <option value="{{ $folder->id }}">{{ $folder->name }}</option>
                 @endforeach
+                {{-- Old paper records go under the school year they belong to. --}}
+                @foreach ($pastYearFolders as $year => $yearFolders)
+                    <optgroup label="Past school year {{ $year }}">
+                        @foreach ($yearFolders as $folder)
+                            <option value="{{ $folder->id }}">{{ $folder->name }} (SY {{ $year }})</option>
+                        @endforeach
+                    </optgroup>
+                @endforeach
             </select>
         </div>
         <div class="rv-spacer"></div>
@@ -431,7 +439,7 @@
         });
     });
 
-    function showAlert(msg) { alertBox.textContent = msg; alertBox.style.display = 'block'; window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    function showAlert(msg) { alertBox.textContent = msg; alertBox.style.display = 'block'; window.appScroll ? appScroll.toTop() : window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
     render();
 })();

@@ -3,14 +3,39 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 /**
  * A Detailed Activity Proposal, laid out like the SG's own (see the
  * activity_proposals migrations). Any officer can read and copy one; only
- * its maker or the Super Admin can change or delete it.
+ * its maker or the Super Admin can change it, set its status or delete it.
+ * Once approved its content is locked to match the signed paper, until the
+ * Super Admin reopens it. Deleting it sends it to the Trash.
  */
 class ActivityProposal extends Model
 {
+    use SoftDeletes;
+
+    /** Where a proposal is, in the order it usually goes. */
+    public const STATUSES = [
+        'draft'        => 'Draft',
+        'for_signing'  => 'For signing',
+        'approved'     => 'Approved',
+        'not_approved' => 'Not approved',
+        'done'         => 'Done',
+        'cancelled'    => 'Cancelled',
+    ];
+
+    /** What an approved (locked) proposal can still become. */
+    private const AFTER_APPROVAL = ['approved', 'done', 'cancelled'];
+
+    /** The statuses the student page shows, when the switch is on. */
+    private const SHOWN_TO_STUDENTS = ['approved', 'done', 'cancelled'];
+
+    /** The folder the scans of signed proposals go into. */
+    public const SIGNED_COPIES_FOLDER = 'Activity Proposals';
+
     /** The signature groups of the SG's proposal, in the order they are printed. */
     public const SIGNATORY_GROUPS = [
         'prepared'     => 'Prepared by',
@@ -33,6 +58,10 @@ class ActivityProposal extends Model
         'schedule',
         'master_of_ceremony',
         'signatories',
+        'status',
+        'approved_at',
+        'signed_file_id',
+        'is_public',
         'school_year',
         'prepared_by_position',
         'created_by',
@@ -48,7 +77,66 @@ class ActivityProposal extends Model
             'objectives'  => 'array',
             'schedule'    => 'array',
             'signatories' => 'array',
+            'approved_at' => 'datetime',
+            'is_public'   => 'boolean',
         ];
+    }
+
+    protected $attributes = [
+        'status'    => 'draft',
+        'is_public' => false,
+    ];
+
+    /**
+     * What the student page shows: switched on, and approved (or held, or
+     * called off after approval). Drafts and proposals still being signed
+     * or turned down never show, whatever the switch says.
+     */
+    public function scopeOnStudentPage($query)
+    {
+        return $query->where('is_public', true)->whereIn('status', self::SHOWN_TO_STUDENTS);
+    }
+
+    public function isOnStudentPage(): bool
+    {
+        return $this->is_public && in_array($this->status, self::SHOWN_TO_STUDENTS, true);
+    }
+
+    /** "leadership-training", the readable end of its student page address. */
+    public function slug(): string
+    {
+        return Str::slug($this->title) ?: 'activity';
+    }
+
+    /**
+     * The tag students see: Done or Cancelled from the status; for an
+     * approved activity, Upcoming before it starts and Happening now until
+     * its last day; none once its date passed without being marked Done.
+     */
+    public function studentTag(): ?string
+    {
+        return match (true) {
+            $this->status === 'done'      => 'Done',
+            $this->status === 'cancelled' => 'Cancelled',
+            ! $this->starts_on || $this->starts_on->gte(today()) => 'Upcoming',
+            $this->ends_on && $this->ends_on->gte(today()) => 'Happening now',
+            default => null,
+        };
+    }
+
+    /**
+     * Budget per category, biggest first, for the student page: what each
+     * kind of spending adds up to, without the line items.
+     *
+     * @return array<string, float>
+     */
+    public function budgetByCategory(): array
+    {
+        return $this->items
+            ->groupBy(fn (ActivityProposalItem $item) => $item->category ?: 'Other')
+            ->map(fn ($items) => round($items->sum(fn (ActivityProposalItem $item) => $item->totalPrice()), 2))
+            ->sortDesc()
+            ->all();
     }
 
     public function items()
@@ -66,6 +154,55 @@ class ActivityProposal extends Model
         return $this->belongsTo(self::class, 'copied_from_id');
     }
 
+    /** The scan of the signed paper; null while none is attached or it is in the Trash. */
+    public function signedFile()
+    {
+        return $this->belongsTo(File::class, 'signed_file_id');
+    }
+
+    public function statusLabel(): string
+    {
+        return self::STATUSES[$this->status] ?? ucfirst((string) $this->status);
+    }
+
+    /** Approved once, so the content stays as it was signed. Only the Super Admin can reopen it. */
+    public function isLocked(): bool
+    {
+        return $this->approved_at !== null;
+    }
+
+    /**
+     * The statuses this proposal can be set to now. Before approval, any but
+     * Done (an activity is approved before it is held); after, only the ones
+     * that keep it approved - going back means reopening it.
+     *
+     * @return array<string, string>
+     */
+    public function statusOptions(): array
+    {
+        $keys = $this->isLocked()
+            ? self::AFTER_APPROVAL
+            : array_values(array_diff(array_keys(self::STATUSES), ['done']));
+
+        return array_intersect_key(self::STATUSES, array_flip($keys));
+    }
+
+    /** Sets the status; the first time it becomes Approved, the content is locked. */
+    public function moveTo(string $status): void
+    {
+        $this->status = $status;
+        if ($status === 'approved' && ! $this->isLocked()) {
+            $this->approved_at = now();
+        }
+        $this->save();
+    }
+
+    /** Super Admin only (checked by the caller): unlocks it and makes it a draft again. */
+    public function reopen(): void
+    {
+        $this->forceFill(['status' => 'draft', 'approved_at' => null])->save();
+    }
+
     public function budgetTotal(): float
     {
         return round($this->items->sum(fn (ActivityProposalItem $item) => $item->totalPrice()), 2);
@@ -78,6 +215,20 @@ class ActivityProposal extends Model
         }
 
         return ($this->created_by && (int) $this->created_by === (int) $user->id) || Folder::isSuperAdmin($user);
+    }
+
+    /**
+     * For the Trash: any officer can open a proposal, so any officer can
+     * restore a deleted one, the same as a file in an open folder.
+     */
+    public function isAccessibleBy(User $user): bool
+    {
+        return true;
+    }
+
+    public function restoreFromTrash(): void
+    {
+        $this->restore();
     }
 
     /** As the SG writes it: "October 22, 2026", "November 6–8, 2026", "November 30 – December 2, 2026". */

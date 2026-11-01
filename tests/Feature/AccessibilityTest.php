@@ -255,15 +255,29 @@ test('both officer layouts can be used from the keyboard', function (bool $super
     expect($skip->getAttribute('href'))->toBe('#main-content')
         ->and($xp->query("//main[@id='main-content']")->length)->toBe(1);
 
-    // The menu toggle and the account menu are real buttons that say their state.
+    // The phone menu button, the collapse button and the account menu are
+    // real buttons that say their state.
     $toggle = $xp->query("//button[@id='header-toggle']")->item(0);
+    $collapse = $xp->query("//button[@id='sidebar-collapse']")->item(0);
     $account = $xp->query("//button[@id='profileToggle']")->item(0);
     expect($toggle?->getAttribute('aria-expanded'))->toBe('false')
-        ->and($toggle?->getAttribute('aria-label'))->toBe('Expand menu')
+        ->and($toggle?->getAttribute('aria-label'))->toBe('Open menu')
+        ->and($collapse?->getAttribute('aria-expanded'))->toBe('true')
+        ->and($collapse?->getAttribute('aria-label'))->toBe('Collapse menu')
         ->and($account?->getAttribute('aria-expanded'))->toBe('false');
 
+    // The keys are written down where officers look: the ? list (also in the
+    // account menu) and the / hint on the search box.
+    expect($xp->query("//dialog[@id='shortcutsDialog']//h2")->item(0)?->textContent)->toBe('Keyboard shortcuts')
+        ->and($xp->query("//button[@id='openShortcuts']")->item(0)?->getAttribute('aria-keyshortcuts'))->toBe('?')
+        ->and($xp->query("//input[@id='topbarSearchInput']")->item(0)?->getAttribute('aria-keyshortcuts'))->toBe('/');
+
+    // The current page is announced as such, and Administration is the Super Admin's only.
+    expect($xp->query("//nav[@aria-label='Main menu']//a[@aria-current='page']")->item(0)?->textContent)->toContain('Folders')
+        ->and(str_contains($xp->query("//nav[@aria-label='Main menu']")->item(0)->textContent, 'Activity Logs'))->toBe($superAdmin);
+
     // Menu text stays readable to screen readers while the menu is collapsed:
-    // no rule hides .nav_name with visibility (opacity only).
+    // no rule hides .sb-name with visibility or display (it is clipped instead).
     $css = implode("\n", array_map(fn ($s) => $s->textContent, iterator_to_array($xp->query('//style'))));
-    expect(preg_match('/\.nav_name[^{]*\{[^}]*visibility:\s*hidden/', $css))->toBe(0);
+    expect(preg_match('/\.sb-name[^{]*\{[^}]*(visibility:\s*hidden|display:\s*none)/', $css))->toBe(0);
 })->with(['officer layout' => false, 'SuperAdmin layout' => true]);

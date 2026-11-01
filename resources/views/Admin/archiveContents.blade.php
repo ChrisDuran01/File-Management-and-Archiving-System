@@ -149,9 +149,15 @@
 
 <div style="max-width:760px; margin:0 auto;" class="skel-real">
 
-    <a href="{{ route('archives.index') }}" class="back-link">
-        <i class="fas fa-arrow-left"></i> Back to Archives
-    </a>
+    @if ($archive->school_year)
+        <a href="{{ route('archives.schoolYear', $archive->school_year) }}" class="back-link">
+            <i class="fas fa-arrow-left"></i> Back to SY {{ str_replace('-', '–', $archive->school_year) }}
+        </a>
+    @else
+        <a href="{{ route('archives.index') }}" class="back-link">
+            <i class="fas fa-arrow-left"></i> Back to Archives
+        </a>
+    @endif
 
     <div class="archive-header">
         <div class="archive-header-icon"><i class="fas fa-box-archive"></i></div>

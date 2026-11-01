@@ -6,10 +6,9 @@
 
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 
-<style>
-    * { box-sizing: border-box; }
-    body { background: var(--surface); font-family: 'Inter', sans-serif; color: var(--text-1); }
+@include('Admin.proposals.partials.styles')
 
+<style>
     .card-panel {
         background: var(--card);
         border: 1px solid var(--border);
@@ -24,49 +23,43 @@
     }
     .panel-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
-    /* Category pills */
-    .pill-row { display: flex; gap: 8px; flex-wrap: wrap; }
-    .pill-btn {
+    /* Which template */
+    .tpl-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .tpl-tab {
         border: 1.5px solid var(--border); background: var(--card); color: var(--text-2);
-        padding: 9px 18px; border-radius: 30px; font-size: .84rem; font-weight: 600;
-        cursor: pointer; transition: all .15s;
+        padding: 8px 16px; border-radius: var(--radius-sm); font-size: .85rem; font-weight: 600; cursor: pointer;
     }
-    .pill-btn:hover { border-color: var(--primary); color: var(--primary); }
-    .pill-btn.active { background: var(--primary-fill); border-color: var(--primary-fill); color: #fff; }
+    .tpl-tab:hover { border-color: var(--primary); color: var(--primary); }
+    .tpl-tab[aria-pressed="true"] { background: var(--primary-fill); border-color: var(--primary-fill); color: #fff; }
 
-    /* Form fields */
-    .field-group { margin-bottom: 16px; }
-    .field-group label {
-        display: block; font-size: .78rem; font-weight: 600; color: var(--text-2); margin-bottom: 6px;
+    /* Form */
+    .tpl-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+    .tpl-section { font-size: .9rem; font-weight: 700; color: var(--text-1); margin: 22px 0 10px; }
+    .tpl-section:first-child { margin-top: 0; }
+    .tpl-form textarea.cell-text { min-height: 38px; }
+    .tpl-form .sig-group h4 { font-size: .8rem; font-weight: 700; color: var(--text-2); margin: 14px 0 4px; }
+    .tpl-form .sig-table { min-width: 460px; margin-bottom: 6px; }
+    .clause-list { padding-left: 26px; }
+    .clause-lead { font-size: .7rem; font-weight: 700; letter-spacing: .05em; color: var(--text-3); margin-bottom: 3px; }
+    .tpl-check { display: flex; gap: 8px; align-items: flex-start; font-size: .84rem; color: var(--text-2); margin: 0 0 6px; cursor: pointer; }
+    .tpl-check input { margin-top: 3px; }
+    .field-group { margin-bottom: 14px; }
+    .field-group label { display: block; font-size: .74rem; font-weight: 600; color: var(--text-2); margin-bottom: 5px; }
+    .field-hint { font-size: .76rem; color: var(--text-3); margin-top: 4px; }
+    .tpl-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-bottom: 24px; }
+    .tpl-notice {
+        border: 1px solid var(--border); border-left: 4px solid var(--primary); background: var(--card);
+        border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 16px; font-size: .86rem;
     }
-    .field-group .form-control, .field-group select {
-        border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 9px 12px;
-        font-size: .88rem; font-family: 'Inter', sans-serif;
-    }
-    .field-group .form-control:focus, .field-group select:focus {
-        border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-dim); outline: none;
-    }
-    .field-hint { font-size: .74rem; color: var(--text-3); margin-top: 4px; }
 
-    .btn-generate {
-        width: 100%; background: #0f172a; color: #fff; border: none; border-radius: var(--radius-sm);
-        padding: 12px; font-size: .9rem; font-weight: 600; cursor: pointer; transition: background .15s;
-    }
-    .btn-generate:hover { background: #1e293b; }
-
-    /* Preview */
+    /* Preview: a sheet of paper in both themes */
+    .preview-panel { position: sticky; top: 16px; }
     .preview-box {
-        border: 1.5px dashed var(--border); border-radius: var(--radius-sm); background: #fcfcfd;
-        padding: 28px 32px; font-family: 'Times New Roman', serif; font-size: .84rem; line-height: 1.7;
-        color: #222; word-break: break-word; min-height: 160px;
+        border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff;
+        padding: 28px 30px; font-size: 12.5px; min-height: 200px;
+        max-height: calc(100vh - 150px); overflow: auto; word-break: break-word;
     }
-    .preview-box p { margin: 0 0 .8rem; }
-    .preview-box .doc-heading { text-align: center; font-weight: 700; margin: 0 0 .4rem; }
-    .preview-box .doc-title { text-align: center; font-weight: 700; margin: .3rem 0 1rem; }
-    .preview-box .doc-meta { margin: 0 0 .3rem; }
-    .preview-box .doc-clause { text-align: justify; text-indent: 24px; margin: 0 0 .8rem; }
-    .preview-box .doc-paragraph { text-align: justify; }
-    .preview-box .doc-empty { color: var(--text-3); font-style: italic; }
+    @include('Admin.templates.documents.styles')
 
     /* Records table */
     .records-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
@@ -74,16 +67,16 @@
         text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em;
         color: var(--text-3); font-weight: 600; padding: 8px 10px; border-bottom: 1.5px solid var(--border);
     }
-    .records-table td { padding: 10px; border-bottom: 1px solid var(--border); }
+    .records-table td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
     .records-table tr:last-child td { border-bottom: none; }
-    .cat-chip {
-        font-size: .68rem; font-weight: 700; padding: 2px 9px; border-radius: 20px;
-        background: var(--primary-dim); color: var(--primary); text-transform: capitalize;
-    }
+    .records-table .actions { text-align: right; white-space: nowrap; }
+    .records-table .actions a { margin-left: 6px; text-decoration: none; }
     .empty-row { text-align: center; color: var(--text-3); padding: 24px; font-size: .85rem; }
 
-    /* ===== DARK MODE ===== */
-    [data-theme="dark"] .preview-box { background: var(--surface); color: var(--text-1); }
+    @media (max-width: 991px) {
+        .preview-panel { position: static; }
+        .preview-box { max-height: none; }
+    }
 </style>
 
 {{-- Skeleton placeholder, shown until the real content below is revealed --}}
@@ -93,47 +86,30 @@
             <div class="skel skel-text" style="width:220px; height:22px; margin-bottom:8px;"></div>
             <div class="skel skel-text" style="width:340px;"></div>
         </div>
-        <div class="skel" style="width:150px; height:34px; border-radius:30px;"></div>
+        <div class="skel" style="width:150px; height:34px; border-radius:8px;"></div>
     </div>
 
-    <div class="card-panel">
-        <div class="pill-row">
-            @for ($i = 0; $i < 3; $i++)
-            <div class="skel" style="width:120px; height:36px; border-radius:30px;"></div>
-            @endfor
-        </div>
+    <div style="display:flex; gap:8px; margin-bottom:16px;">
+        @for ($i = 0; $i < 2; $i++)
+        <div class="skel" style="width:120px; height:36px; border-radius:8px;"></div>
+        @endfor
     </div>
 
     <div class="row">
-        <div class="col-lg-6">
+        <div class="col-lg-7">
             <div class="card-panel">
-                <div class="skel skel-text" style="width:150px; margin-bottom:14px;"></div>
-                @for ($i = 0; $i < 4; $i++)
+                @for ($i = 0; $i < 5; $i++)
                 <div class="field-group">
                     <div class="skel skel-text" style="width:100px; margin-bottom:8px;"></div>
                     <div class="skel" style="width:100%; height:38px; border-radius:6px;"></div>
                 </div>
                 @endfor
-                <div class="skel" style="width:100%; height:44px; border-radius:6px;"></div>
             </div>
         </div>
-
-        <div class="col-lg-6">
+        <div class="col-lg-5">
             <div class="card-panel">
                 <div class="skel skel-text" style="width:140px; margin-bottom:14px;"></div>
-                <div class="skel" style="width:100%; height:160px; border-radius:6px;"></div>
-            </div>
-
-            <div class="card-panel">
-                <div class="skel skel-text" style="width:170px; margin-bottom:14px;"></div>
-                @for ($i = 0; $i < 4; $i++)
-                <div style="display:flex; gap:16px; padding:9px 0; border-bottom:1px solid var(--border);">
-                    <div class="skel skel-text" style="width:20%;"></div>
-                    <div class="skel skel-text" style="width:35%;"></div>
-                    <div class="skel skel-text" style="width:20%;"></div>
-                    <div class="skel skel-text" style="width:15%;"></div>
-                </div>
-                @endfor
+                <div class="skel" style="width:100%; height:360px; border-radius:6px;"></div>
             </div>
         </div>
     </div>
@@ -141,330 +117,424 @@
 
 <div class="skel-real">
 
-<div class="page-header">
-    <div>
-        <h1><i class="fas fa-file-signature me-2" style="color:var(--primary);font-size:1.1rem;"></i>Document Templates</h1>
-        <p class="sub">Fill in a template to generate a formatted PDF. Each one is saved under "Saved to records".</p>
-    </div>
-    <a href="{{ route('letterheads.index') }}" class="pill-btn" style="text-decoration:none;">
-        <i class="fas fa-stamp me-1"></i> Manage letterheads
-    </a>
-</div>
-
 @php
     $categoryLabels = [
         'resolution' => 'Resolution',
         'request_letter' => 'Request letter',
         'memorandum' => 'Memorandum',
     ];
+    $user = auth()->user();
+    $shown = fn ($file) => $file->template_fields && $file->template
+        && ! in_array($file->template->category, \App\Models\Template::HIDDEN_CATEGORIES, true);
 @endphp
 
-<div class="card-panel">
-    <div class="pill-row" id="templatePills" role="group" aria-label="Choose a template">
-        @foreach($templates as $index => $tpl)
-            <button type="button" class="pill-btn {{ $index === 0 ? 'active' : '' }}" data-template-id="{{ $tpl->id }}"
-                    aria-pressed="{{ $index === 0 ? 'true' : 'false' }}">
-                {{ $categoryLabels[$tpl->category] ?? ucfirst($tpl->category) }}
-            </button>
-        @endforeach
+<div class="page-header">
+    <div>
+        <h1><i class="fas fa-file-signature me-2" style="color:var(--primary);font-size:1.1rem;"></i>Document Templates</h1>
+        <p class="sub">Fill in a template to make a PDF. It is saved in the folder you pick and listed under "Saved to records".</p>
     </div>
+    <a href="{{ route('letterheads.index') }}" class="btn-flat ghost" style="text-decoration:none;">
+        <i class="fas fa-stamp me-1" aria-hidden="true"></i> Manage letterheads
+    </a>
 </div>
 
-<div class="row">
-    <div class="col-lg-6">
-        <div class="card-panel">
-            <div class="panel-label"><i class="fas fa-pen"></i> Fill in the details</div>
+@if ($editing)
+    <div class="tpl-notice">
+        Editing <b>{{ $editing->filename }}</b>. Saving puts the new PDF in its place, in the same folder.
+        <a href="{{ route('templates.index') }}">Stop editing</a>
+    </div>
+@elseif ($copying)
+    <div class="tpl-notice">
+        Starting from a copy of <b>{{ $copying->filename }}</b>. Saving makes a new document; the old one stays as it is.
+    </div>
+@endif
 
-            <form id="generateForm" action="{{ route('templates.generate') }}" method="POST">
-                @csrf
-                <input type="hidden" name="template_id" id="templateIdInput" value="{{ $templates->first()->id ?? '' }}">
+@if ($templates->isEmpty())
+    <div class="card-panel empty-row">No templates yet.</div>
+@else
 
-                <div id="fieldsContainer"></div>
+<form id="generateForm" class="tpl-form" action="{{ route('templates.generate') }}" method="POST"
+      data-preview-url="{{ route('templates.preview') }}"
+      data-start-month="{{ \App\Support\SchoolYear::startMonth() }}">
+    @csrf
+    <input type="hidden" name="template_id" id="templateIdInput" value="{{ $activeId }}">
+    @if ($editing)
+        <input type="hidden" name="replace_file_id" value="{{ $editing->id }}">
+    @endif
 
-                <div class="field-group" id="letterheadGroup" style="display:none;">
-                    <label for="letterheadSelect"><i class="fas fa-stamp me-1" aria-hidden="true"></i> Letterhead</label>
-                    <div class="d-flex gap-2 align-items-center">
-                        <select name="letterhead_id" id="letterheadSelect" class="form-control form-select">
-                            <option value="">— No letterhead (plain layout) —</option>
-                            @foreach($letterheads as $lh)
-                                <option value="{{ $lh->id }}">{{ $lh->name }}</option>
-                            @endforeach
-                        </select>
-                        <a href="#" id="letterheadPreviewLink" target="_blank" class="pill-btn" style="display:none; text-decoration:none; white-space:nowrap;">
-                            <i class="fas fa-eye me-1" aria-hidden="true"></i> Preview letterhead<span class="sr-only"> (opens in a new tab)</span>
-                        </a>
-                    </div>
-                    @if($letterheads->isEmpty())
-                        <div class="field-hint">No letterheads saved yet — <a href="{{ route('letterheads.index') }}">add one</a> to use on Resolutions.</div>
-                    @endif
-                </div>
-
-                <div class="field-group">
-                    <label for="folderSelect"><i class="fas fa-folder me-1" aria-hidden="true"></i> Save to folder</label>
-                    <select name="folder_id" id="folderSelect" class="form-control form-select">
-                        <option value="">— Choose a folder —</option>
-                        @foreach($folders as $folder)
-                            <option value="{{ $folder->id }}">{{ $folder->name }}</option>
-                        @endforeach
-                    </select>
-                    <div class="field-hint">Suggested automatically from the title — change it if it's wrong.</div>
-                </div>
-
-                <button type="submit" class="btn-generate">
-                    <i class="fas fa-magic me-1"></i> Generate &amp; save document
+    @unless ($editing)
+        <div class="tpl-tabs" role="group" aria-label="Choose a template">
+            @foreach ($templates as $template)
+                <button type="button" class="tpl-tab" data-template-id="{{ $template->id }}"
+                        aria-pressed="{{ $template->id === $activeId ? 'true' : 'false' }}">
+                    {{ $categoryLabels[$template->category] ?? ucfirst($template->category) }}
                 </button>
-            </form>
+            @endforeach
+        </div>
+    @endunless
+
+    <div class="row">
+        <div class="col-lg-7">
+            @foreach ($templates as $template)
+                @php
+                    $form = $forms[$template->id];
+                    $p = 'tpl'.$template->id.'-';
+                    $active = $template->id === $activeId;
+                    $doc = $template->documentClass();
+                @endphp
+                {{-- Only the chosen template's fieldset is enabled, so only its fields are sent. --}}
+                <fieldset class="tpl-fieldset" data-template-form="{{ $template->id }}" @disabled(! $active) @if (! $active) hidden @endif>
+                    <legend class="sr-only">{{ $categoryLabels[$template->category] ?? ucfirst($template->category) }}</legend>
+
+                    <div class="card-panel">
+                        @include($doc ? $doc::form() : 'Admin.templates.forms.plain', ['template' => $template, 'form' => $form, 'p' => $p])
+                    </div>
+
+                    <div class="card-panel">
+                        <div class="prop-fields">
+                            <div>
+                                <label for="{{ $p }}letterhead">Letterhead</label>
+                                <select id="{{ $p }}letterhead" name="letterhead_id" class="prop-input form-select">
+                                    <option value="">No letterhead (plain page)</option>
+                                    @foreach ($letterheads as $lh)
+                                        <option value="{{ $lh->id }}" @selected((int) $form['letterhead_id'] === $lh->id)>{{ $lh->name }}{{ $lh->is_default ? ' (default)' : '' }}</option>
+                                    @endforeach
+                                </select>
+                                @if ($letterheads->isEmpty())
+                                    <div class="field-hint">No letterheads saved yet. <a href="{{ route('letterheads.index') }}">Add one</a>.</div>
+                                @endif
+                            </div>
+                            <div>
+                                <label for="{{ $p }}folder">Save to folder</label>
+                                <select id="{{ $p }}folder" name="folder_id" class="prop-input form-select" data-folder-select
+                                        @if ($form['folder_id']) data-touched="1" @endif>
+                                    <option value="">Choose a folder</option>
+                                    @foreach ($folders as $folder)
+                                        <option value="{{ $folder->id }}" @selected((int) $form['folder_id'] === $folder->id)>{{ $folder->name }}</option>
+                                    @endforeach
+                                </select>
+                                <div class="field-hint">Picked from the title when a folder name is in it. Change it if it's wrong.</div>
+                            </div>
+                        </div>
+                    </div>
+                </fieldset>
+            @endforeach
+
+            <div class="tpl-actions">
+                @if ($editing)
+                    <a href="{{ route('templates.index') }}" class="btn-flat ghost" style="text-decoration:none;">Cancel</a>
+                @endif
+                <button type="submit" class="btn-flat ghost" formaction="{{ route('templates.preview-pdf') }}" formtarget="_blank" formnovalidate>
+                    <i class="fas fa-file-pdf me-1" aria-hidden="true"></i> Preview PDF<span class="sr-only"> (opens in a new tab)</span>
+                </button>
+                <button type="submit" class="btn-flat">
+                    <i class="fas fa-save me-1" aria-hidden="true"></i> {{ $editing ? 'Save changes' : 'Save document' }}
+                </button>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card-panel preview-panel">
+                <div class="panel-label"><i class="fas fa-eye" aria-hidden="true"></i> Preview</div>
+                <div class="preview-box doc-sheet" id="previewBox">{!! $initialPreview !!}</div>
+            </div>
         </div>
     </div>
+</form>
+@endif
 
-    <div class="col-lg-6">
-        <div class="card-panel">
-            <div class="panel-label"><i class="fas fa-eye"></i> Generated preview</div>
-            <div class="preview-box" id="previewBox">Fill in the form to see a preview…</div>
-        </div>
+<div class="card-panel">
+    <div class="panel-label"><i class="fas fa-list" aria-hidden="true"></i> Saved to records ({{ $recent->count() }})</div>
 
-        <div class="card-panel">
-            <div class="panel-label"><i class="fas fa-list"></i> Saved to records ({{ $recent->count() }})</div>
-
-            @if($recent->isEmpty())
-                <div class="empty-row">No documents generated yet.</div>
-            @else
-                <div class="table-responsive">
-                    <table class="records-table">
-                        <thead>
-                            <tr><th>Type</th><th>File</th><th>Folder</th><th>Date</th></tr>
-                        </thead>
-                        <tbody>
-                            @foreach($recent as $file)
-                                <tr>
-                                    <td><span class="cat-chip">{{ $categoryLabels[$file->template->category ?? ''] ?? '—' }}</span></td>
-                                    <td>
-                                        <a href="{{ route('files.preview', $file->id) }}" style="color:var(--text-1); text-decoration:none; font-weight:500;">
-                                            {{ $file->filename }}
+    @if($recent->isEmpty())
+        <div class="empty-row">No documents made yet.</div>
+    @else
+        <div class="table-responsive">
+            <table class="records-table">
+                <thead>
+                    <tr><th>Type</th><th>File</th><th>Folder</th><th>Date</th><th><span class="sr-only">Actions</span></th></tr>
+                </thead>
+                <tbody>
+                    @foreach($recent as $file)
+                        <tr>
+                            <td><span class="chip">{{ $categoryLabels[$file->template->category ?? ''] ?? '—' }}</span></td>
+                            <td>
+                                <a href="{{ route('files.preview', $file->id) }}" style="color:var(--text-1); text-decoration:none; font-weight:500;">
+                                    {{ $file->filename }}
+                                </a>
+                                @include('Admin.partials.approval-badge', ['file' => $file])
+                            </td>
+                            <td>{{ $file->folder->name ?? 'Root' }}</td>
+                            <td style="white-space:nowrap;">{{ $file->created_at->format('M d, Y') }}</td>
+                            <td class="actions">
+                                @if ($shown($file))
+                                    @if (! $file->is_archived && ! $file->folder?->is_archived && $file->isManageableBy($user))
+                                        <a href="{{ route('templates.index', ['edit' => $file->id]) }}" class="btn-flat ghost btn-sm">
+                                            Edit<span class="sr-only"> {{ $file->filename }}</span>
                                         </a>
-                                        @include('Admin.partials.approval-badge', ['file' => $file])
-                                    </td>
-                                    <td>{{ $file->folder->name ?? 'Root' }}</td>
-                                    <td>{{ $file->created_at->format('M d, Y') }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @endif
+                                    @endif
+                                    <a href="{{ route('templates.index', ['copy' => $file->id]) }}" class="btn-flat ghost btn-sm">
+                                        Copy<span class="sr-only"> {{ $file->filename }}</span>
+                                    </a>
+                                @endif
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
         </div>
-    </div>
+    @endif
 </div>
 
 </div>
 
 <script>
-// Raw template data (id -> {content, placeholders}) rendered server-side,
-// used to build the fields form and drive the live preview without a
-// round trip for every keystroke.
-const TEMPLATES = {
-    @foreach($templates as $tpl)
-        {{ $tpl->id }}: {
-            content: {!! json_encode($tpl->content) !!},
-            placeholders: {!! json_encode($tpl->placeholders()) !!},
-            category: {!! json_encode($tpl->category) !!},
-            letterheadId: {!! json_encode($tpl->letterhead_id) !!},
-        },
-    @endforeach
-};
+(function () {
+    var form = document.getElementById('generateForm');
+    if (!form) return;
 
-const FOLDER_NAMES = {!! json_encode($folders->pluck('name', 'id')) !!};
-const LETTERHEAD_PREVIEW_URLS = {!! json_encode($letterheads->mapWithKeys(
-    fn ($lh) => [$lh->id => route('letterheads.preview', $lh->id)]
-)) !!};
+    var templateIdInput = document.getElementById('templateIdInput');
+    var previewBox = document.getElementById('previewBox');
+    var token = form.querySelector('input[name="_token"]').value;
+    var startMonth = parseInt(form.getAttribute('data-start-month'), 10) || 8;
+    var folderNames = {!! json_encode($folders->pluck('name', 'id')) !!};
 
-const fieldsContainer = document.getElementById('fieldsContainer');
-const templateIdInput = document.getElementById('templateIdInput');
-const previewBox = document.getElementById('previewBox');
-const folderSelect = document.getElementById('folderSelect');
-const letterheadGroup = document.getElementById('letterheadGroup');
-const letterheadSelect = document.getElementById('letterheadSelect');
-const letterheadPreviewLink = document.getElementById('letterheadPreviewLink');
+    // New rows get keys no existing row uses; the server only cares that
+    // each row's fields share one.
+    var nextKey = Date.now();
 
-function updateLetterheadPreviewLink() {
-    const url = LETTERHEAD_PREVIEW_URLS[letterheadSelect.value];
-    if (url) {
-        letterheadPreviewLink.href = url;
-        letterheadPreviewLink.style.display = '';
-    } else {
-        letterheadPreviewLink.style.display = 'none';
-    }
-}
-
-letterheadSelect.addEventListener('change', updateLetterheadPreviewLink);
-
-function labelFor(key) {
-    return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-}
-
-function isLongField(key) {
-    return /body|clause|message/i.test(key);
-}
-
-function buildForm(templateId) {
-    const tpl = TEMPLATES[templateId];
-    fieldsContainer.innerHTML = '';
-
-    tpl.placeholders.forEach(key => {
-        const group = document.createElement('div');
-        group.className = 'field-group';
-
-        const label = document.createElement('label');
-        label.textContent = labelFor(key);
-        label.htmlFor = 'tplField-' + key;
-        group.appendChild(label);
-
-        const input = document.createElement(isLongField(key) ? 'textarea' : 'input');
-        input.id = 'tplField-' + key;
-        input.name = `fields[${key}]`;
-        input.dataset.key = key;
-        input.className = 'form-control';
-        if (isLongField(key)) {
-            input.rows = 5;
-        } else if (key === 'date') {
-            input.type = 'date';
-        } else {
-            input.type = 'text';
-        }
-        input.addEventListener('input', () => { renderPreview(templateId); suggestFolder(); });
-
-        group.appendChild(input);
-        fieldsContainer.appendChild(group);
-    });
-
-    if (tpl.category === 'resolution') {
-        letterheadGroup.style.display = '';
-        letterheadSelect.value = tpl.letterheadId || '';
-    } else {
-        letterheadGroup.style.display = 'none';
-        letterheadSelect.value = '';
-    }
-    updateLetterheadPreviewLink();
-
-    renderPreview(templateId);
-}
-
-function currentFieldValues() {
-    const values = {};
-    fieldsContainer.querySelectorAll('[data-key]').forEach(el => { values[el.dataset.key] = el.value; });
-    return values;
-}
-
-// Built from separate concatenated single-brace pieces, since Blade scans
-// this whole file for double-curly-brace tokens even inside JS comments
-// and strings - writing the pair directly here would get compiled as PHP.
-const OPEN_TAG = '{' + '{';
-const CLOSE_TAG = '}' + '}';
-
-// Mirrors TemplateController::formatDocumentBody() so the live preview
-// looks like the final generated document, not just typed-out text.
-function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-}
-
-function isMetaBlock(lines) {
-    return lines.every(line => /^[A-Za-z][A-Za-z /]{0,20}:\s?/.test(line.trim()));
-}
-
-function looksLikeTitle(text) {
-    const lettersOnly = text.replace(/[^A-Za-z]/g, '');
-    return lettersOnly !== '' && lettersOnly === lettersOnly.toUpperCase() && text.length <= 200;
-}
-
-function formatDocumentBodyPreview(text) {
-    const paragraphs = text.split(/\n\s*\n/).map(p => p.trim()).filter(p => p !== '');
-    if (paragraphs.length === 0) {
-        return '<p class="doc-empty">Fill in the form to see a preview…</p>';
+    function activeFieldset() {
+        return form.querySelector('[data-template-form="' + templateIdInput.value + '"]');
     }
 
-    return paragraphs.map(paragraph => {
-        const lines = paragraph.split('\n');
-        const joined = lines.map(l => l.trim()).join(' ');
+    // Boxes grow with what is typed in them (only measurable once shown).
+    function fit(area) {
+        area.style.height = 'auto';
+        area.style.height = area.scrollHeight + 2 + 'px';
+    }
+    function fitAll(root) {
+        root.querySelectorAll('textarea.cell-text').forEach(fit);
+    }
 
-        if (isMetaBlock(lines)) {
-            const rows = lines.map(line => escapeHtml(line.trim())
-                .replace(/^([A-Za-z][A-Za-z /]*:)/, '<b>$1</b>'));
-            return `<p class="doc-meta">${rows.join('<br>')}</p>`;
-        }
-        if (/^(WHEREAS|RESOLVED)\b/i.test(joined)) {
-            const withBold = escapeHtml(joined).replace(/^(WHEREAS|RESOLVED)\b/i, '<b>$1</b>');
-            return `<p class="doc-clause">${withBold}</p>`;
-        }
-        if (/^APPROVED\b/i.test(joined)) {
-            return `<p class="doc-heading">${escapeHtml(joined)}</p>`;
-        }
-        if (/^(RESOLUTION|MEMORANDUM)\s+NO\.?/i.test(joined)) {
-            return `<p class="doc-heading">${escapeHtml(paragraph).replace(/\n/g, '<br>')}</p>`;
-        }
-        if (looksLikeTitle(joined)) {
-            return `<p class="doc-title">${escapeHtml(joined)}</p>`;
-        }
-        return `<p class="doc-paragraph">${escapeHtml(joined)}</p>`;
-    }).join('');
-}
-
-function renderPreview(templateId) {
-    const tpl = TEMPLATES[templateId];
-    const values = currentFieldValues();
-    let text = tpl.content;
-
-    Object.keys(values).forEach(key => {
-        const token = OPEN_TAG + key + CLOSE_TAG;
-        text = text.split(token).join(values[key] || token);
-    });
-
-    previewBox.innerHTML = formatDocumentBodyPreview(text);
-}
-
-// Hybrid folder suggestion: longest matching (non-archived) folder name
-// found inside the title/subject field - always editable afterward, never
-// silently applied without showing in the dropdown.
-function suggestFolder() {
-    const values = currentFieldValues();
-    const needle = (values.title || values.subject || '').toLowerCase();
-    if (!needle) return;
-
-    let bestMatch = null;
-    for (const [id, name] of Object.entries(FOLDER_NAMES)) {
-        if (needle.includes(name.toLowerCase())) {
-            if (!bestMatch || name.length > FOLDER_NAMES[bestMatch].length) {
-                bestMatch = id;
+    // Screen readers hear "WHEREAS clause 3", so the numbers follow the
+    // rows as they are added and removed. RESOLVED rows also show the
+    // lead word they will be printed with.
+    function renumber(list) {
+        var rows = Array.prototype.slice.call(list.children);
+        rows.forEach(function (row, i) {
+            row.querySelectorAll('[data-label]').forEach(function (el) {
+                el.setAttribute('aria-label', el.getAttribute('data-label') + ' ' + (i + 1));
+            });
+            var lead = row.querySelector('[data-lead]');
+            if (lead) {
+                lead.textContent = i === 0 ? 'RESOLVED'
+                    : (i === rows.length - 1 && rows.length >= 3 ? 'RESOLVED FINALLY' : 'RESOLVED FURTHER');
             }
-        }
-    }
-
-    if (bestMatch) {
-        folderSelect.value = bestMatch;
-    }
-}
-
-// Only the template choices: "Manage letterheads" and the letterhead
-// Preview link share the .pill-btn look, and clicking Preview used to run
-// this too - which emptied the form being filled in.
-const templatePills = document.querySelectorAll('#templatePills .pill-btn');
-templatePills.forEach(btn => {
-    btn.addEventListener('click', () => {
-        templatePills.forEach(b => {
-            b.classList.remove('active');
-            b.setAttribute('aria-pressed', 'false');
         });
-        btn.classList.add('active');
-        btn.setAttribute('aria-pressed', 'true');
-        templateIdInput.value = btn.dataset.templateId;
-        buildForm(btn.dataset.templateId);
-    });
-});
+    }
 
-if (templateIdInput.value) {
-    buildForm(templateIdInput.value);
-}
+    function addRow(kind, after) {
+        var list = document.getElementById(kind + 'List');
+        var html = document.getElementById(kind + 'Tpl').innerHTML.replace(/__KEY__/g, String(nextKey++));
+        if (after) {
+            after.insertAdjacentHTML('afterend', html);
+        } else {
+            list.insertAdjacentHTML('beforeend', html);
+        }
+        renumber(list);
+        return after ? after.nextElementSibling : list.lastElementChild;
+    }
+
+    // ---- Live preview, drawn by the server from the same view as the PDF ----
+    var previewTimer = null;
+    var previewRequest = null;
+
+    function refreshPreview() {
+        clearTimeout(previewTimer);
+        previewTimer = setTimeout(function () {
+            var fieldset = activeFieldset();
+            if (!fieldset) return;
+
+            var data = new FormData();
+            data.append('_token', token);
+            data.append('template_id', templateIdInput.value);
+            fieldset.querySelectorAll('[name^="fields["]').forEach(function (el) {
+                if (el.type === 'checkbox' && !el.checked) return;
+                data.append(el.name, el.value);
+            });
+
+            if (previewRequest) previewRequest.abort();
+            previewRequest = new AbortController();
+
+            fetch(form.getAttribute('data-preview-url'), {
+                method: 'POST',
+                body: data,
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                signal: previewRequest.signal
+            })
+                .then(function (response) { return response.ok ? response.json() : null; })
+                .then(function (json) { if (json) previewBox.innerHTML = json.html; })
+                .catch(function () {});
+        }, 350);
+    }
+
+    // ---- Resolution number: follows the adoption date until typed over ----
+    function schoolYearCode(date) {
+        var year = parseInt(date.slice(0, 4), 10);
+        var start = parseInt(date.slice(5, 7), 10) >= startMonth ? year : year - 1;
+        return String(start).slice(2) + String(start + 1).slice(2);
+    }
+
+    function suggestNumber(input, date) {
+        var sequences = JSON.parse(input.getAttribute('data-sequences') || '{}');
+        var code = schoolYearCode(date);
+        var next = String((sequences[code] || 0) + 1);
+        while (next.length < 3) next = '0' + next;
+        return date.slice(5, 7) + '-' + date.slice(8, 10) + '-' + date.slice(2, 4) + ' (' + code + '-' + next + ')';
+    }
+
+    // ---- Folder suggestion: the longest folder name found in the title ----
+    function suggestFolder(fieldset) {
+        var select = fieldset.querySelector('[data-folder-select]');
+        var titleField = fieldset.querySelector('[data-title-field]');
+        if (!select || !titleField || select.getAttribute('data-touched') === '1') return;
+
+        var needle = titleField.value.toLowerCase();
+        if (!needle) return;
+
+        var best = null;
+        Object.keys(folderNames).forEach(function (id) {
+            var name = folderNames[id];
+            if (needle.indexOf(name.toLowerCase()) !== -1 && (!best || name.length > folderNames[best].length)) {
+                best = id;
+            }
+        });
+        if (best) select.value = best;
+    }
+
+    // ---- Pasting a whole drafted resolution into a clause box ----
+    var LEADS = {
+        whereas: /^WHEREAS\b[,:;]?\s*/i,
+        resolved: /^(NOW,?\s+THEREFORE,?\s+BE\s+IT\s+)?RESOLVED(\s+(FURTHER|FINALLY))?\b[,:;]?\s*/i
+    };
+
+    function pasteClauses(area, text) {
+        var parts = text.split(/\r?\n\s*\r?\n|\r?\n(?=\s*(?:WHEREAS|WHEREFORE|RESOLVED|NOW,?\s+THEREFORE)\b)/i)
+            .map(function (part) { return part.replace(/\s*\r?\n\s*/g, ' ').trim(); })
+            .filter(Boolean);
+        if (parts.length < 2) return false;
+
+        var fieldset = area.closest('fieldset');
+        var p = 'tpl' + fieldset.getAttribute('data-template-form') + '-';
+        var row = area.closest('[data-row]');
+        var kind = area.closest('[data-clause-list]').getAttribute('data-clause-list');
+        var first = true;
+
+        parts.forEach(function (part) {
+            var target = kind;
+            if (LEADS.resolved.test(part)) target = 'resolved';
+            else if (LEADS.whereas.test(part)) target = 'whereas';
+            else if (/^WHEREFORE\b/i.test(part)) {
+                // "WHEREFORE, upon the motion of X and unanimously seconded by ..., be it;"
+                var m = part.match(/upon the motion of\s+(.+)\s+and\s+((?:\w+\s+)?seconded.*?)(?:,?\s*be it;?)?$/i);
+                if (m) {
+                    fieldset.querySelector('[data-moved-by]').value = m[1].replace(/,$/, '');
+                    fieldset.querySelector('[data-seconded]').value = m[2];
+                    return;
+                }
+            }
+            var clause = part.replace(LEADS[target], '');
+
+            if (first && target === kind) {
+                area.value = (area.value.trim() ? area.value.trim() + ' ' : '') + clause;
+                first = false;
+                return;
+            }
+            var list = document.getElementById(p + target + 'List');
+            var empty = Array.prototype.find.call(list.querySelectorAll('textarea'), function (t) { return !t.value.trim() && t !== area; });
+            var box = empty || addRow(p + target, target === kind ? row : null).querySelector('textarea');
+            box.value = clause;
+            if (target === kind) row = box.closest('[data-row]');
+        });
+
+        fitAll(fieldset);
+        return true;
+    }
+
+    form.addEventListener('paste', function (e) {
+        var area = e.target.closest('[data-clause-list] textarea');
+        if (!area) return;
+        var text = (e.clipboardData || window.clipboardData).getData('text');
+        if (pasteClauses(area, text)) {
+            e.preventDefault();
+            refreshPreview();
+        }
+    });
+
+    form.addEventListener('click', function (e) {
+        var tab = e.target.closest('.tpl-tab');
+        if (tab) {
+            form.querySelectorAll('.tpl-tab').forEach(function (b) { b.setAttribute('aria-pressed', b === tab ? 'true' : 'false'); });
+            templateIdInput.value = tab.getAttribute('data-template-id');
+            form.querySelectorAll('[data-template-form]').forEach(function (fs) {
+                var on = fs.getAttribute('data-template-form') === templateIdInput.value;
+                fs.disabled = !on;
+                fs.hidden = !on;
+            });
+            fitAll(activeFieldset());
+            refreshPreview();
+            return;
+        }
+
+        var add = e.target.closest('[data-add-row]');
+        if (add) {
+            var newRow = addRow(add.getAttribute('data-add-row'));
+            var first = newRow.querySelector('input, textarea');
+            if (first) first.focus();
+            refreshPreview();
+            return;
+        }
+
+        var remove = e.target.closest('[data-remove-row]');
+        if (remove) {
+            var row = remove.closest('[data-row]');
+            var rows = row.parentNode;
+            var kind = rows.id.replace(/List$/, '');
+            row.remove();
+            renumber(rows);
+            var addButton = form.querySelector('[data-add-row="' + kind + '"]');
+            if (addButton) addButton.focus();
+            refreshPreview();
+        }
+    });
+
+    form.addEventListener('input', function (e) {
+        var el = e.target;
+        if (el.matches('textarea.cell-text')) fit(el);
+        if (el.matches('[data-res-number]')) el.setAttribute('data-typed', el.value.trim() ? '1' : '0');
+        if (el.matches('[data-adopted-on]') && el.value) {
+            var number = el.closest('fieldset').querySelector('[data-res-number]');
+            if (number && number.getAttribute('data-typed') !== '1') number.value = suggestNumber(number, el.value);
+        }
+        if (el.matches('[data-title-field]')) suggestFolder(el.closest('fieldset'));
+        if (el.name && el.name.indexOf('fields[') === 0) refreshPreview();
+    });
+
+    form.addEventListener('change', function (e) {
+        if (e.target.matches('[data-folder-select]')) e.target.setAttribute('data-touched', '1');
+        if (e.target.matches('input[type="checkbox"], input[type="date"]')) refreshPreview();
+    });
+
+    // The page is shown only after the loading skeleton (Admin/partials/theme),
+    // so the boxes are measured once the form actually has a size.
+    var measured = false;
+    new ResizeObserver(function (entries) {
+        if (!measured && entries[0].contentRect.height > 0) {
+            measured = true;
+            fitAll(activeFieldset());
+        }
+    }).observe(form);
+})();
 </script>
 
 @endsection

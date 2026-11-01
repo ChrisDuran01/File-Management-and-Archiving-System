@@ -316,8 +316,7 @@
     /* --- layout chrome: spots that hard-coded #fff / light grey --- */
     [data-theme="dark"] body { background: var(--surface); color: var(--text-1); }
     [data-theme="dark"] .header { background-color: var(--card); }
-    [data-theme="dark"] .l-navbar { background: var(--sidebar-bg); }
-    [data-theme="dark"] .nav_logo-icon { background: var(--card); }
+    /* The sidebar's own dark colours live in partials/app-shell/styles. */
 
     [data-theme="dark"] .notif-panel { background: var(--card); border-color: var(--border); }
     [data-theme="dark"] .notif-item { border-bottom-color: var(--border); }
@@ -474,42 +473,8 @@
     [data-theme="dark"] .upload-toast-row .row-top { color: var(--text-1); }
     [data-theme="dark"] .upload-toast-row .row-track { background: var(--nav-hover-bg); }
 
-    /* smooth the theme flip instead of a hard snap */
-    [data-theme] body,
-    [data-theme] .header,
-    [data-theme] .l-navbar,
-    [data-theme] .card-panel,
-    [data-theme] .card { transition: background-color .25s ease, border-color .25s ease, color .25s ease; }
-
-    /* Smooth the flip for everything else too, so nothing pops when the
-       theme switches - per-element transitions above (and any component's
-       own hover/focus transition, which wins on specificity) still apply. */
-    [data-theme] * {
-        transition: background-color .35s ease, border-color .35s ease,
-                    color .35s ease, box-shadow .35s ease, fill .35s ease, stroke .35s ease;
-    }
-
-    /* ===================================================================
-       THEME-FLIP WIPE ANIMATION
-       Drives the diagonal reveal on the View Transitions API snapshot -
-       see partials/theme-toggle.blade.php for the JS that starts it and
-       picks the corner (top-left -> dark, bottom-right -> light).
-       ===================================================================== */
-    ::view-transition-group(root) { animation-duration: .6s; }
-    ::view-transition-old(root),
-    ::view-transition-new(root) {
-        animation: none;
-        mix-blend-mode: normal;
-    }
-    ::view-transition-old(root) { z-index: 1; }
-    ::view-transition-new(root) { z-index: 2; }
-
-    /* While the wipe's "new" snapshot is being captured, freeze every CSS
-       transition so it grabs the settled end colours instead of a half
-       -finished cross-fade; theme-toggle.blade.php lifts this the instant
-       the snapshot is taken. */
-    :root.theme-flip-lock,
-    :root.theme-flip-lock * { transition: none !important; }
+    /* Switching between light and dark is one quick whole-screen fade, no
+       wipe (partials/theme-toggle + partials/app-shell/styles, 2026-10-25). */
 </style>
 
 <script>

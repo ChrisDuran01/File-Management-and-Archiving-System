@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Models\ActivityProposal;
 use App\Models\File;
 use App\Models\Announcement;
 use App\Models\DisplayOfficer;
@@ -89,6 +90,33 @@ class StudentController extends Controller
     }
 
     /**
+     * One approved activity from Activity Proposals on its own page: what
+     * it is for and where its budget goes, per category. Only what the
+     * officers switched on and got approved; never the names, signatures
+     * or signed copy. Not listed by search engines for now (noindex).
+     */
+    public function activity(int $proposal, ?string $slug = null)
+    {
+        $activity = ActivityProposal::with('items')->find($proposal);
+        abort_unless($activity && $activity->isOnStudentPage(), 404);
+
+        if ($slug !== $activity->slug()) {
+            return redirect()->route('student.activity', [$activity->id, $activity->slug()], 301);
+        }
+
+        $siteSettings = SiteSetting::current();
+
+        $response = response()->view('Student.activity', [
+            'activity' => $activity,
+            'siteSettings' => $siteSettings,
+            'seo' => StudentPageSeo::activity($activity, $siteSettings),
+        ]);
+        $response->headers->set('X-Robots-Tag', 'noindex');
+
+        return $response;
+    }
+
+    /**
      * Everything on the student page that's the same for every visitor.
      * Plain values with just the fields the page shows, since this is what
      * StudentPageCache keeps - no storage paths or OCR text.
@@ -148,7 +176,25 @@ class StudentController extends Controller
             ->filter(fn ($branch) => $branch->tiers->isNotEmpty())
             ->values();
 
-        return compact('files', 'docFamilies', 'announcements', 'branches');
+        // Approved activities the officers switched on: the coming ones
+        // first (soonest at the top), then the rest, newest first.
+        $activities = ActivityProposal::onStudentPage()->with('items')->get()
+            ->map(fn (ActivityProposal $p) => (object) [
+                'id' => $p->id,
+                'slug' => $p->slug(),
+                'title' => $p->title,
+                'theme' => $p->theme,
+                'starts_on' => $p->starts_on,
+                'date_label' => $p->dateLabel(),
+                'tag' => $p->studentTag(),
+                'budget' => $p->budgetTotal(),
+            ])
+            ->sortBy(fn ($a) => in_array($a->tag, ['Upcoming', 'Happening now'], true)
+                ? '0'.($a->starts_on?->format('Ymd') ?? '99999999')
+                : '1'.(99999999 - (int) ($a->starts_on?->format('Ymd') ?? 0)))
+            ->values();
+
+        return compact('files', 'docFamilies', 'announcements', 'branches', 'activities');
     }
 
     private function officer(string $name, string $position, ?string $photo): object

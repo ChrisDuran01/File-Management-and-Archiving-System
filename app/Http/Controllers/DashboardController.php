@@ -25,9 +25,6 @@ class DashboardController extends Controller
     /** Failed sign-ins in a week before the dashboard flags them. */
     private const FAILED_SIGNIN_ALERT = 3;
 
-    /** A folder untouched this long (and not archived) is flagged. */
-    private const STALE_FOLDER_DAYS = 90;
-
     /**
      * SuperAdmin dashboard: headline numbers, 30-day activity, what needs
      * attention, backups, recent uploads and activity, storage by file type,
@@ -261,15 +258,6 @@ class DashboardController extends Controller
             ->count();
         if ($copies) {
             $add('info', 'bi-files', $copies, ($copies === 1 ? 'file looks' : 'files look') . ' like a copy of another file', '/reports');
-        }
-
-        $staleCutoff = $now->copy()->subDays(self::STALE_FOLDER_DAYS);
-        $stale = Folder::where('is_archived', false)
-            ->where('created_at', '<', $staleCutoff)
-            ->where(fn ($q) => $q->where('last_accessed_at', '<', $staleCutoff)->orWhereNull('last_accessed_at'))
-            ->count();
-        if ($stale) {
-            $add('info', 'bi-hourglass-split', $stale, Str::plural('folder', $stale) . ' untouched for ' . self::STALE_FOLDER_DAYS . '+ days', '/reports');
         }
 
         return $items;

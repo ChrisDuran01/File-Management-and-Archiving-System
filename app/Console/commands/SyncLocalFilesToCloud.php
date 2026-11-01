@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\File;
+use App\Models\FileVersion;
 use App\Services\CloudFileUploader;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Storage;
@@ -27,6 +28,8 @@ class SyncLocalFilesToCloud extends Command
 
     public function handle(CloudFileUploader $uploader): int
     {
+        $this->syncVersions($uploader);
+
         $files = File::where('storage_type', 'local')->limit(self::MAX_PER_RUN)->get();
 
         if ($files->isEmpty()) {
@@ -57,5 +60,25 @@ class SyncLocalFilesToCloud extends Command
         $this->info("Synced {$synced} of {$files->count()} file(s).");
 
         return self::SUCCESS;
+    }
+
+    /** Older versions of a file (FileVersions) saved while the cloud was unreachable. */
+    private function syncVersions(CloudFileUploader $uploader): void
+    {
+        $versions = FileVersion::where('storage_type', 'local')->whereNotNull('filepath')->limit(self::MAX_PER_RUN)->get();
+
+        foreach ($versions as $version) {
+            if (! $version->local_path || ! Storage::disk('local')->exists($version->local_path)) {
+                $this->warn("   -> skipped {$version->filename} (v{$version->version_no}): local copy is missing");
+                continue;
+            }
+
+            if ($uploader->upload($version->filepath, Storage::disk('local')->path($version->local_path))) {
+                $version->forceFill(['storage_type' => 'both'])->save();
+                $this->info("   -> synced {$version->filename} (v{$version->version_no})");
+            } else {
+                $this->warn("   -> still unreachable: {$version->filename} (v{$version->version_no})");
+            }
+        }
     }
 }

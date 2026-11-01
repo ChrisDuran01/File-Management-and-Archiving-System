@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ActivityProposal;
 use App\Models\Document;
 use App\Models\File;
 use App\Models\Folder;
@@ -9,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * The one place trashed files/folders/documents are removed for real -
+ * The one place trashed files/folders/documents/proposals are removed for real -
  * cloud object, local copy, and database row. Everything else in the app
  * only soft-deletes; this runs from the Trash screen's "Delete permanently"
  * actions and from the scheduled trash:purge-expired command.
@@ -19,10 +20,13 @@ class TrashPurger
     /**
      * Permanently remove a (trashed) file: cloud object, local copy, row.
      * The linked document row (if any) goes with it via the database's
-     * ON DELETE CASCADE, which does fire on a forceDelete.
+     * ON DELETE CASCADE, which does fire on a forceDelete. So do its older
+     * versions' rows, once their bytes are removed here.
      */
     public function purgeFile(File $file): void
     {
+        app(FileVersions::class)->deleteStoredVersions($file);
+
         // A cloud failure never blocks the purge - same policy as the old
         // hard-delete path in FileController.
         if ($file->storage_type !== 'local' && $file->filepath) {
@@ -71,5 +75,15 @@ class TrashPurger
             ->each(fn (File $file) => $this->purgeFile($file));
 
         $folder->forceDelete();
+    }
+
+    /**
+     * Permanently remove a (trashed) activity proposal. Its budget rows go
+     * with it (ON DELETE CASCADE); its signed copy is a file of its own in
+     * the "Activity Proposals" folder and stays.
+     */
+    public function purgeProposal(ActivityProposal $proposal): void
+    {
+        $proposal->forceDelete();
     }
 }

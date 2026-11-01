@@ -11,23 +11,21 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class OfficerController extends Controller
 {
     /**
      * Runs a mutation that could reduce who holds SuperAdmin access
-     * (ending/deleting/re-positioning an officer term) and refuses to let it
+     * (ending or re-positioning an officer term) and refuses to let it
      * through if it would leave literally no one able to log in as
      * SuperAdmin - which would mean no one left who could even add the next
      * batch of officers. Checked by re-counting User::superAdmins() AFTER
      * the change (inside a transaction, rolled back if the count is zero)
-     * rather than predicting in advance, because a naive "is this the last
-     * active Adviser/President term" check gets destroy() wrong: deleting a
-     * user's only officer_terms row doesn't remove their admin access, it
-     * actually grants it via the legacy "no terms at all" fallback rule -
-     * so the only reliable check is what the count actually looks like
-     * after the write.
+     * rather than predicting in advance, since the count also includes
+     * legacy accounts with no officer_terms row at all.
      *
      * @throws RuntimeException with a user-facing message if blocked
      */
@@ -223,29 +221,6 @@ class OfficerController extends Controller
         return back()->with('success', 'Officer reactivated for the new term.');
     }
 
-    // DELETE OFFICER TERM RECORD
-    public function destroy($id)
-    {
-        $term = OfficerTerm::with('user')->findOrFail($id);
-        $officerName = $term->user->name;
-
-        try {
-            $this->guardLastSuperAdmin(function () use ($term) {
-                $term->delete();
-            });
-        } catch (RuntimeException $e) {
-            return back()->with('error', $e->getMessage());
-        }
-
-        ActivityLog::create([
-            'user_name'  => Auth::user()->name,
-            'activity'   => 'Deleted officer record: ' . $officerName,
-            'ip_address' => request()->ip()
-        ]);
-
-        return back()->with('success', 'Officer record deleted.');
-    }
-
     // CREATE FORM
     public function create()
     {
@@ -299,6 +274,49 @@ class OfficerController extends Controller
             'ip_address' => $request->ip()
         ]);
 
-        return back()->with('success', 'Officer updated successfully.');
+        return redirect()->route('officers.index')->with('success', 'Officer updated.');
+    }
+
+    /**
+     * A temporary password for an officer who can't use "Forgot password"
+     * (no access to their email, or a wrong one on the account). Like a new
+     * account's first password, it must be changed at the next login, and
+     * every device still logged in as them is logged out, so the person
+     * who set it can't stay in the account. Your own password is changed
+     * from Profile instead.
+     */
+    public function resetPassword(Request $request, $id)
+    {
+        $term = OfficerTerm::with('user')->findOrFail($id);
+        $user = $term->user;
+
+        if ($user->is(Auth::user())) {
+            return back()->with('error', 'Change your own password from Profile.');
+        }
+
+        if (! $user->isActiveOfficer()) {
+            return back()->with('error', 'Former officers can\'t log in. Reactivate them first.');
+        }
+
+        $request->validate([
+            'password' => ['required', AuthController::passwordPolicy()],
+        ]);
+
+        $user->forceFill([
+            'password'             => Hash::make($request->password),
+            'must_change_password' => true,
+        ])->setRememberToken(Str::random(60));
+        $user->save();
+
+        DB::table('sessions')->where('user_id', $user->id)->delete();
+
+        ActivityLog::create([
+            'user_name'  => Auth::user()->name,
+            'activity'   => 'Reset password for officer: ' . $user->name,
+            'ip_address' => $request->ip(),
+        ]);
+
+        return redirect()->route('officers.edit', $term->id)
+            ->with('success', "Password reset. {$user->name} must choose a new one at their next login.");
     }
 }

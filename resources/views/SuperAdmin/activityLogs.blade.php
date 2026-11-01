@@ -9,11 +9,11 @@
     body { background: var(--surface); font-family: 'Inter', sans-serif; color: var(--text-1); }
 
     /* ── Card ── */
+    /* Not overflow: hidden - the period menus open past the card header. */
     .al-card {
         background: var(--card);
         border: 1px solid var(--border);
         border-radius: var(--radius);
-        overflow: hidden;
         box-shadow: var(--shadow-sm);
     }
 
@@ -21,7 +21,10 @@
     .al-card-header {
         padding: 0.875rem 1.25rem;
         border-bottom: 1px solid var(--border);
+        border-radius: var(--radius) var(--radius) 0 0;
         background: #f9fafb;
+        display: grid;
+        gap: 10px;
     }
     .al-filter-row {
         display: flex;
@@ -29,6 +32,54 @@
         gap: 8px;
         flex-wrap: wrap;
     }
+    .al-filter-row + .al-filter-row { gap: 8px 16px; }
+    .al-filter-field { display: inline-flex; align-items: center; gap: 8px; }
+    .al-select {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 5px 10px;
+        font-size: 14px;
+        font-family: 'Inter', sans-serif;
+        background: var(--card);
+        color: var(--text-1);
+        max-width: 260px;
+    }
+    .al-select:focus { border-color: var(--primary); outline: none; }
+    .al-period-note { margin: 0; font-size: 12px; color: var(--text-3); }
+
+    /* Period: one segmented control, as on Reports. School years and custom
+       dates open small menus, so the row stays short. */
+    .period { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+    .period > * + * { border-left: 1px solid var(--border); }
+    .period > a,
+    .period summary {
+        display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px;
+        font-size: 12px; font-weight: 600; color: var(--text-2); text-decoration: none;
+        white-space: nowrap; cursor: pointer; list-style: none; user-select: none;
+    }
+    .period summary::-webkit-details-marker { display: none; }
+    .period summary i { font-size: 9px; opacity: .7; }
+    .period > a:hover,
+    .period summary:hover { color: var(--text-1); background: var(--surface); }
+    .period > a.on,
+    .period > details.on > summary { background: var(--primary-fill); color: #fff; }
+    .period > :first-child, .period > :first-child > summary { border-radius: 7px 0 0 7px; }
+    .period > :last-child, .period > :last-child > summary { border-radius: 0 7px 7px 0; }
+    .period-menu { position: relative; display: flex; }
+    .period-menu .menu {
+        position: absolute; top: calc(100% + 6px); left: -1px; z-index: 30; min-width: 190px; padding: 6px;
+        border: 1px solid var(--border); border-radius: 10px; background: var(--card); box-shadow: var(--shadow-md);
+    }
+    .period-menu:last-child .menu { left: auto; right: -1px; }
+    .period-menu .menu a {
+        display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 7px 10px;
+        border-radius: 6px; font-size: 13px; color: var(--text-1); text-decoration: none;
+    }
+    .period-menu .menu a:hover { background: var(--surface); }
+    .period-menu .menu a.on { color: var(--primary); font-weight: 600; }
+    .period-menu .menu a small { font-size: 11px; color: var(--text-3); font-weight: 400; }
+    .menu-form { display: grid; gap: 10px; min-width: 230px; }
+    .menu-form label { display: grid; gap: 4px; font-size: 11px; font-weight: 600; color: var(--text-2); }
     .al-filter-label {
         font-size: 12px;
         font-weight: 800;
@@ -47,7 +98,6 @@
         transition: border-color .15s;
     }
     .al-date-input:focus { border-color: var(--primary); }
-    .al-filter-sep { font-size: 12px; color: var(--text-2); }
     .al-filter-btn {
         background: var(--primary-fill);
         border: none;
@@ -77,6 +127,7 @@
         align-items: center;
     }
     .al-clear-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .al-clear-btn[hidden] { display: none; }
 
     /* ── Search ── */
     .al-search-wrap {
@@ -304,6 +355,7 @@
     <div class="al-card">
         <div class="al-card-header">
             <div class="skel" style="width:100%; height:32px; border-radius:6px;"></div>
+            <div class="skel" style="width:60%; height:32px; border-radius:6px;"></div>
         </div>
         <div class="al-search-wrap">
             <div class="skel" style="width:100%; height:34px; border-radius:50px;"></div>
@@ -348,35 +400,100 @@
 {{-- ── Main Card ── --}}
 <div class="al-card">
 
-    {{-- ── Filter Header ── --}}
-    <div class="al-card-header">
+    {{-- ── Filter Header: period (as on Reports), officer, type ── --}}
+    @php
+        // The other filters, carried along when the period changes. The
+        // script keeps the links current as they change without a reload.
+        $kept = array_filter(request()->only(['user', 'type', 'q']), 'filled');
+        $periodUrl = fn (array $choice) => route('activity.logs', $choice + $kept);
+        $syName = fn ($sy) => 'SY ' . str_replace('-', '–', $sy);
+        $currentSy = \App\Support\SchoolYear::current();
+        $day = fn ($date) => $date->format('M j, Y');
+        $periodNote = match (true) {
+            $period === 'all'  => 'All dates',
+            $from && $to       => $from->eq($to) ? $day($from) : $day($from) . ' – ' . $day($to),
+            (bool) $from       => 'From ' . $day($from),
+            default            => 'Up to ' . $day($to),
+        };
+        $officerNames = $logUsers->reject(fn ($name) => str_contains($name, '@'));
+        $typedEmails  = $logUsers->filter(fn ($name) => str_contains($name, '@'));
+    @endphp
+    <div class="al-card-header" id="alFilters" data-period-set="{{ $period === 'all' ? '0' : '1' }}">
+        <div class="al-filter-row">
+            <span class="al-filter-label" id="alPeriodLabel">Period</span>
+            <div class="period" role="group" aria-labelledby="alPeriodLabel">
+                <a href="{{ $periodUrl([]) }}" data-period="" class="{{ $period === 'all' ? 'on' : '' }}" @if($period === 'all') aria-current="true" @endif>All time</a>
+                @foreach (\App\Http\Controllers\SuperAdminController::LOG_PERIODS as $key => $label)
+                    <a href="{{ $periodUrl(['range' => $key]) }}" data-period="range={{ $key }}" class="{{ $period === $key ? 'on' : '' }}" @if($period === $key) aria-current="true" @endif>{{ $label }}</a>
+                @endforeach
+                <details class="period-menu {{ $period === 'sy' ? 'on' : '' }}">
+                    <summary>{{ $period === 'sy' ? $syName(request('sy')) : 'School year' }} <i class="fas fa-chevron-down" aria-hidden="true"></i></summary>
+                    <div class="menu">
+                        @foreach ($schoolYears as $sy)
+                            <a href="{{ $periodUrl(['sy' => $sy]) }}" data-period="sy={{ $sy }}" class="{{ request('sy') === $sy ? 'on' : '' }}" @if(request('sy') === $sy) aria-current="true" @endif>
+                                {{ $syName($sy) }} @if($sy === $currentSy)<small>current</small>@endif
+                            </a>
+                        @endforeach
+                    </div>
+                </details>
+                <details class="period-menu {{ $period === 'custom' ? 'on' : '' }}">
+                    <summary>{{ $period === 'custom' ? $periodNote : 'Custom' }} <i class="fas fa-chevron-down" aria-hidden="true"></i></summary>
+                    <form method="GET" action="{{ route('activity.logs') }}" class="menu menu-form" id="alCustomForm">
+                        @foreach ($kept as $name => $value)
+                            <input type="hidden" name="{{ $name }}" value="{{ $value }}" data-kept>
+                        @endforeach
+                        <label>From <input type="date" class="al-date-input" name="from_date" value="{{ $period === 'custom' ? $from?->format('Y-m-d') : '' }}" max="{{ now()->format('Y-m-d') }}"></label>
+                        <label>To <input type="date" class="al-date-input" name="to_date" value="{{ $period === 'custom' ? $to?->format('Y-m-d') : '' }}" max="{{ now()->format('Y-m-d') }}"></label>
+                        <button type="submit" class="al-filter-btn">Show this period</button>
+                    </form>
+                </details>
+            </div>
+        </div>
+
+        {{-- Officer and Type reload the list in place (the script); the
+             form is for Enter in the search box and for no JavaScript. --}}
         <form method="GET" action="{{ route('activity.logs') }}" class="al-filter-row" id="alFilterForm">
-            <span class="al-filter-label" id="alDateRangeLabel">Date range</span>
+            @foreach (array_filter(request()->only(['range', 'sy', 'from_date', 'to_date']), 'filled') as $name => $value)
+                <input type="hidden" name="{{ $name }}" value="{{ $value }}">
+            @endforeach
 
-            <input type="date"
-                   class="al-date-input"
-                   name="from_date"
-                   aria-label="From date"
-                   value="{{ request('from_date') }}">
+            <span class="al-filter-field">
+                <label class="al-filter-label" for="alUser">Officer</label>
+                <select class="al-select" id="alUser" name="user">
+                    <option value="">All officers</option>
+                    @if ($officerNames->isNotEmpty())
+                        <optgroup label="Officers">
+                            @foreach ($officerNames as $name)
+                                <option value="{{ $name }}" @selected(request('user') === $name)>{{ $name }}</option>
+                            @endforeach
+                        </optgroup>
+                    @endif
+                    @if ($typedEmails->isNotEmpty())
+                        <optgroup label="Emails typed at sign-in">
+                            @foreach ($typedEmails as $name)
+                                <option value="{{ $name }}" @selected(request('user') === $name)>{{ $name }}</option>
+                            @endforeach
+                        </optgroup>
+                    @endif
+                </select>
+            </span>
 
-            <span class="al-filter-sep" aria-hidden="true">—</span>
+            <span class="al-filter-field">
+                <label class="al-filter-label" for="alType">Type</label>
+                <select class="al-select" id="alType" name="type">
+                    <option value="">All types</option>
+                    @foreach ($types as $key => $label)
+                        <option value="{{ $key }}" @selected(request('type') === $key)>{{ $label }}</option>
+                    @endforeach
+                </select>
+            </span>
 
-            <input type="date"
-                   class="al-date-input"
-                   name="to_date"
-                   aria-label="To date"
-                   value="{{ request('to_date') }}">
+            <noscript><button type="submit" class="al-filter-btn">Apply filters</button></noscript>
 
-            <button type="submit" class="al-filter-btn">
-                <i class="fas fa-filter me-1" aria-hidden="true"></i> Apply filters
-            </button>
-
-            @if(request('from_date') || request('to_date'))
-                <a href="{{ route('activity.logs') }}" class="al-clear-btn">
-                    Clear filters
-                </a>
-            @endif
+            <a href="{{ route('activity.logs') }}" class="al-clear-btn" id="alClear" @if($period === 'all' && ! $kept) hidden @endif>Clear filters</a>
         </form>
+
+        <p class="al-period-note">{{ $periodNote }}</p>
     </div>
 
     {{-- ── Search ── --}}
@@ -443,10 +560,23 @@
 </button>
 
 <script>
+// Period menus: one open at a time; a click elsewhere or Escape closes them.
+(function () {
+    const menus = Array.from(document.querySelectorAll('.period-menu'));
+    menus.forEach(menu => menu.addEventListener('toggle', () => {
+        if (menu.open) menus.forEach(other => { if (other !== menu) other.open = false; });
+    }));
+    document.addEventListener('click', e => menus.forEach(menu => { if (menu.open && ! menu.contains(e.target)) menu.open = false; }));
+    document.addEventListener('keydown', e => {
+        if (e.key !== 'Escape') return;
+        menus.filter(menu => menu.open).forEach(menu => { menu.open = false; menu.querySelector('summary').focus(); });
+    });
+})();
+
 // Infinite scroll for Activity Logs: the next 50 older entries load as the
 // end of the list comes near. "Load more" is the same action for keyboards
-// and for a retry after a failed load. Search runs on the server (it has to
-// reach entries not loaded yet) and starts the list over.
+// and for a retry after a failed load. Search, Officer and Type run on the
+// server (they have to reach entries not loaded yet) and start the list over.
 (function () {
     const url      = @json(route('activity.logs'));
     const list     = document.getElementById('alList');
@@ -455,19 +585,52 @@
     const more     = document.getElementById('alMore');
     const search   = document.getElementById('searchInput');
     const top      = document.getElementById('alTop');
+    const filters  = document.getElementById('alFilters');
+    const user     = document.getElementById('alUser');
+    const type     = document.getElementById('alType');
+    const clear    = document.getElementById('alClear');
+    const custom   = document.getElementById('alCustomForm');
 
     let next    = list.dataset.next;
     let hasMore = list.dataset.hasMore === '1';
     let busy    = false;
     let request = 0; // a newer search makes older replies stale
 
+    // The filters set on the page right now, apart from the period.
+    function picked() {
+        const values = { user: user.value, type: type.value, q: search.value.trim() };
+        Object.keys(values).forEach(key => { if (! values[key]) delete values[key]; });
+        return values;
+    }
+
     function query(extra) {
-        const params = new URLSearchParams(window.location.search); // keeps the date range
-        params.delete('before');
-        params.delete('q');
-        if (search.value.trim()) params.set('q', search.value.trim());
-        Object.entries(extra).forEach(([key, value]) => params.set(key, value));
+        const params = new URLSearchParams(window.location.search); // keeps the period
+        ['before', 'q', 'user', 'type'].forEach(key => params.delete(key));
+        Object.entries(Object.assign(picked(), extra)).forEach(([key, value]) => params.set(key, value));
         return params;
+    }
+
+    // The period links and the Custom form carry the other filters along.
+    function syncFilters() {
+        const kept = picked();
+        filters.querySelectorAll('a[data-period]').forEach(link => {
+            const params = new URLSearchParams(link.dataset.period);
+            Object.entries(kept).forEach(([key, value]) => params.set(key, value));
+            link.href = url + (params.toString() ? '?' + params : '');
+        });
+        custom.querySelectorAll('[data-kept]').forEach(input => input.remove());
+        Object.entries(kept).forEach(([key, value]) => {
+            const input = Object.assign(document.createElement('input'), { type: 'hidden', name: key, value: value });
+            input.dataset.kept = '';
+            custom.prepend(input);
+        });
+        clear.hidden = filters.dataset.periodSet !== '1' && Object.keys(kept).length === 0;
+    }
+
+    function refilter() {
+        history.replaceState(null, '', '?' + query({}));
+        syncFilters();
+        load(true);
     }
 
     function plural(n, word) {
@@ -526,25 +689,26 @@
         }
     }
 
+    // Measured against whatever scrolls the page (window.appScroll in the
+    // layout), so the next rows still load 600px before they are reached.
     new IntersectionObserver(entries => {
         if (entries.some(entry => entry.isIntersecting)) load(false);
-    }, { rootMargin: '600px 0px' }).observe(sentinel);
+    }, { root: window.appScroll ? appScroll.panel() : null, rootMargin: '600px 0px' }).observe(sentinel);
 
     more.addEventListener('click', () => load(false));
 
     let typing;
     search.addEventListener('input', () => {
         clearTimeout(typing);
-        typing = setTimeout(() => {
-            history.replaceState(null, '', '?' + query({}));
-            load(true);
-        }, 300);
+        typing = setTimeout(refilter, 300);
     });
+    user.addEventListener('change', refilter);
+    type.addEventListener('change', refilter);
 
-    window.addEventListener('scroll', () => {
-        top.hidden = window.scrollY < 800;
-    }, { passive: true });
-    top.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+    appScroll.on(() => {
+        top.hidden = appScroll.y() < 800;
+    });
+    top.addEventListener('click', () => appScroll.toTop());
 
     fillScreen();
 })();

@@ -2,6 +2,7 @@
 namespace App\Models;
 
 use App\Models\File;
+use App\Support\SchoolYear;
 use App\Support\StudentPageCache;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -23,9 +24,10 @@ class Folder extends Model
     private static ?WeakMap $superAdminAnswers = null;
     private static ?WeakMap $grantedFolderIds = null;
 
-    protected $fillable = ['name', 'school_year', 'is_archived', 'is_restricted', 'created_by', 'officer_term_id', 'last_accessed_at'];
+    protected $fillable = ['name', 'school_year', 'is_archived', 'is_restricted', 'created_by', 'officer_term_id', 'last_accessed_at', 'added_later_at', 'added_later_by'];
 
     protected $casts = [
+        'added_later_at' => 'datetime',
         'last_accessed_at' => 'datetime',
         'is_restricted' => 'boolean',
     ];
@@ -33,6 +35,74 @@ class Folder extends Model
     public function file()
     {
         return $this->hasMany(File::class);
+    }
+
+    /** Who added this folder to a past school year after that year was over. */
+    public function addedLaterBy()
+    {
+        return $this->belongsTo(User::class, 'added_later_by');
+    }
+
+    /** Same rule as File::isLockedFor(): only added-later folders, only the Super Admin. */
+    public function isLockedFor(User $user): bool
+    {
+        return $this->is_archived && ! ($this->added_later_at && self::isSuperAdmin($user));
+    }
+
+    /** How many school years back old records may still be added (the SG's choice, 2026-10-25). */
+    public const PAST_YEARS_OPEN = 5;
+
+    /**
+     * The school years old records may be added to, newest first: the five
+     * before the current one. The window moves every school year, so a year
+     * closes for good once it falls out of it.
+     *
+     * @return string[]
+     */
+    public static function pastYearsOpen(): array
+    {
+        $years = [];
+        for ($year = SchoolYear::previous(SchoolYear::current()), $i = 0; $i < self::PAST_YEARS_OPEN; $i++, $year = SchoolYear::previous($year)) {
+            $years[] = $year;
+        }
+
+        return $years;
+    }
+
+    /**
+     * Whether old records may be added to this school year: one of the
+     * five before the current one, or the current one when its term was
+     * already ended (stored away before the school year is over).
+     */
+    public static function canAddToPastYear(?string $schoolYear): bool
+    {
+        if (! SchoolYear::isValid($schoolYear)) {
+            return false;
+        }
+
+        return in_array($schoolYear, self::pastYearsOpen(), true)
+            || ($schoolYear === SchoolYear::current()
+                && self::where('is_archived', true)->where('school_year', $schoolYear)->exists());
+    }
+
+    /**
+     * $name, or "$name (1)", "$name (2)"... until no other folder on the
+     * same page has it: the current folders, or one past school year.
+     */
+    public static function uniqueName(string $name, ?string $pastSchoolYear = null): string
+    {
+        $taken = fn (string $candidate) => self::where('name', $candidate)
+            ->when($pastSchoolYear,
+                fn ($q) => $q->where('is_archived', true)->where('school_year', $pastSchoolYear),
+                fn ($q) => $q->where('is_archived', false))
+            ->exists();
+
+        $unique = $name;
+        for ($n = 1; $taken($unique); $n++) {
+            $unique = $name.' ('.$n.')';
+        }
+
+        return $unique;
     }
 
     public function createdBy()

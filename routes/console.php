@@ -3,9 +3,9 @@
 use Illuminate\Support\Facades\Schedule;
 use App\Services\BackupScheduler;
 
-// Retention policy: move folders stored under a past school year into the
-// ZIP archive once they haven't been opened in a long time
-Schedule::command('folders:archive-stale')->dailyAt('03:00');
+// Retention policy: a school year is archived as a whole a set number of
+// years after it ends (config/archive.php) - see SchoolYearArchiver.
+Schedule::command('archives:school-years')->dailyAt('03:00');
 
 // Retry files whose cloud upload failed at the time (Supabase has shown
 // repeated intermittent timeouts - see storage/logs/laravel.log) and were

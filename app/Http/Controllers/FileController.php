@@ -12,10 +12,12 @@ use App\Notifications\FileUploadedToYourFolder;
 use App\Services\CloudFileUploader;
 use App\Services\DuplicateDetector;
 use App\Services\FileResponse;
+use App\Services\TrashPurger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 
 class FileController extends Controller
@@ -25,9 +27,10 @@ class FileController extends Controller
      * Laravel's `mimes` rule doesn't trust the client-supplied extension - it
      * sniffs the file's actual content (magic bytes via fileinfo) and only
      * passes if the real content matches one of these types, so a script
-     * renamed to look like a document still gets rejected.
+     * renamed to look like a document still gets rejected. Also the types a
+     * new version may be (FileVersionController).
      */
-    private const ALLOWED_MIMES = 'pdf,doc,docx,xls,xlsx,ppt,pptx,jpg,jpeg,png,gif,webp';
+    public const ALLOWED_MIMES = 'pdf,doc,docx,xls,xlsx,ppt,pptx,jpg,jpeg,png,gif,webp';
 
     /**
      * Handle file upload
@@ -57,8 +60,17 @@ class FileController extends Controller
             return $reply('error', 'No file selected', 422);
         }
 
-        // Folders stored under a past school year are read-only
-        if ($request->folder_id && Folder::find($request->folder_id)?->is_archived) {
+        $folder = $request->folder_id ? Folder::find($request->folder_id) : null;
+
+        if ($folder && ! $folder->isAccessibleBy(Auth::user())) {
+            return $reply('error', 'This folder is restricted — you don\'t have access to it.', 403);
+        }
+
+        // A past school year's folder takes old records brought in later;
+        // they get that year, are read-only like the rest of it, and keep
+        // who added them. Its own records are never changed.
+        $pastYear = $folder?->is_archived ? $folder->school_year : null;
+        if ($folder?->is_archived && ! Folder::canAddToPastYear($pastYear)) {
             return $reply('error', 'This folder is stored under a past school year and is read-only.', 422);
         }
 
@@ -120,7 +132,8 @@ class FileController extends Controller
         $localOnlyNames = [];
         $now            = now();
         $term           = OfficerTerm::activeFor(Auth::id());
-        $pendingApproval = $request->boolean('pending_approval');
+        // A past year's record is not waiting for anyone's approval.
+        $pendingApproval = $pastYear ? false : $request->boolean('pending_approval');
 
         foreach ($prepared as $item) {
             $uploadedToCloud = $uploader->upload($item['filePath'], $item['fullPath']);
@@ -137,7 +150,10 @@ class FileController extends Controller
                 'size'            => $item['size'],
                 'storage_type'    => $uploadedToCloud ? 'both' : 'local',
                 'officer_term_id' => $term?->id,
-                'school_year'     => $term?->school_year,
+                'school_year'     => $pastYear ?? $term?->school_year,
+                'is_archived'     => $pastYear !== null,
+                'added_later_at'  => $pastYear ? $now : null,
+                'added_later_by'  => $pastYear ? Auth::id() : null,
                 'is_pending_approval' => $pendingApproval,
                 'content_hash'    => $item['hash'],
                 'created_at'      => $now,
@@ -149,6 +165,7 @@ class FileController extends Controller
         // STEP 3: BULK INSERT + ONE ACTIVITY LOG FOR THE WHOLE BATCH
         // =============================
         $copies = [];
+        $cancel = [];
 
         if ($rows) {
             File::insert($rows);
@@ -160,6 +177,14 @@ class FileController extends Controller
             $newFiles = File::whereIn('filename', collect($rows)->pluck('filename'))
                 ->where('created_at', $now)
                 ->get();
+
+            // Cancel in the upload toast, pressed while this server was
+            // already saving the file: the toast uses this to take it back
+            // (cancelUpload).
+            $cancel = ['cancel_url' => URL::temporarySignedRoute('files.cancelUpload', now()->addMinutes(15), [
+                'ids' => $newFiles->pluck('id')->implode(','),
+                'by'  => Auth::id(),
+            ])];
 
             // Exact copies are known now, from the bytes; copies with the
             // same text are found once OCR has read them (ExtractFileOcrText).
@@ -173,7 +198,8 @@ class FileController extends Controller
 
             ActivityLog::create([
                 'user_name'  => Auth::user()->name,
-                'activity'   => 'Uploaded ' . count($rows) . ' file(s)' . ($pendingApproval ? ' (subject for approval)' : '') . ': ' . collect($rows)->pluck('filename')->implode(', '),
+                'activity'   => 'Uploaded ' . count($rows) . ' file(s)' . ($pendingApproval ? ' (subject for approval)' : '')
+                    . ($pastYear ? ' to past school year ' . $pastYear : '') . ': ' . collect($rows)->pluck('filename')->implode(', '),
                 'ip_address' => $request->ip(),
             ]);
 
@@ -193,11 +219,41 @@ class FileController extends Controller
                 . ' saved locally instead - still fully usable, and will sync to the cloud automatically'
                 . ' once the connection recovers: ' . implode(', ', $localOnlyNames) . $copyNote,
                 200,
-                ['cloudPending' => true, 'copies' => $copies]
+                ['cloudPending' => true, 'copies' => $copies] + $cancel
             );
         }
 
-        return $reply('success', 'Files uploaded successfully!' . $copyNote, 200, $copies ? ['copies' => $copies] : []);
+        return $reply('success', 'Files uploaded successfully!' . $copyNote, 200, ($copies ? ['copies' => $copies] : []) + $cancel);
+    }
+
+    /**
+     * Takes back an upload that was cancelled after the file had already
+     * reached this server: on a fast connection the browser sends a file in
+     * a moment, and most of the progress bar is this server saving it to the
+     * cloud, which carries on even when the browser stops waiting. The link
+     * comes signed in that upload's own reply (store), for the same officer
+     * and for 15 minutes, so it can only remove the files that upload made -
+     * for good, cloud copy included, since nobody meant to keep them.
+     */
+    public function cancelUpload(Request $request, TrashPurger $purger)
+    {
+        abort_unless((int) $request->query('by') === Auth::id(), 403);
+
+        $files = File::whereIn('id', explode(',', (string) $request->query('ids')))->get();
+
+        foreach ($files as $file) {
+            $purger->purgeFile($file);
+        }
+
+        if ($files->isNotEmpty()) {
+            ActivityLog::create([
+                'user_name'  => Auth::user()->name,
+                'activity'   => 'Cancelled upload of ' . $files->count() . ' file(s): ' . $files->pluck('filename')->implode(', '),
+                'ip_address' => $request->ip(),
+            ]);
+        }
+
+        return response()->json(['removed' => $files->count()]);
     }
 
     /**
@@ -491,7 +547,8 @@ public function destroy($id)
         abort(403, 'This file is in a restricted folder you don\'t have access to.');
     }
 
-    if ($file->is_archived) {
+    // Past-year records stay; only one added later can be removed, by the Super Admin.
+    if ($file->isLockedFor(Auth::user())) {
         return back()->with('error', 'This file is stored under a past school year and cannot be modified.');
     }
 
@@ -520,7 +577,7 @@ public function rename(Request $request, $id)
         abort(403, 'This file is in a restricted folder you don\'t have access to.');
     }
 
-    if ($file->is_archived) {
+    if ($file->isLockedFor(Auth::user())) {
         return back()->with('error', 'This file is stored under a past school year and cannot be modified.');
     }
 

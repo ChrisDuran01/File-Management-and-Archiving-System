@@ -18,6 +18,7 @@ class File extends Model
     'size',
     'folder_id',
     'generated_from_template_id',
+    'template_fields',
     'school_year',
     'is_archived',
     'officer_term_id',
@@ -27,19 +28,70 @@ class File extends Model
     'ocr_processed_at',
     'is_pending_approval',
     'content_hash',
+    'added_later_at',
+    'added_later_by',
 ];
 
     protected $casts = [
+        'added_later_at' => 'datetime',
         'last_accessed_at' => 'datetime',
         'ocr_processed_at' => 'datetime',
         'is_pending_approval' => 'boolean',
         'text_terms' => 'array',
+        'template_fields' => 'array',
         'duplicate_dismissed_at' => 'datetime',
+        'version_no' => 'integer',
+        'final_version_no' => 'integer',
+        'version_at' => 'datetime',
+        'final_at' => 'datetime',
     ];
 
     public function folder()
     {
         return $this->belongsTo(Folder::class);
+    }
+
+    /**
+     * The versions before the current one, newest first (App\Services\
+     * FileVersions). The current version is this row itself.
+     */
+    public function versions()
+    {
+        return $this->hasMany(FileVersion::class)->orderByDesc('version_no');
+    }
+
+    /** Who uploaded the current version; null for a file's first upload made before versions existed. */
+    public function versionBy()
+    {
+        return $this->belongsTo(User::class, 'version_by');
+    }
+
+    public function finalBy()
+    {
+        return $this->belongsTo(User::class, 'final_by');
+    }
+
+    /** The version shown is the one an officer marked final. */
+    public function isFinal(): bool
+    {
+        return $this->final_version_no !== null && $this->final_version_no === $this->version_no;
+    }
+
+    /** Who added this file to a past school year after that year was over. */
+    public function addedLaterBy()
+    {
+        return $this->belongsTo(User::class, 'added_later_by');
+    }
+
+    /**
+     * Past school years are read-only. The one exception: a file brought
+     * into a past year later on may still be renamed or moved to Trash by
+     * the Super Admin, to fix a mistake. Records made during their own
+     * school year stay locked for everyone.
+     */
+    public function isLockedFor(User $user): bool
+    {
+        return $this->is_archived && ! ($this->added_later_at && Folder::isSuperAdmin($user));
     }
 
     /**
@@ -50,6 +102,26 @@ class File extends Model
     public function duplicateOf()
     {
         return $this->belongsTo(File::class, 'duplicate_of_id');
+    }
+
+    /**
+     * Flagged as alike an older file by its text, not the very same bytes,
+     * and saved after that file's current version: most likely a fixed
+     * draft saved under another name, which can become that file's next
+     * version (FileVersions::merge()). More than a minute after, like
+     * DuplicateDetector::isCopyOf(): files uploaded together in one batch
+     * (a Word file and its PDF) are not drafts of each other.
+     */
+    public function isNewerDraft(): bool
+    {
+        $original = $this->duplicateOf;
+        $since = $original ? ($original->version_at ?? $original->created_at) : null;
+
+        return $original
+            && ! $this->duplicate_dismissed_at
+            && $this->duplicate_similarity !== null && $this->duplicate_similarity < 100
+            && $this->created_at && $since
+            && $this->created_at->gt($since->copy()->addMinute());
     }
 
     /** Files flagged as a copy that no officer has answered "keep both" for. */

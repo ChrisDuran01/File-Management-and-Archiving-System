@@ -302,10 +302,15 @@
     var fabMain  = document.querySelector('.fab-container .fab-main'),
         hbPanel  = document.getElementById('hbPanel');
 
-    var lastY = window.scrollY, ticking = false;
+    // The page panel scrolls on laptops, the window on phones (window.appScroll in the layout).
+    var scroller = window.appScroll || {
+        y: function () { return window.scrollY; },
+        on: function (fn) { window.addEventListener('scroll', fn, { passive: true }); }
+    };
+    var lastY = scroller.y(), ticking = false;
 
     function update() {
-        var y = window.scrollY,
+        var y = scroller.y(),
             delta = y - lastY,
             chatOpen = hbPanel && hbPanel.classList.contains('hb-open'),
             fabOpen  = fabMain && fabMain.classList.contains('open');
@@ -324,12 +329,12 @@
         ticking = false;
     }
 
-    window.addEventListener('scroll', function () {
+    scroller.on(function () {
         if (!ticking) {
             requestAnimationFrame(update);
             ticking = true;
         }
-    }, { passive: true });
+    });
 })();
 </script>
 @endif

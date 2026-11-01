@@ -61,6 +61,17 @@
     .lh-actions .danger:hover { background: #fdecea; border-color: #f3c1bc; color: #b3261e; }
     .lh-actions .edit:hover { background: var(--primary-dim); border-color: var(--primary); color: var(--primary); }
 
+    .lh-actions { flex-wrap: wrap; justify-content: flex-end; max-width: 330px; }
+    .lh-actions form { margin: 0; }
+    .lh-name .chip { margin-left: 6px; vertical-align: middle; }
+    .lh-warning { font-size: .78rem; color: var(--warning); margin-top: 6px; }
+    .lh-notice {
+        border: 1px solid var(--border); border-left: 4px solid var(--warning); background: var(--card);
+        border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 16px; font-size: .86rem;
+    }
+    .lh-hint { font-size: .78rem; color: var(--text-3); margin: 0 0 10px; }
+    .lh-check { display: flex; gap: 8px; align-items: center; font-size: .84rem; color: var(--text-2); margin: 0 0 14px; cursor: pointer; }
+
     .edit-panel { display: none; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); }
     .edit-panel.show { display: block; }
     .empty-row { text-align: center; color: var(--text-3); padding: 24px; font-size: .85rem; }
@@ -128,9 +139,20 @@
 <div class="page-header">
     <div>
         <h1><i class="fas fa-stamp me-2" style="color:var(--primary);font-size:1.1rem;"></i>Letterheads</h1>
-        <p class="sub">The border, logo, seal and footer images printed on generated Resolutions. Any Admin or Officer can add and manage these.</p>
+        <p class="sub">The page design printed around resolutions, request letters and activity proposals. Any Admin or Officer can add and manage these.</p>
     </div>
 </div>
+
+@if (! $default && $letterheads->isNotEmpty())
+    <div class="lh-notice">
+        No default letterhead yet, so every new document starts without one. Pick the SG's current one and press <b>Set as default</b>.
+    </div>
+@elseif ($default && $default->isFromPastSchoolYear())
+    <div class="lh-notice">
+        The default letterhead, <b>{{ $default->name }}</b>, is for SY {{ $default->school_year }}; this is SY {{ $currentYear }}.
+        Press <b>Copy</b> on it to start this year's, upload the new design, then set the new one as the default.
+    </div>
+@endif
 
 <div class="card-panel">
     <div class="panel-label"><i class="fas fa-plus"></i> Add a new letterhead</div>
@@ -142,6 +164,17 @@
                 <div class="field-group">
                     <label for="lhNew-name">Letterhead name</label>
                     <input id="lhNew-name" type="text" name="name" class="form-control" placeholder="e.g. SG 2025-2026 Letterhead" required>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="field-group">
+                    <label for="lhNew-school-year">School year</label>
+                    <select id="lhNew-school-year" name="school_year" class="form-control form-select">
+                        <option value="">Not for a particular year</option>
+                        @foreach ($yearOptions as $year)
+                            <option value="{{ $year }}" @selected($year === $currentYear)>{{ $year }}</option>
+                        @endforeach
+                    </select>
                 </div>
             </div>
             <div class="col-md-6">
@@ -166,13 +199,22 @@
 
         <div class="field-group">
             <label id="lhNew-images-label">Images</label>
+            <p class="lh-hint" id="lhNew-page-hint">
+                For a sharp print, open the SG letterhead in Word, set the paper to Long (8.5 × 13 in), choose File, Save as, PDF,
+                and upload that PDF as the <b>Whole page</b>. A screenshot of the letterhead prints blurry.
+            </p>
             <div class="upload-grid" role="group" aria-labelledby="lhNew-images-label">
-                <div><label for="lhNew-border-image" style="font-weight:400;">Border / frame</label><input id="lhNew-border-image" type="file" name="border_image" class="form-control" accept="image/*"></div>
+                <div><label for="lhNew-border-image" style="font-weight:400;">Whole page (PDF or image)</label><input id="lhNew-border-image" type="file" name="border_image" class="form-control" accept="image/*,application/pdf" aria-describedby="lhNew-page-hint"></div>
                 <div><label for="lhNew-logo" style="font-weight:400;">Logo</label><input id="lhNew-logo" type="file" name="logo" class="form-control" accept="image/*"></div>
                 <div><label for="lhNew-seal" style="font-weight:400;">Seal</label><input id="lhNew-seal" type="file" name="seal" class="form-control" accept="image/*"></div>
                 <div><label for="lhNew-footer-image" style="font-weight:400;">Footer badges</label><input id="lhNew-footer-image" type="file" name="footer_image" class="form-control" accept="image/*"></div>
             </div>
         </div>
+
+        <label class="lh-check">
+            <input type="checkbox" name="make_default" value="1" @checked(! $default)>
+            New documents start with this letterhead (default)
+        </label>
 
         <button type="submit" class="btn-primary-flat"><i class="fas fa-save me-1"></i> Save letterhead</button>
     </form>
@@ -185,9 +227,13 @@
         <div class="empty-row">No letterheads yet — add one above.</div>
     @else
         @foreach($letterheads as $lh)
+            @php
+                $warnings = $lh->printWarnings();
+                $open = (int) session('open_letterhead') === $lh->id;
+            @endphp
             <div class="lh-card">
                 <div class="lh-thumbs">
-                    @foreach(['border_image_path' => 'Border', 'logo_path' => 'Logo', 'seal_path' => 'Seal', 'footer_image_path' => 'Footer'] as $col => $label)
+                    @foreach(['border_image_path' => 'Page', 'logo_path' => 'Logo', 'seal_path' => 'Seal', 'footer_image_path' => 'Footer'] as $col => $label)
                         @if($lh->$col)
                             <img loading="lazy" decoding="async" src="{{ asset('storage/'.$lh->$col) }}" class="lh-thumb" title="{{ $label }}" alt="{{ $label }}">
                         @else
@@ -197,20 +243,36 @@
                 </div>
 
                 <div class="lh-info">
-                    <div class="lh-name">{{ $lh->name }}</div>
+                    <div class="lh-name">
+                        {{ $lh->name }}
+                        @if ($lh->is_default)<span class="chip">Default</span>@endif
+                        @if ($lh->school_year)<span class="chip neutral">SY {{ $lh->school_year }}</span>@endif
+                    </div>
                     <div class="lh-meta">
                         {{ $lh->university_name ?: 'No university name set' }}
                         @if($lh->office_name) &middot; {{ $lh->office_name }} @endif
                         @if($lh->address) &middot; {{ $lh->address }} @endif
                     </div>
+                    @foreach ($warnings as $warning)
+                        <div class="lh-warning"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i> {{ $warning }}</div>
+                    @endforeach
 
-                    <div class="edit-panel" id="edit-{{ $lh->id }}">
+                    <div class="edit-panel {{ $open ? 'show' : '' }}" id="edit-{{ $lh->id }}">
                         <form action="{{ route('letterheads.update', $lh->id) }}" method="POST" enctype="multipart/form-data">
                             @csrf @method('PUT')
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="field-group"><label for="lh-name-{{ $lh->id }}">Letterhead name</label>
                                         <input id="lh-name-{{ $lh->id }}" type="text" name="name" class="form-control" value="{{ $lh->name }}" required></div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="field-group"><label for="lh-school-year-{{ $lh->id }}">School year</label>
+                                        <select id="lh-school-year-{{ $lh->id }}" name="school_year" class="form-control form-select">
+                                            <option value="">Not for a particular year</option>
+                                            @foreach ($yearOptions->concat([$lh->school_year])->filter()->unique()->sortDesc() as $year)
+                                                <option value="{{ $year }}" @selected($year === $lh->school_year)>{{ $year }}</option>
+                                            @endforeach
+                                        </select></div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="field-group"><label for="lh-university-name-{{ $lh->id }}">University name</label>
@@ -226,7 +288,7 @@
                                 </div>
                             </div>
                             <div class="upload-grid" style="margin-bottom:14px;">
-                                <div><label for="lh-border-image-{{ $lh->id }}" style="font-weight:400;font-size:.78rem;">Border / frame</label><input id="lh-border-image-{{ $lh->id }}" type="file" name="border_image" class="form-control" accept="image/*"></div>
+                                <div><label for="lh-border-image-{{ $lh->id }}" style="font-weight:400;font-size:.78rem;">Whole page (PDF or image)</label><input id="lh-border-image-{{ $lh->id }}" type="file" name="border_image" class="form-control" accept="image/*,application/pdf"></div>
                                 <div><label for="lh-logo-{{ $lh->id }}" style="font-weight:400;font-size:.78rem;">Logo</label><input id="lh-logo-{{ $lh->id }}" type="file" name="logo" class="form-control" accept="image/*"></div>
                                 <div><label for="lh-seal-{{ $lh->id }}" style="font-weight:400;font-size:.78rem;">Seal</label><input id="lh-seal-{{ $lh->id }}" type="file" name="seal" class="form-control" accept="image/*"></div>
                                 <div><label for="lh-footer-image-{{ $lh->id }}" style="font-weight:400;font-size:.78rem;">Footer badges</label><input id="lh-footer-image-{{ $lh->id }}" type="file" name="footer_image" class="form-control" accept="image/*"></div>
@@ -242,7 +304,17 @@
                     <a href="{{ route('letterheads.preview', $lh->id) }}" target="_blank" class="edit">
                         <i class="fas fa-eye" aria-hidden="true"></i> Preview<span class="sr-only"> {{ $lh->name }} (opens in a new tab)</span>
                     </a>
-                    <button type="button" class="edit" aria-expanded="false" aria-controls="edit-{{ $lh->id }}"
+                    @unless ($lh->is_default)
+                        <form action="{{ route('letterheads.default', $lh->id) }}" method="POST">
+                            @csrf
+                            <button type="submit" class="edit"><i class="fas fa-star" aria-hidden="true"></i> Set as default<span class="sr-only"> {{ $lh->name }}</span></button>
+                        </form>
+                    @endunless
+                    <form action="{{ route('letterheads.copy', $lh->id) }}" method="POST">
+                        @csrf
+                        <button type="submit" class="edit"><i class="fas fa-copy" aria-hidden="true"></i> Copy<span class="sr-only"> {{ $lh->name }}</span></button>
+                    </form>
+                    <button type="button" class="edit" aria-expanded="{{ $open ? 'true' : 'false' }}" aria-controls="edit-{{ $lh->id }}"
                             onclick="this.setAttribute('aria-expanded', document.getElementById('edit-{{ $lh->id }}').classList.toggle('show'))">
                         <i class="fas fa-pen" aria-hidden="true"></i> Edit<span class="sr-only"> {{ $lh->name }}</span>
                     </button>

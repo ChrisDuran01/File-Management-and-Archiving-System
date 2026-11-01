@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\File;
+use App\Models\FileVersion;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -91,7 +92,8 @@ class FileResponse
             : null;
     }
 
-    public static function make(File $file, bool $download = false, array $headers = []): Response
+    /** A file's current bytes, or an older version's (FileVersion has the same storage columns). */
+    public static function make(File|FileVersion $file, bool $download = false, array $headers = []): Response
     {
         $headers = array_merge([
             'Content-Type'           => self::contentTypeFor($file->filename),

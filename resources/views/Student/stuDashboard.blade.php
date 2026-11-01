@@ -39,6 +39,7 @@
 
         <nav class="site-nav" id="site-nav" aria-label="Page sections">
             <a href="#announcements">Announcements <span id="announcementsBadge" class="nav-badge" data-unread-badge hidden></span></a>
+            @if($activities->isNotEmpty())<a href="#activities">Activities</a>@endif
             <a href="#documents">Documents</a>
             @if($branches->isNotEmpty())<a href="#officers">Officers</a>@endif
             @if($hasAbout)<a href="#about">About</a>@endif
@@ -238,6 +239,50 @@
             @endif
         </div>
     </section>
+
+    {{-- ============================ Activities ============================
+         Approved activities from Activity Proposals that the officers chose
+         to show. Each opens its own page with the budget per category. --}}
+    @if($activities->isNotEmpty())
+        <section class="section" id="activities" aria-labelledby="activities-title">
+            <div class="wrap">
+                <div class="sec-head">
+                    <div>
+                        <h2 id="activities-title">Activities</h2>
+                        <p>Open an activity to see what it is for and where its budget goes.</p>
+                    </div>
+                </div>
+
+                <ul class="act-list">
+                    @foreach($activities as $activity)
+                        <li>
+                            <a href="{{ route('student.activity', [$activity->id, $activity->slug]) }}" class="act-card">
+                                <span class="act-date" aria-hidden="true">
+                                    @if($activity->starts_on)
+                                        <b>{{ $activity->starts_on->format('d') }}</b><span>{{ $activity->starts_on->format('M') }}</span>
+                                    @else
+                                        <i class="bi bi-calendar-event"></i>
+                                    @endif
+                                </span>
+                                <span class="act-info">
+                                    <span class="act-name">{{ $activity->title }}</span>
+                                    @if($activity->theme)<span class="act-theme">{{ $activity->theme }}</span>@endif
+                                    <span class="act-meta">
+                                        <span>{{ $activity->date_label }}</span>
+                                        @if($activity->tag)
+                                            <span class="chip {{ ['Done' => 'chip-done', 'Cancelled' => 'chip-off'][$activity->tag] ?? '' }}">{{ $activity->tag }}</span>
+                                        @endif
+                                    </span>
+                                    <span class="act-budget">Budget <b>{{ \App\Models\ActivityProposal::peso($activity->budget) }}</b></span>
+                                </span>
+                                <span class="doc-go" aria-hidden="true"><i class="bi bi-arrow-right"></i></span>
+                            </a>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+        </section>
+    @endif
 
     {{-- ============================ Documents ============================ --}}
     <section class="section section-tint" id="documents" aria-labelledby="documents-title">
@@ -517,17 +562,19 @@
         <span class="tab-label">News</span>
         <span class="nav-badge tab-badge" data-unread-badge hidden></span>
     </a>
+    @if($activities->isNotEmpty())
+        <a href="#activities" data-tab="activities">
+            <span class="tab-icon"><i class="bi bi-calendar-event ico-off" aria-hidden="true"></i><i class="bi bi-calendar-event-fill ico-on" aria-hidden="true"></i></span>
+            <span class="tab-label">Activities</span>
+        </a>
+    @endif
     <a href="#documents" data-tab="documents">
         <span class="tab-icon"><i class="bi bi-file-earmark-text ico-off" aria-hidden="true"></i><i class="bi bi-file-earmark-text-fill ico-on" aria-hidden="true"></i></span>
         <span class="tab-label">Documents</span>
     </a>
-    @if($branches->isNotEmpty())
-        <a href="#officers" data-tab="officers">
-            <span class="tab-icon"><i class="bi bi-people ico-off" aria-hidden="true"></i><i class="bi bi-people-fill ico-on" aria-hidden="true"></i></span>
-            <span class="tab-label">Officers</span>
-        </a>
-    @endif
-    @if($hasAbout)
+    {{-- Officers share the About screen (with vision and mission), so the
+         bar keeps five tabs. --}}
+    @if($branches->isNotEmpty() || $hasAbout)
         <a href="#about" data-tab="about">
             <span class="tab-icon"><i class="bi bi-info-circle ico-off" aria-hidden="true"></i><i class="bi bi-info-circle-fill ico-on" aria-hidden="true"></i></span>
             <span class="tab-label">About</span>
@@ -1172,6 +1219,36 @@
         .filters { margin: -8px -20px 20px; padding: 0 20px 2px; }
     }
 
+    /* ---------------------------- Activities ---------------------------- */
+    .act-list { list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .act-card {
+        height: 100%; display: flex; align-items: center; gap: 18px; padding: 18px 20px;
+        border: 1px solid var(--line); border-radius: 14px; background: #fff; text-decoration: none;
+        transition: border-color .15s, box-shadow .2s, transform .2s;
+    }
+    .act-card:hover { border-color: transparent; box-shadow: var(--shadow-lg); transform: translateY(-3px); }
+    .act-card:hover .doc-go { background: var(--green); color: #fff; }
+    /* Calendar tile with the first day, like the date on announcement covers. */
+    .act-date {
+        flex-shrink: 0; width: 60px; height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+        border-radius: 12px; background: var(--green-soft); line-height: 1.05;
+    }
+    .act-date b { color: var(--green); font-family: var(--head); font-size: 1.4rem; font-weight: 700; }
+    .act-date span { color: var(--muted); font-size: .66rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+    .act-date i { color: var(--green); font-size: 1.4rem; }
+    .act-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+    .act-name { color: var(--ink); font-family: var(--head); font-size: 1.05rem; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+    .act-theme { color: var(--muted); font-size: .9rem; font-style: italic; overflow-wrap: anywhere; }
+    .act-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; color: var(--faint); font-size: .82rem; }
+    .act-budget { color: var(--text); font-size: .88rem; }
+    .act-budget b { color: var(--green); }
+    .chip-done { background: var(--green-soft); color: var(--green); }
+    .chip-off { background: var(--tint-2); color: var(--muted); }
+    @media (max-width: 760px) {
+        .act-list { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+        .act-card { padding: 16px; gap: 14px; }
+    }
+
     /* ----------------------------- Officers ----------------------------- */
     .tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-bottom: 32px; }
     .tab {
@@ -1599,8 +1676,9 @@
     html.is-app body.has-net-bar main { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 72px); }
     html.is-app main > .section { display: none; padding: 24px 0 32px; background: transparent; }
     html.is-app[data-tab="announcements"] #announcements,
+    html.is-app[data-tab="activities"] #activities,
     html.is-app[data-tab="documents"] #documents,
-    html.is-app[data-tab="officers"] #officers,
+    html.is-app[data-tab="about"] #officers,
     html.is-app[data-tab="about"] #about,
     html.is-app[data-tab="contact"] #contact { display: block; animation: screen-in .18s ease-out; }
     @keyframes screen-in { from { opacity: 0; } }
@@ -2285,11 +2363,15 @@
         const appTabs = $$('#tabbar a');
         const screens = appTabs.map(a => a.dataset.tab);
         const HOME = screens[0];
+        // Sections without a tab of their own, and the screen that shows them.
+        const SHOWN_ON = { officers: 'about' };
+        const screenFor = id => SHOWN_ON[id] || id;
         const scrollPos = {};
         let screen = null;
         let awayFromHome = !! (history.state && history.state.sgScreen);
 
         function show(name) {
+            name = screenFor(name);
             if (! screens.includes(name)) name = HOME;
             if (screen) scrollPos[screen] = window.scrollY;
             screen = name;
@@ -2331,7 +2413,7 @@
         document.addEventListener('click', e => {
             const link = e.target.closest('a[href^="#"]');
             if (! link || link.closest('#tabbar')) return;
-            const id = link.getAttribute('href').slice(1);
+            const id = screenFor(link.getAttribute('href').slice(1));
             if (screens.includes(id)) { e.preventDefault(); go(id); }
             else if (id === 'top') { e.preventDefault(); window.scrollTo({ top: 0, behavior: smooth() }); }
         });

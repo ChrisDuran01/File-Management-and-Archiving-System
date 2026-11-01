@@ -177,17 +177,17 @@ test('files inside a restricted archive stay hidden from officers without access
 });
 
 test('restoring an archive hands the text back to the live file', function () {
-    $folder = Folder::create(['name' => 'Meeting Minutes']);
+    $folder = Folder::create(['name' => 'Meeting Minutes', 'school_year' => '2023-2024', 'is_archived' => true]);
     archiveFile($folder, 'minutes-august.pdf', [
         'ocr_text'   => 'The council approved the intramurals budget.',
         'ocr_status' => 'done',
     ]);
 
-    $archive = archiveFolder($folder);
-    $admin   = archiveSuperAdmin();
+    archiveFolder($folder);
+    $admin = archiveSuperAdmin();
 
-    $this->actingAs($admin)->post(route('archives.restore', $archive->id))
-        ->assertSessionHas('success', fn ($message) => str_contains($message, 'added back to main directory'));
+    $this->actingAs($admin)->post(route('archives.restoreSchoolYear', '2023-2024'))
+        ->assertSessionHas('success', fn ($message) => str_contains($message, 'Previous School Years (2023-2024)'));
 
     $restored = File::where('filename', 'minutes-august.pdf')->first();
 
@@ -260,7 +260,7 @@ test('restoring puts the folder back under its school year with its owner and re
 
     expect($archive->school_year)->toBe('2023-2024');
 
-    $this->actingAs(archiveSuperAdmin())->post(route('archives.restore', $archive->id))
+    $this->actingAs(archiveSuperAdmin())->post(route('archives.restoreSchoolYear', '2023-2024'))
         ->assertSessionHas('success', fn ($message) => str_contains($message, 'Previous School Years (2023-2024)'));
 
     $restored = Folder::find($folder->id);
@@ -279,16 +279,17 @@ test('restoring puts the folder back under its school year with its owner and re
         ->and((bool) $file->is_public)->toBeTrue()
         ->and($file->created_at->toDateString())->toBe('2023-09-15');
 
-    // Unopened for four years before it was archived - restoring it must not
-    // leave it for the retention run to sweep straight back into the archive.
-    $this->artisan('folders:archive-stale')->assertSuccessful();
+    // Long past its archive date - restoring it must not leave it for the
+    // retention run to sweep straight back into the archive.
+    config(['archive.retention_years' => 0]);
+    $this->artisan('archives:school-years')->assertSuccessful();
 
     expect(Folder::find($folder->id))->not->toBeNull()
         ->and(Archive::count())->toBe(1);
 });
 
 test('restoring brings a filed document record back', function () {
-    $folder = Folder::create(['name' => 'Incoming Letters']);
+    $folder = Folder::create(['name' => 'Incoming Letters', 'school_year' => '2023-2024', 'is_archived' => true]);
     $file   = archiveFile($folder, 'scan-0042.pdf');
 
     $document = Document::create([
@@ -303,11 +304,11 @@ test('restoring brings a filed document record back', function () {
         'page_count'    => 2,
     ]);
 
-    $archive = archiveFolder($folder);
+    archiveFolder($folder);
 
     expect(Document::withTrashed()->count())->toBe(0);
 
-    $this->actingAs(archiveSuperAdmin())->post(route('archives.restore', $archive->id))
+    $this->actingAs(archiveSuperAdmin())->post(route('archives.restoreSchoolYear', '2023-2024'))
         ->assertSessionHas('success');
 
     $restored = Document::first();
@@ -332,20 +333,69 @@ test('restoring brings a filed document record back', function () {
         ->assertDontSee('Files in Archived Folders');
 });
 
-test('an archive cannot be restored twice', function () {
-    $folder = Folder::create(['name' => 'Meeting Minutes']);
+test('an archive from before file lists were recorded still shows, opens and finds its files', function () {
+    $folder = Folder::create(['name' => 'Spring Minutes', 'school_year' => '2025-2026', 'is_archived' => true]);
+    archiveFile($folder, 'Module2.pdf');
+
+    // As the spring 2026 archives are: no checksums, so no recorded list.
+    $archive = archiveFolder($folder);
+    $archive->update(['file_checksums' => null]);
+    $archive->files()->delete();
+    $admin = archiveSuperAdmin();
+
+    expect($archive->fresh()->filenames())->toBe(['Module2.pdf']);
+
+    $this->actingAs($admin)->get(route('archives.schoolYear', '2025-2026'))->assertOk()->assertSee('1 file');
+    $this->actingAs($admin)->get(route('archives.show', $archive->id))->assertOk()->assertSee('Module2.pdf');
+    $this->actingAs($admin)->get(route('archives.previewFile', ['id' => $archive->id, 'filename' => 'Module2.pdf']))->assertOk();
+    // Found as an archived folder whose contents match, by the file's name.
+    $this->actingAs($admin)->get(route('search', ['query' => 'Module2']))->assertOk()
+        ->assertSee('Spring Minutes')
+        ->assertSee('Module2.pdf');
+});
+
+test('an archived PDF is shown view only: drawn on the page, not in the browser\'s PDF viewer', function () {
+    $folder = Folder::create(['name' => 'Resolution', 'school_year' => '2025-2026', 'is_archived' => true]);
+    archiveFile($folder, 'hha-proposal.pdf');
+    $archive = archiveFolder($folder);
+    $admin = archiveSuperAdmin();
+    $raw = route('archives.streamFile', ['id' => $archive->id, 'filename' => 'hha-proposal.pdf']);
+
+    $this->actingAs($admin)->get(route('archives.previewFile', ['id' => $archive->id, 'filename' => 'hha-proposal.pdf']))
+        ->assertOk()
+        ->assertSee('id="pdfPages"', false)
+        ->assertSee('vendor/officer-app/pdf.min.js', false)
+        ->assertDontSee('<iframe', false);
+
+    // A Word file is drawn on the page the same way.
+    archiveFile($folder2 = Folder::create(['name' => 'Activities', 'school_year' => '2025-2026', 'is_archived' => true]), 'ACTIVITY-5-SAMPLE.docx');
+    $wordArchive = archiveFolder($folder2);
+    $this->actingAs($admin)->get(route('archives.previewFile', ['id' => $wordArchive->id, 'filename' => 'ACTIVITY-5-SAMPLE.docx']))
+        ->assertOk()
+        ->assertSee('id="docxView"', false)
+        ->assertSee('vendor/officer-app/docx-preview.min.js', false)
+        ->assertDontSee('No in-browser preview');
+
+    // Fetched by the page's viewer: fine. Opened on its own in a tab or frame: refused.
+    $this->actingAs($admin)->get($raw, ['Sec-Fetch-Dest' => 'empty'])->assertOk();
+    $this->actingAs($admin)->get($raw, ['Sec-Fetch-Dest' => 'document'])->assertForbidden();
+    $this->actingAs($admin)->get($raw, ['Sec-Fetch-Dest' => 'iframe'])->assertForbidden();
+});
+
+test('a school year cannot be restored twice', function () {
+    $folder = Folder::create(['name' => 'Meeting Minutes', 'school_year' => '2023-2024', 'is_archived' => true]);
     archiveFile($folder, 'minutes-august.pdf');
 
-    $archive = archiveFolder($folder);
-    $admin   = archiveSuperAdmin();
+    archiveFolder($folder);
+    $admin = archiveSuperAdmin();
 
-    $this->actingAs($admin)->post(route('archives.restore', $archive->id))->assertSessionHas('success');
+    $this->actingAs($admin)->post(route('archives.restoreSchoolYear', '2023-2024'))->assertSessionHas('success');
 
     // Trashing the restored folder frees the "folder already exists" check,
     // so only the archive's own restored state is left to stop a second run.
     Folder::first()->moveToTrash();
 
-    $this->actingAs($admin)->post(route('archives.restore', $archive->id))->assertSessionHas('error');
+    $this->actingAs($admin)->post(route('archives.restoreSchoolYear', '2023-2024'))->assertSessionHas('error');
 
     expect(Folder::withTrashed()->count())->toBe(1);
 });
@@ -356,11 +406,13 @@ test('an archive from before folder and file copies were kept still restores wit
     $folder = Folder::create(['name' => 'Old Minutes', 'is_restricted' => true, 'created_by' => $creator->id]);
     archiveFile($folder, 'minutes-2025.pdf');
 
+    // As the 2026-10-30 migration left such archives: filed under the school
+    // year they were archived in.
     $archive = archiveFolder($folder);
-    $archive->update(['folder_record' => null, 'school_year' => null]);
+    $archive->update(['folder_record' => null, 'school_year' => '2025-2026']);
     $archive->files()->delete();
 
-    $this->actingAs(archiveSuperAdmin())->post(route('archives.restore', $archive->id))
+    $this->actingAs(archiveSuperAdmin())->post(route('archives.restoreSchoolYear', '2025-2026'))
         ->assertSessionHas('success');
 
     $restored = Folder::first();
@@ -368,5 +420,7 @@ test('an archive from before folder and file copies were kept still restores wit
     expect($restored->name)->toBe('Old Minutes')
         ->and($restored->is_restricted)->toBeTrue()
         ->and($restored->created_by)->toBe($creator->id)
+        ->and($restored->school_year)->toBe('2025-2026')
+        ->and((bool) $restored->is_archived)->toBeTrue()
         ->and(File::where('folder_id', $restored->id)->pluck('filename')->all())->toBe(['minutes-2025.pdf']);
 });

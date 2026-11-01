@@ -74,12 +74,20 @@ class ScanReviewController extends Controller
             ->filter(fn (Folder $f) => $f->isAccessibleBy(Auth::user()))
             ->values();
 
+        // Old paper records can be filed into the past school years still
+        // open for adding, grouped by year in the folder list.
+        $pastYearFolders = Folder::where('is_archived', true)
+            ->whereIn('school_year', Folder::pastYearsOpen())
+            ->orderByDesc('school_year')->orderBy('name')->get()
+            ->filter(fn (Folder $f) => $f->isAccessibleBy(Auth::user()))
+            ->groupBy('school_year');
+
         $documentTypes = self::DOCUMENT_TYPES;
         $statuses      = self::STATUSES;
         $layout        = Folder::isSuperAdmin(Auth::user()) ? 'SuperAdmin.homeSuperAdmin' : 'Admin.home';
 
         return view('Admin.documents.review', compact(
-            'batch', 'pages', 'segments', 'folders', 'documentTypes', 'statuses', 'layout'
+            'batch', 'pages', 'segments', 'folders', 'pastYearFolders', 'documentTypes', 'statuses', 'layout'
         ));
     }
 
@@ -224,7 +232,10 @@ class ScanReviewController extends Controller
 
         $folder = Folder::findOrFail($data['target_folder_id']);
 
-        if ($folder->is_archived) {
+        // A past school year's folder takes old records while that year is
+        // still open for adding; they get its year and stay read-only.
+        $pastYear = $folder->is_archived ? $folder->school_year : null;
+        if ($folder->is_archived && ! Folder::canAddToPastYear($pastYear)) {
             return $this->fileError($request, 'That folder is stored under a past school year and is read-only.');
         }
 
@@ -297,11 +308,15 @@ class ScanReviewController extends Controller
         $fileIds = [];
         $term    = OfficerTerm::activeFor(Auth::id());
 
-        DB::transaction(function () use ($prepared, $folder, $batch, &$fileIds, $term) {
+        $pastYearFields = $pastYear ? [
+            'school_year' => $pastYear, 'is_archived' => true,
+        ] : [];
+
+        DB::transaction(function () use ($prepared, $folder, $batch, &$fileIds, $term, $pastYear, $pastYearFields) {
             foreach ($prepared as $row) {
                 $seg = $row['seg'];
 
-                $file = File::create([
+                $file = File::create(array_merge([
                     'filename'        => $row['filename'],
                     'filepath'        => $row['filepath'],
                     'local_path'      => $row['local_path'],
@@ -312,9 +327,12 @@ class ScanReviewController extends Controller
                     'ocr_status'      => 'pending',
                     'officer_term_id' => $term?->id,
                     'school_year'     => $term?->school_year,
-                ]);
+                ], $pastYearFields, $pastYear ? [
+                    'added_later_at' => now(),
+                    'added_later_by' => Auth::id(),
+                ] : []));
 
-                Document::create([
+                Document::create($pastYearFields + [
                     'file_id'       => $file->id,
                     'folder_id'     => $folder->id,
                     'scan_batch_id' => $batch->id,
@@ -326,7 +344,7 @@ class ScanReviewController extends Controller
                     'date_received' => $seg['date_received'],
                     'sender'        => $seg['sender'] ?? null,
                     'recipient'     => $seg['recipient'] ?? null,
-                    'status'        => $seg['status'] ?: 'filed',
+                    'status'        => ($seg['status'] ?? null) ?: 'filed',
                     'notes'         => $seg['notes'] ?? null,
                     'page_count'    => $row['page_count'],
                     'start_page'    => $row['start_page'],
@@ -355,12 +373,14 @@ class ScanReviewController extends Controller
         $titles = collect($prepared)->pluck('seg.title')->implode(', ');
         ActivityLog::create([
             'user_name'  => Auth::user()->name,
-            'activity'   => "Filed scan batch #{$batch->id} into \"{$folder->name}\" as " . count($prepared)
+            'activity'   => "Filed scan batch #{$batch->id} into \"{$folder->name}\""
+                . ($pastYear ? " (past school year {$pastYear})" : '') . ' as ' . count($prepared)
                 . ' document(s): ' . $titles,
             'ip_address' => $request->ip(),
         ]);
 
-        $message = count($prepared) . ' document(s) filed into "' . $folder->name . '".';
+        $message = count($prepared) . ' document(s) filed into "' . $folder->name . '"'
+            . ($pastYear ? ' under school year ' . $pastYear : '') . '.';
 
         if ($request->expectsJson()) {
             return response()->json([

@@ -179,12 +179,13 @@
         color: var(--green);
         letter-spacing: .02em;
     }
+    .position-badge.former { background: var(--surface); color: var(--text-2); }
 
     /* ── School year ── */
     .sy-badge {
         font-size: 12px;
         font-family: 'DM Mono', monospace;
-        background: #f9fafb;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: 4px;
         padding: 2px 7px;
@@ -244,12 +245,6 @@
         border-color: #b8e8da;
     }
     .tbl-btn.reactivate:hover { background: #c9eedf; }
-    .tbl-btn.delete {
-        background: var(--amber-dim);
-        color: var(--amber);
-        border-color: var(--border);
-    }
-    .tbl-btn.delete:hover { background: var(--red-dim); color: var(--red); border-color: #f5c6c6; }
 
     /* ── Empty state ── */
     .al-empty {
@@ -371,8 +366,7 @@
     [data-theme="dark"] .tbl-btn.end-term { border-color: #7f2a2a; }
     [data-theme="dark"] .tbl-btn.edit:hover,
     [data-theme="dark"] .tbl-btn.reactivate:hover { background: #1c3a24; }
-    [data-theme="dark"] .tbl-btn.end-term:hover,
-    [data-theme="dark"] .tbl-btn.delete:hover { background: #3a1c1c; border-color: #7f2a2a; }
+    [data-theme="dark"] .tbl-btn.end-term:hover { background: #3a1c1c; border-color: #7f2a2a; }
     [data-theme="dark"] .modal-warning { border-color: #7f2a2a; }
 </style>
 
@@ -552,7 +546,7 @@
                             <div class="officer-email">{{ $term->user->email }}</div>
                         </td>
                         <td>
-                            <span class="position-badge" style="background:#f3f4f6;color:var(--text-2);">
+                            <span class="position-badge former">
                                 {{ $term->position->position_name }}
                             </span>
                         </td>
@@ -562,7 +556,7 @@
                         <td>
                             <span class="term-end">
                                 <i class="fas fa-calendar-xmark"></i>
-                                {{ $term->term_end }}
+                                {{ $term->term_end?->format('M j, Y') ?? '—' }}
                             </span>
                         </td>
                         <td>
@@ -575,15 +569,6 @@
                                         <i class="fas fa-rotate-left" aria-hidden="true"></i> Reactivate<span class="sr-only"> {{ $term->user->name }}</span>
                                     </button>
                                 </form>
-
-                                <!--<form action="{{ route('officers.destroy', $term->id) }}" method="POST" style="margin:0;">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="button" class="tbl-btn delete"
-                                        onclick="confirmDelete(this.form, '{{ addslashes($term->user->name) }}')">
-                                        <i class="fas fa-trash"></i> Delete
-                                    </button>
-                                </form>-->
                             </div>
                         </td>
                     </tr>
@@ -706,32 +691,8 @@
     </div>
 </div>
 
-{{-- ── DELETE MODAL ── --}}
-<div id="deleteModal" class="modal-overlay" onclick="handleOverlayClick(event, 'deleteModal')">
-    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
-        <div class="modal-icon" style="background:var(--red-dim);" aria-hidden="true">
-            <i class="fas fa-trash" style="color:var(--red);"></i>
-        </div>
-        <h5 id="deleteModalTitle">Delete Record</h5>
-        <p>You are about to permanently delete the record of <b id="deleteOfficerName"></b>.</p>
-        <div class="modal-warning">
-            <i class="fas fa-triangle-exclamation"></i>
-            This action cannot be undone.
-        </div>
-        <div class="modal-actions">
-            <button onclick="closeModal('deleteModal')" class="modal-cancel">Cancel</button>
-            <button type="button" class="modal-confirm" id="deleteConfirmBtn"
-                onclick="submitDelete()"
-                style="background:var(--danger-fill);">
-                <i class="fas fa-trash"></i> Delete
-            </button>
-        </div>
-    </div>
-</div>
-
 <script>
     let _endTermForm = null;
-    let _deleteForm  = null;
     let _reactivateForm = null;
 
     // Opening a box moves focus into it and remembers what opened it, so
@@ -792,16 +753,6 @@
 
             _reactivateForm.submit();
         }
-    }
-
-    function confirmDelete(form, name) {
-        _deleteForm = form;
-        document.getElementById('deleteOfficerName').textContent = name;
-        openModal('deleteModal');
-    }
-
-    function submitDelete() {
-        if (_deleteForm) _deleteForm.submit();
     }
 
     function closeModal(id) {

@@ -29,11 +29,10 @@
     .group-head { font-size: 13px; font-weight: 600; color: var(--text-primary); margin: 26px 0 10px; display: flex; align-items: center; gap: 8px; }
     .group-head i { color: var(--seq-blue); }
 
-    /* Every panel leads with the question it answers; the answer is the
-       finding, so it is the line that stands out. The chart below is the
-       evidence. No extra description lines - a definition goes in an (i)
-       tooltip, and a panel that ignores the selected period says so in a
-       small .scope tag. */
+    /* Every panel has a short title, then the answer: the finding, so it
+       is the line that stands out. The chart below is the evidence. No
+       extra description lines - a definition goes in an (i) tooltip, and a
+       panel that ignores the selected period says so in a small .scope tag. */
     .q { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 0 0 6px; line-height: 1.35; }
     .q.sm { font-size: 12px; }
     .a { font-size: 15px; color: var(--text-primary); margin: 0 0 14px; line-height: 1.5; }
@@ -99,6 +98,7 @@
     }
     .filter-bar .btn-go { background: var(--seq-blue); border-color: var(--seq-blue); color: #fff; }
     .filter-bar .btn-export { margin-left: auto; }
+    .filter-bar .btn-export + .btn-export { margin-left: 0; }
     .filter-bar .btn-export:hover { background: var(--page-plane); }
     .period-note { font-size: 12px; color: var(--text-muted); margin: 0 0 18px; }
 
@@ -145,6 +145,11 @@
     .stat-line { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 7px 0; border-bottom: 1px solid var(--gridline); }
     .stat-line:last-child { border-bottom: none; }
     .stat-line .n { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .spike-row { align-items: flex-start; }
+    .spike-row .spike-day { min-width: 0; font-weight: 500; }
+    .spike-row .rank-meta { white-space: normal; font-size: 12px; font-weight: 400; margin-top: 2px; }
+    .spike-row .n { white-space: nowrap; }
+    .spike-row .n small { font-weight: 400; font-size: 12px; color: var(--text-muted); }
 
     .rtable { width: 100%; border-collapse: collapse; font-size: 13px; }
     .rtable th { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; padding: 6px 10px; border-bottom: 1px solid var(--gridline); text-align: left; }
@@ -159,6 +164,26 @@
     .status-chip i { font-size: 9px; }
 
     .empty-note { font-size: 13px; color: var(--text-muted); padding: 8px 0; }
+    .table-scroll { overflow-x: auto; }
+    .rtable a { color: var(--text-primary); font-weight: 500; }
+
+    /* Proposals: the Super Admin's price check settings, folded away */
+    .price-settings { margin-top: 10px; font-size: 12.5px; }
+    .price-settings summary { cursor: pointer; color: var(--seq-blue); font-weight: 600; width: fit-content; }
+    .price-settings form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; margin: 10px 0 6px; }
+    .price-settings label { display: grid; gap: 4px; font-size: 11px; font-weight: 600; color: var(--text-muted); }
+    .price-settings input, .price-settings select { font-size: 13px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-1); color: var(--text-primary); }
+    .price-settings input { width: 80px; }
+    .price-settings .btn-go { height: 32px; padding: 0 14px; font-size: 12px; font-weight: 600; border-radius: 8px; border: 1px solid var(--seq-blue); background: var(--seq-blue); color: #fff; cursor: pointer; }
+    .price-settings .field-error { color: var(--danger); font-size: 12px; flex-basis: 100%; }
+
+    /* A merged panel's second part: one quiet line under its chart or list. */
+    .sub-line { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--gridline); font-size: 12.5px; color: var(--text-secondary); }
+    .sub-line b, .sub-line strong { color: var(--text-primary); font-weight: 600; }
+    .health-line { align-items: flex-start; }
+    .health-line b { font-weight: 600; }
+    .health-text { display: block; margin-top: 2px; font-size: 12.5px; color: var(--text-secondary); }
+    .health-text strong { font-weight: 600; color: var(--text-primary); }
 
     /* Possible copies: the copy, then what it copies */
     .copy-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--gridline); }
@@ -233,6 +258,9 @@
         <a href="{{ route('reports.index', $periodParams + ['tab' => 'engagement']) }}" class="{{ $tab === 'engagement' ? 'on' : '' }}" @if ($tab === 'engagement') aria-current="page" @endif>
             <i class="fas fa-users"></i> Student engagement
         </a>
+        <a href="{{ route('reports.index', $periodParams + ['tab' => 'proposals']) }}" class="{{ $tab === 'proposals' ? 'on' : '' }}" @if ($tab === 'proposals') aria-current="page" @endif>
+            <i class="fas fa-file-invoice"></i> Proposals
+        </a>
     </nav>
 
     {{-- PERIOD FILTER - a school year, a recent window, or custom dates, in one control --}}
@@ -269,9 +297,12 @@
         <a class="btn-export" href="{{ route('reports.index', $periodParams + ['tab' => $tab, 'export' => 'csv']) }}">
             <i class="fas fa-file-csv" aria-hidden="true"></i> Export CSV
         </a>
+        <a class="btn-export" href="{{ route('reports.index', $periodParams + ['tab' => $tab, 'export' => 'pdf']) }}" target="_blank" title="Opens in a new tab, ready to print">
+            <i class="fas fa-file-pdf" aria-hidden="true"></i> Open PDF
+        </a>
     </div>
     <p class="period-note">
-        {{ $periodLabel }} &middot; compared with {{ $comparedWith }}
+        {{ $periodLabel }}@if ($tab !== 'proposals') &middot; compared with {{ $comparedWith }}@endif
     </p>
 
 @if ($tab === 'records')
@@ -286,7 +317,6 @@
         $signs = $isSuperAdmin ? count($loginAnomalies['bruteForce']) + count($loginAnomalies['multiIp']) + count($loginAnomalies['newLocation']) : 0;
         $tone = [
             'pipeline'  => $failedBatches > 0 ? 'critical' : ($pipeline['awaiting'] > 0 ? 'warning' : null),
-            'stale'     => $staleFolders->isNotEmpty() ? 'warning' : null,
             'integrity' => $preservation['fixity_failed'] > 0 ? 'critical' : ($preservation['fixity_unchecked'] > 0 ? 'warning' : null),
             'ocr'       => $ocr['failed'] > 0 ? 'warning' : null,
             'copies'    => $copies->where('readonly', false)->isNotEmpty() ? 'warning' : null,
@@ -297,11 +327,14 @@
                 : (collect($loginAnomalies['bruteForce'])->contains(fn ($r) => $r->attempts >= 5) ? 'critical'
                 : ($signs > 0 ? 'warning' : null)),
         ];
+        // System health is the worst of its lines.
+        $healthTones = array_filter([$tone['integrity'], $tone['backups'], $tone['ocr']]);
+        $tone['health'] = in_array('critical', $healthTones, true) ? 'critical' : ($healthTones ? 'warning' : null);
         $toneClass = fn ($key) => $tone[$key] ? ' tone-' . $tone[$key] : '';
         $flag = fn ($key) => $tone[$key] ? '<i class="fas fa-circle-exclamation flag" aria-hidden="true"></i><span class="sr-only">Needs attention:</span>' : '';
     @endphp
 
-    {{-- KPI ROW - three cards for an Admin, five for a SuperAdmin. A change
+    {{-- KPI ROW - two cards for an Admin, three for a SuperAdmin. A change
          line only when there is something to compare with. --}}
     <div class="metric-grid" style="--kpis: {{ count($kpis) }};">
         @foreach ($kpis as $k)
@@ -317,19 +350,19 @@
         @endforeach
     </div>
 
-    {{-- ACTIVITY TREND + BREAKDOWN --}}
+    {{-- ACTIVITY TREND + OFFICER ACTIVITY --}}
     <div @if ($isSuperAdmin) class="row-2-wide" @endif>
         <div class="card-panel">
-            <h3 class="q">Is the archive being kept up to date?</h3>
+            <h3 class="q">Records added</h3>
             <p class="a">{!! $answers['trend'] !!}</p>
             <div class="chart-box"><canvas id="trendChart"></canvas></div>
         </div>
         @if ($isSuperAdmin)
         <div class="card-panel">
-            <h3 class="q">What do officers spend their time on?</h3>
-            <p class="a">{!! $answers['categories'] !!}</p>
+            <h3 class="q">Officer activity</h3>
+            <p class="a">{!! $answers['categories'] !!} {!! $answers['officers'] !!}</p>
             @php $catMax = $activityByCategory->max('total') ?: 1; @endphp
-            @forelse ($activityByCategory as $i => $row)
+            @forelse ($activityByCategory->take(6) as $row)
                 <div class="rank-row">
                     <span class="rank-name" title="{{ $row['label'] }}">{{ $row['label'] }}</span>
                     <div class="rank-track"><div class="rank-fill" style="width:{{ round(($row['total'] / $catMax) * 100) }}%; background:{{ $row['label'] === 'Failed sign-ins' ? '#b3412f' : 'var(--seq-blue)' }};"></div></div>
@@ -338,169 +371,99 @@
             @empty
                 <p class="empty-note">No activity recorded in this period.</p>
             @endforelse
+            @if ($activeOfficers->isNotEmpty())
+                <p class="sub-line">Most active:
+                    @foreach ($activeOfficers->take(3) as $officer)
+                        <span><b>{{ $officer->user_name }}</b> {{ number_format($officer->total) }}</span>
+                    @endforeach
+                </p>
+            @endif
         </div>
         @endif
     </div>
 
-    {{-- DIGITIZATION --}}
-    <div class="group-head"><i class="fas fa-file-import"></i> Digitization pipeline</div>
-    <div class="card-panel{{ $toneClass('pipeline') }}">
-        <h3 class="q">{!! $flag('pipeline') !!}Is digitization keeping up?</h3>
-        <p class="a">{!! $answers['pipeline'] !!}</p>
-        @php $hours = $pipeline['turnaround']; @endphp
-        <div class="mini-grid">
-            <div class="mini"><p class="k">Scan batches</p><p class="v">{{ number_format($pipeline['batches']) }}</p><p class="h">{{ number_format($pipeline['pages']) }} pages</p></div>
-            <div class="mini"><p class="k">Filed</p><p class="v">{{ number_format($pipeline['filed']) }}</p><p class="h">{{ number_format($pipeline['docs_from_scans']) }} documents</p></div>
-            <div class="mini"><p class="k">Success rate</p><p class="v">{{ $pipeline['success_rate'] !== null ? $pipeline['success_rate'].'%' : '—' }}</p></div>
-            <div class="mini"><p class="k">Scan to filed</p><p class="v">{{ $hours === null ? '—' : ($hours < 1 ? max(1, (int) round($hours * 60)).' min' : $hours.' h') }}</p></div>
-            <div class="mini"><p class="k">Waiting for review</p><p class="v" @if($pipeline['awaiting'] > 0) style="color:var(--warning);" @endif>{{ number_format($pipeline['awaiting']) }}</p></div>
-        </div>
-
-        <div class="row-2">
-            <div>
-                <h4 class="q sm">Did any scan batches fail?</h4>
-                <p class="a">{!! $answers['batches'] !!}</p>
-                @php $batchTotal = $batchStatuses->sum('total'); @endphp
-                @if ($batchTotal > 0)
-                    <div class="prop-bar">
-                        @foreach ($batchStatuses as $i => $b)
-                            <div class="prop-seg" style="width:{{ ($b['total'] / $batchTotal) * 100 }}%; background:{{ $b['key'] === 'failed' ? '#b3412f' : $catColors[$i % 8] }};" title="{{ $b['label'] }}: {{ $b['total'] }}"></div>
-                        @endforeach
-                    </div>
-                    <div class="prop-legend">
-                        @foreach ($batchStatuses as $i => $b)
-                            <span><span class="swatch" style="background:{{ $b['key'] === 'failed' ? '#b3412f' : $catColors[$i % 8] }};"></span>{{ $b['label'] }} {{ $b['total'] }}</span>
-                        @endforeach
-                    </div>
-                @endif
-            </div>
-            <div>
-                <h4 class="q sm">What kinds of records are being digitized?</h4>
-                <p class="a">{!! $answers['types'] !!}</p>
-                @php $typeMax = $documentTypes->max('total') ?: 1; @endphp
-                @foreach ($documentTypes as $i => $t)
-                    <div class="rank-row" style="margin-bottom:9px;">
-                        <span class="rank-name" title="{{ $t['label'] }}">{{ $t['label'] }}</span>
-                        <div class="rank-track"><div class="rank-fill" style="width:{{ round(($t['total'] / $typeMax) * 100) }}%; background:{{ $catColors[$i % 8] }};"></div></div>
-                        <span class="rank-val">{{ $t['total'] }}</span>
-                    </div>
-                @endforeach
-            </div>
-        </div>
-    </div>
-
-    {{-- USAGE PATTERNS - who works when, from the Activity Logs. SuperAdmin-only. --}}
-    @if ($isSuperAdmin)
-    <div class="group-head"><i class="fas fa-clock"></i> Usage patterns</div>
-    <div class="row-3">
-        <div class="card-panel">
-            <h3 class="q">When in the day do officers work?</h3>
-            <p class="a">{!! $answers['hours'] !!}</p>
-            <div class="chart-box short"><canvas id="hourChart"></canvas></div>
-        </div>
-        <div class="card-panel">
-            <h3 class="q">Which days are busiest?</h3>
-            <p class="a">{!! $answers['weekdays'] !!}</p>
-            <div class="chart-box short"><canvas id="weekdayChart"></canvas></div>
-        </div>
-        <div class="card-panel">
-            <h3 class="q">Is the work shared across officers?</h3>
-            <p class="a">{!! $answers['officers'] !!}</p>
-            @php $max = $activeOfficers->max('total') ?: 1; @endphp
-            @foreach ($activeOfficers as $officer)
-                <div class="rank-row">
-                    <span class="rank-name" title="{{ $officer->user_name }}">{{ $officer->user_name }}</span>
-                    <div class="rank-track"><div class="rank-fill" style="width:{{ round(($officer->total / $max) * 100) }}%; background:var(--seq-blue);"></div></div>
-                    <span class="rank-val">{{ number_format($officer->total) }}</span>
-                </div>
-            @endforeach
-        </div>
-    </div>
-    @endif
-
-    {{-- STORAGE --}}
-    <div class="group-head"><i class="fas fa-hard-drive"></i> Storage &amp; library</div>
-    <div class="row-2-wide">
-        <div class="card-panel">
-            <h3 class="q">Will storage run out? <span class="scope">Last 6 months</span></h3>
-            <p class="a">{!! $answers['storage'] !!}</p>
-            <div class="chart-box"><canvas id="storageChart"></canvas></div>
-        </div>
-        <div class="card-panel">
-            <h3 class="q">Where is the storage going? <span class="scope">All time</span></h3>
-            <p class="a">{!! $answers['folders'] !!}</p>
-            @php $fMax = $topFolders->max('bytes') ?: 1; @endphp
-            @foreach ($topFolders as $f)
-                <div class="rank-row">
-                    <span class="rank-name" title="{{ $f->name }}">{{ $f->name }}</span>
-                    <div class="rank-track"><div class="rank-fill" style="width:{{ round(($f->bytes / $fMax) * 100) }}%; background:var(--cat-2);"></div></div>
-                    <span class="rank-val" style="min-width:70px;" title="{{ $f->files }} files">{{ $f->formatted }}</span>
-                </div>
-            @endforeach
-        </div>
-    </div>
-
+    {{-- SCANNING + STORAGE --}}
+    <div class="group-head"><i class="fas fa-file-import"></i> Scanning and storage</div>
     <div class="row-2">
-        <div class="card-panel">
-            <h3 class="q">What is the library made of? <span class="scope">All time</span></h3>
-            <p class="a">{!! $answers['fileTypes'] !!}</p>
-            @php $typeColors = ['var(--cat-1)', 'var(--cat-2)', 'var(--cat-3)', 'var(--cat-4)']; @endphp
-            <div class="prop-bar">
-                @foreach ($fileTypes as $i => $type)
-                    @if ($type['percent'] > 0)
-                        <div class="prop-seg" style="width:{{ $type['percent'] }}%; background:{{ $typeColors[$i] }};" title="{{ $type['label'] }} {{ $type['percent'] }}%"></div>
-                    @endif
-                @endforeach
+        <div class="card-panel{{ $toneClass('pipeline') }}">
+            <h3 class="q">{!! $flag('pipeline') !!}Scanning</h3>
+            <p class="a">{!! $answers['pipeline'] !!}</p>
+            <div class="mini-grid" style="grid-template-columns: repeat(4, 1fr);">
+                <div class="mini"><p class="k">Batches</p><p class="v">{{ number_format($pipeline['batches']) }}</p><p class="h">{{ number_format($pipeline['pages']) }} pages</p></div>
+                <div class="mini"><p class="k">Filed</p><p class="v">{{ number_format($pipeline['filed']) }}</p><p class="h">{{ number_format($pipeline['docs_from_scans']) }} documents</p></div>
+                <div class="mini"><p class="k">Waiting</p><p class="v" @if($pipeline['awaiting'] > 0) style="color:var(--warning);" @endif>{{ number_format($pipeline['awaiting']) }}</p></div>
+                <div class="mini"><p class="k">Failed</p><p class="v" @if($pipeline['failed'] > 0) style="color:#b3412f;" @endif>{{ number_format($pipeline['failed']) }}</p></div>
             </div>
-            <div class="prop-legend">
-                @foreach ($fileTypes as $i => $type)
-                    <span><span class="swatch" style="background:{{ $typeColors[$i] }};"></span>{{ $type['label'] }} {{ $type['percent'] }}% ({{ number_format($type['total']) }})</span>
-                @endforeach
-            </div>
-        </div>
-        <div class="card-panel{{ $toneClass('stale') }}">
-            <h3 class="q">{!! $flag('stale') !!}Which folders have gone quiet?</h3>
-            <p class="a">{!! $answers['stale'] !!}</p>
-            @foreach ($staleFolders as $folder)
-                <div class="rank-row" style="margin-bottom:10px;">
-                    <span class="rank-name" style="width:auto; flex:1;">{{ $folder['name'] }}</span>
-                    <span class="status-chip {{ $folder['status'] }}"><i class="fas fa-circle"></i> {{ $folder['days_stale'] }}d untouched</span>
+            @php $batchTotal = $batchStatuses->sum('total'); @endphp
+            @if ($batchTotal > 0)
+                <div class="prop-bar" style="height:10px;">
+                    @foreach ($batchStatuses as $i => $b)
+                        <div class="prop-seg" style="width:{{ ($b['total'] / $batchTotal) * 100 }}%; background:{{ $b['key'] === 'failed' ? '#b3412f' : $catColors[$i % 8] }};" title="{{ $b['label'] }}: {{ $b['total'] }}"></div>
+                    @endforeach
                 </div>
-            @endforeach
+                <div class="prop-legend">
+                    @foreach ($batchStatuses as $i => $b)
+                        <span><span class="swatch" style="background:{{ $b['key'] === 'failed' ? '#b3412f' : $catColors[$i % 8] }};"></span>{{ $b['label'] }} {{ $b['total'] }}</span>
+                    @endforeach
+                </div>
+            @endif
+            <p class="sub-line"><span>Digitized: {!! $answers['types'] !!}</span></p>
+        </div>
+        <div class="card-panel">
+            <h3 class="q">Storage <span class="scope">Last 6 months</span></h3>
+            <p class="a">{!! $answers['storage'] !!}</p>
+            <div class="chart-box short"><canvas id="storageChart"></canvas></div>
+            @if ($topFolders->isNotEmpty())
+                <p class="sub-line">Largest:
+                    @foreach ($topFolders->take(3) as $f)
+                        <span><b>{{ $f->name }}</b> {{ $f->formatted }}</span>
+                    @endforeach
+                </p>
+            @endif
         </div>
     </div>
 
-    {{-- PRESERVATION & HEALTH --}}
-    <div class="group-head"><i class="fas fa-shield-heart"></i> Preservation &amp; health</div>
-    <div class="{{ $isSuperAdmin ? 'row-3' : 'row-2' }}">
-        <div class="card-panel{{ $toneClass('integrity') }}">
-            <h3 class="q">{!! $flag('integrity') !!}Are archived records still intact?</h3>
-            <p class="a">{!! $answers['integrity'] !!}</p>
-            <div class="stat-line"><span>Verified intact</span><span class="n"><span class="status-chip ok">{{ $preservation['fixity_ok'] }}</span></span></div>
-            <div class="stat-line"><span>Failed verification</span><span class="n"><span class="status-chip {{ $preservation['fixity_failed'] > 0 ? 'critical' : 'ok' }}">{{ $preservation['fixity_failed'] }}</span></span></div>
-            <div class="stat-line"><span>Not yet checked</span><span class="n">{{ $preservation['fixity_unchecked'] }}</span></div>
-            <div class="stat-line"><span>Last check</span><span class="n">{{ $preservation['last_fixity'] ? $preservation['last_fixity']->diffForHumans() : 'never' }}</span></div>
-        </div>
-        @if ($isSuperAdmin)
-        <div class="card-panel{{ $toneClass('backups') }}">
-            <h3 class="q">{!! $flag('backups') !!}Are backups running?</h3>
-            <p class="a">{!! $answers['backups'] !!}</p>
-            <div class="stat-line"><span>Local only / partial</span><span class="n"><span class="status-chip {{ $backups['partial'] > 0 ? 'warning' : 'ok' }}">{{ $backups['partial'] }}</span></span></div>
-            <div class="stat-line"><span>Last backup</span>
-                <span class="n">
-                    @if ($backups['last'])
-                        <span class="status-chip {{ $backups['last_age_hours'] > 24 * 7 ? 'critical' : ($backups['last_age_hours'] > 48 ? 'warning' : 'ok') }}">{{ $backups['last']->diffForHumans() }}</span>
-                    @else
-                        <span class="status-chip critical">never</span>
-                    @endif
-                </span>
-            </div>
-        </div>
-        @endif
-        <div class="card-panel{{ $toneClass('ocr') }}">
-            <h3 class="q">{!! $flag('ocr') !!}Can every file be found by its text?</h3>
-            <p class="a">{!! $answers['ocr'] !!}</p>
-            <div class="prop-bar" style="height:8px;" role="img" aria-label="{{ $ocr['coverage'] ?? 0 }}% of files have searchable text"><div class="prop-seg" style="width:{{ $ocr['coverage'] ?? 0 }}%; background:var(--seq-blue);"></div></div>
+    {{-- UPKEEP: system health (archives, backups, text search) --}}
+    @php
+        // One line per check, each with its own chip.
+        $pr = $preservation;
+        $healthLines = [[
+            'name' => 'Archive integrity', 'answer' => $answers['integrity'],
+            'chip' => $pr['fixity_failed'] > 0 ? ['critical', $pr['fixity_failed'] . ' failed']
+                : ($pr['fixity_unchecked'] > 0 ? ['warning', $pr['fixity_unchecked'] . ' not checked']
+                : ['ok', $pr['archives'] ? 'All intact' : 'No archives yet']),
+        ]];
+        if ($isSuperAdmin) {
+            $healthLines[] = [
+                'name' => 'Backups', 'answer' => $answers['backups'],
+                'chip' => ! $backups['last'] || $backups['last_age_hours'] > 24 * 7 ? ['critical', $backups['last'] ? 'Over a week old' : 'Never run']
+                    : ($backups['partial'] > 0 ? ['warning', $backups['partial'] . ' partial']
+                    : ($backups['last_age_hours'] > 48 ? ['warning', '2+ days old'] : ['ok', 'Up to date'])),
+            ];
+        }
+        $healthLines[] = [
+            'name' => 'Text search', 'answer' => $answers['ocr'],
+            'chip' => $ocr['failed'] > 0 ? ['warning', $ocr['failed'] . ' failed'] : ['ok', $ocr['coverage'] !== null ? $ocr['coverage'] . '% searchable' : 'No files yet'],
+        ];
+        $needLook = collect($healthLines)->filter(fn ($l) => $l['chip'][0] !== 'ok')->count();
+    @endphp
+    <div class="group-head"><i class="fas fa-shield-heart"></i> Upkeep</div>
+    <div>
+        <div class="card-panel{{ $toneClass('health') }}">
+            <h3 class="q">{!! $flag('health') !!}System health</h3>
+            <p class="a">
+                @if ($needLook)
+                    <strong>{{ $needLook }} of {{ count($healthLines) }}</strong> {{ $needLook === 1 ? 'needs' : 'need' }} a look.
+                @else
+                    {{ $isSuperAdmin ? 'Archives, backups and text search are all in order.' : 'Archives and text search are all in order.' }}
+                @endif
+            </p>
+            @foreach ($healthLines as $line)
+                <div class="stat-line health-line">
+                    <span><b>{{ $line['name'] }}</b><span class="health-text">{!! $line['answer'] !!}</span></span>
+                    <span class="n"><span class="status-chip {{ $line['chip'][0] }}">{{ $line['chip'][1] }}</span></span>
+                </div>
+            @endforeach
         </div>
     </div>
 
@@ -515,7 +478,7 @@
 
     <div class="row-2">
         <div class="card-panel{{ $toneClass('copies') }}">
-            <h3 class="q">{!! $flag('copies') !!}Are there copies of the same document? <span class="scope">All time</span></h3>
+            <h3 class="q">{!! $flag('copies') !!}Possible copies <span class="scope">All time</span></h3>
             <p class="a">{!! $answers['copies'] !!}</p>
             @foreach ($copies->take(8) as $c)
                 <div class="copy-row">
@@ -538,36 +501,20 @@
             @endif
         </div>
         <div class="card-panel">
-            <h3 class="q">Which documents read alike? <span class="scope">All time</span></h3>
-            <p class="a">{!! $answers['map'] !!}</p>
-            @if (count($insights['map']) >= 3)
-                <div class="chart-box" style="height:300px;"><canvas id="docMapChart" role="img" aria-label="Map of {{ count($insights['map']) }} documents placed by how alike their text is"></canvas></div>
-            @endif
-        </div>
-    </div>
-
-    <div class="row-2">
-        <div class="card-panel">
-            <h3 class="q">Are any files in the wrong folder? <span class="scope">All time</span></h3>
+            <h3 class="q">Possibly in the wrong folder <span class="scope">All time</span></h3>
             <p class="a">{!! $answers['misfiled'] !!}</p>
             @foreach ($insights['misfiled'] as $m)
                 <div style="padding:9px 0; border-bottom:1px solid var(--gridline);">
                     <div style="font-size:13px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ $m['file']['name'] }}">{{ $m['file']['name'] }}</div>
                     <div style="font-size:12px; color:var(--text-muted);">
-                        In <a href="{{ route('folders.show', $m['file']['folder_id']) }}">{{ $m['file']['folder'] }}</a> ({{ $m['own_match'] }}% match)
-                        &rarr; reads like <a href="{{ route('folders.show', $m['suggested']['id']) }}">{{ $m['suggested']['name'] }}</a> ({{ $m['other_match'] }}% match)
+                        @if ($m['reason'] === 'title')
+                            In <a href="{{ route('folders.show', $m['file']['folder_id']) }}">{{ $m['file']['folder'] }}</a>, but its title says {{ $m['kind'] }}
+                            &rarr; belongs in <a href="{{ route('folders.show', $m['suggested']['id']) }}">{{ $m['suggested']['name'] }}</a>
+                        @else
+                            In <a href="{{ route('folders.show', $m['file']['folder_id']) }}">{{ $m['file']['folder'] }}</a> ({{ $m['own_match'] }}% match)
+                            &rarr; reads like <a href="{{ route('folders.show', $m['suggested']['id']) }}">{{ $m['suggested']['name'] }}</a> ({{ $m['other_match'] }}% match)
+                        @endif
                     </div>
-                </div>
-            @endforeach
-        </div>
-
-        <div class="card-panel">
-            <h3 class="q">What is each folder about? <span class="scope">All time</span></h3>
-            <p class="a">{!! $answers['topics'] !!}</p>
-            @foreach ($insights['folderTopics'] as $t)
-                <div style="padding:8px 0; border-bottom:1px solid var(--gridline);">
-                    <div style="font-size:13px; font-weight:500;">{{ $t['folder'] }} <span style="color:var(--text-muted); font-weight:400;">({{ $t['files'] }} {{ Str::plural('file', $t['files']) }})</span></div>
-                    <div style="font-size:12px; color:var(--text-secondary);">{{ implode(' · ', $t['terms']) }}</div>
                 </div>
             @endforeach
         </div>
@@ -578,7 +525,7 @@
          not a raw count. SuperAdmin-only. --}}
     <div class="group-head"><i class="fas fa-shield-halved"></i> Security</div>
     <div class="card-panel{{ $toneClass('security') }}">
-        <h3 class="q">{!! $flag('security') !!}Is anyone trying to break in? <span class="scope">Last 7 days</span></h3>
+        <h3 class="q">{!! $flag('security') !!}Suspicious sign-ins <span class="scope">Last 7 days</span></h3>
         <p class="a">{!! $answers['security'] ?? '' !!}</p>
 
         <div class="row-3">
@@ -630,7 +577,7 @@
     </div>
     @endif
 
-@else
+@elseif ($tab === 'engagement')
     @php $e = $engagement; @endphp
 
     <p class="eng-intro">
@@ -663,43 +610,34 @@
 
     <div class="row-2-wide">
         <div class="card-panel">
-            <h3 class="q">Are students visiting the student page?
+            <h3 class="q">Visits
                 <i class="fas fa-circle-info info" tabindex="0" role="img" aria-label="A visit is one device opening the page on a given day; reloads don't count." title="A visit is one device opening the page on a given day; reloads don't count."></i></h3>
             <p class="a">{!! $e['visits']['answer'] !!}</p>
             @if (array_sum($e['visits']['visits']) > 0)
                 <div class="chart-box"><canvas id="engVisitsChart"></canvas></div>
             @endif
+            {{-- Devices and notifications, once panels of their own. --}}
+            <p class="sub-line"><span>{!! $e['devices']['answer'] !!}</span><span>{!! $e['notifications']['answer'] !!}</span></p>
         </div>
-        <div class="stack">
-            <div class="card-panel">
-                <h3 class="q">Do students use phones or computers?</h3>
-                <p class="a">{!! $e['devices']['answer'] !!}</p>
-                @if ($e['devices']['total'] > 0)
-                    <div class="prop-bar">
-                        @foreach ($e['devices']['rows'] as $i => $d)
-                            @if ($d['percent'] > 0)
-                                <div class="prop-seg" style="width:{{ $d['percent'] }}%; background:{{ $catColors[$i] }};" title="{{ $d['label'] }} {{ $d['percent'] }}%"></div>
-                            @endif
-                        @endforeach
-                    </div>
-                    <div class="prop-legend">
-                        @foreach ($e['devices']['rows'] as $i => $d)
-                            <span><span class="swatch" style="background:{{ $catColors[$i] }};"></span>{{ $d['label'] }} {{ $d['percent'] }}%</span>
-                        @endforeach
-                    </div>
-                @endif
+
+    <div class="card-panel">
+        <h3 class="q">Unusual days
+            <i class="fas fa-circle-info info" tabindex="0" role="img" aria-label="Each day is compared with the 28 days before it. A day is unusual when its visits are far above the median day (a modified z-score of 3.5 or more), with at least 10 visits and at least twice a usual day." title="Each day is compared with the 28 days before it. A day is unusual when its visits are far above the median day (a modified z-score of 3.5 or more), with at least 10 visits and at least twice a usual day."></i></h3>
+        <p class="a">{!! $e['spikes']['answer'] !!}</p>
+        @foreach ($e['spikes']['spikes'] as $s)
+            <div class="stat-line spike-row">
+                <span class="spike-day">
+                    {{ $s['date']->format('D, M j, Y') }}
+                    @if ($s['cause'])<span class="rank-meta">{{ $s['cause'] }}</span>@endif
+                </span>
+                <span class="n">{{ number_format($s['visits']) }} {{ Str::plural('visit', $s['visits']) }} <small>· usual {{ number_format($s['usual']) }}</small></span>
             </div>
-            <div class="card-panel">
-                <h3 class="q">Do notifications bring students back?</h3>
-                <p class="a">{!! $e['notifications']['answer'] !!}</p>
-                <div class="stat-line"><span>Turned on in this period</span><span class="n">{{ number_format($e['notifications']['on']) }}</span></div>
-                <div class="stat-line"><span>Turned off in this period</span><span class="n">{{ number_format($e['notifications']['off']) }}</span></div>
-            </div>
-        </div>
+        @endforeach
+    </div>
     </div>
 
     <div class="card-panel">
-        <h3 class="q">When are students on the page, and when should we post?</h3>
+        <h3 class="q">When students visit</h3>
         <p class="a">{!! $e['timing']['answer'] !!}</p>
         @php
             $days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -729,7 +667,7 @@
 
     <div class="row-2">
         <div class="card-panel">
-            <h3 class="q">Which announcements reached the most students?
+            <h3 class="q">Top announcements
                 <i class="fas fa-circle-info info" tabindex="0" role="img" aria-label="Reach counts devices where the announcement stayed on screen for at least a second." title="Reach counts devices where the announcement stayed on screen for at least a second."></i></h3>
             <p class="a">{!! $e['announcements']['answer'] !!}</p>
             @php $anMax = max(1, collect($e['announcements']['rows'])->max('views')); @endphp
@@ -751,18 +689,7 @@
             @endforeach
         </div>
         <div class="card-panel">
-            <h3 class="q">How quickly do students see a new announcement?
-                <i class="fas fa-circle-info info" tabindex="0" role="img" aria-label="Views of announcements posted in this period, by time since posting." title="Views of announcements posted in this period, by time since posting."></i></h3>
-            <p class="a">{!! $e['reach']['answer'] !!}</p>
-            @if ($e['reach']['enough'])
-                <div class="chart-box short"><canvas id="engReachChart"></canvas></div>
-            @endif
-        </div>
-    </div>
-
-    <div class="row-2">
-        <div class="card-panel">
-            <h3 class="q">Which documents do students use?</h3>
+            <h3 class="q">Most used documents</h3>
             <p class="a">{!! $e['documents']['answer'] !!}</p>
             @php $docMax = max(1, collect($e['documents']['rows'])->max(fn ($r) => $r['previews'] + $r['downloads'])); @endphp
             @foreach ($e['documents']['rows'] as $row)
@@ -779,8 +706,10 @@
                 </div>
             @endforeach
         </div>
-        <div class="card-panel">
-            <h3 class="q">What are students searching for but not finding?</h3>
+    </div>
+
+    <div class="card-panel">
+            <h3 class="q">Student searches</h3>
             <p class="a">{!! $e['searches']['answer'] !!}</p>
             @php
                 // When every search found nothing, both lists are the same - show one.
@@ -812,7 +741,99 @@
                     </div>
                 </div>
             @endif
-        </div>
+    </div>
+@else
+    {{-- PROPOSALS: budget data mining over Activity Proposals
+         (App\Services\ProposalReport - PriceCheck and BudgetRules). --}}
+    @php
+        $pp = $proposalReport['prices'];
+        $pr = $proposalReport['rules'];
+        $peso = fn ($v) => \App\Services\PriceCheck::peso((float) $v);
+        $qty = fn ($q) => rtrim(rtrim(number_format((float) $q, 2), '0'), '.');
+        $rateText = rtrim(rtrim(number_format($pp['rate'], 2), '0'), '.');
+        // Needs someone to act: a flagged price nobody has explained.
+        $unexplained = collect($pp['flagged'])->contains(fn ($f) => blank($f['reason']));
+    @endphp
+
+    <div class="card-panel{{ $unexplained ? ' tone-warning' : '' }}">
+        <h3 class="q">@if ($unexplained)<i class="fas fa-circle-exclamation flag" aria-hidden="true"></i><span class="sr-only">Needs attention:</span>@endif Unusual prices
+            <i class="fas fa-circle-info info" tabindex="0" role="img" aria-label="Each Unit Price is compared with what approved proposals paid for the same item and unit. It is unusual when its robust z-score (from the median and the median absolute deviation) is 3.5 or more, so a price within about 35% of the usual one is never flagged. An item needs 3 or more past prices." title="Each Unit Price is compared with what approved proposals paid for the same item and unit. It is unusual when its robust z-score (from the median and the median absolute deviation) is 3.5 or more, so a price within about 35% of the usual one is never flagged. An item needs 3 or more past prices."></i></h3>
+        <p class="a">{!! $pp['answer'] !!}</p>
+        @if ($pp['flagged'])
+            <div class="table-scroll">
+                <table class="rtable" style="min-width:720px;">
+                    <thead>
+                        <tr><th>Proposal</th><th>Particular</th><th class="num">Unit price</th><th class="num">Usual</th><th>Check</th><th>Officer’s reason</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($pp['flagged'] as $f)
+                            <tr>
+                                <td>
+                                    <a href="{{ route('proposals.show', $f['proposal']) }}">{{ $f['proposal']->title }}</a>
+                                    <span class="rank-meta">{{ $f['proposal']->statusLabel() }} &middot; {{ $f['proposal']->dateLabel() }}</span>
+                                </td>
+                                <td>{{ $f['item']->particular }}<span class="rank-meta">{{ $qty($f['item']->quantity) }} {{ $f['item']->unit }}</span></td>
+                                <td class="num">{{ $peso($f['item']->unit_price) }}</td>
+                                <td class="num">{{ $peso($f['check']['median']) }}<span class="rank-meta">{{ $f['check']['count'] }} prices</span></td>
+                                <td>{{ $f['check']['summary'] }}</td>
+                                <td>@if (filled($f['reason'])) {{ $f['reason'] }} @else <span class="rank-meta" style="white-space:normal;">None yet</span> @endif</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+        <p class="sub-line"><span>Older prices are brought up to today’s value at <b>{{ $rateText }}%</b> a year, and compared with this school year and the <b>{{ $pp['years'] }}</b> before. Only approved proposals count.</span></p>
+        @if ($isSuperAdmin)
+            <details class="price-settings" @if ($errors->has('price_inflation_rate') || $errors->has('price_compare_years')) open @endif>
+                <summary>Change these settings</summary>
+                <form method="POST" action="{{ route('reports.price-settings', $periodParams) }}">
+                    @csrf
+                    <label>Inflation per year
+                        <span><input type="number" name="price_inflation_rate" min="0" max="30" step="0.1" value="{{ old('price_inflation_rate', $rateText) }}" required> %</span>
+                    </label>
+                    <label>Compare with
+                        <select name="price_compare_years">
+                            @for ($y = 1; $y <= 5; $y++)
+                                <option value="{{ $y }}" @selected((int) old('price_compare_years', $pp['years']) === $y)>This school year and the {{ $y }} before</option>
+                            @endfor
+                        </select>
+                    </label>
+                    <button type="submit" class="btn-go">Save</button>
+                    @error('price_inflation_rate')<span class="field-error">{{ $message }}</span>@enderror
+                    @error('price_compare_years')<span class="field-error">{{ $message }}</span>@enderror
+                </form>
+                <p class="rank-meta" style="white-space:normal;">Enter the PSA’s inflation rate for the year (Consumer Price Index). 3% is the middle of the BSP’s 2–4% target.</p>
+            </details>
+        @endif
+    </div>
+
+    <div class="card-panel">
+        <h3 class="q">Often budgeted together
+            <i class="fas fa-circle-info info" tabindex="0" role="img" aria-label="Market-basket analysis with the Apriori algorithm: each approved proposal's budget is a basket of items. Confidence: of the proposals with the first items, the share that also had the second. Lift: how much more often they go together than by chance; above 1 means they belong together. Shown when at least 2 proposals had them together and confidence is 60% or more." title="Market-basket analysis with the Apriori algorithm: each approved proposal's budget is a basket of items. Confidence: of the proposals with the first items, the share that also had the second. Lift: how much more often they go together than by chance; above 1 means they belong together. Shown when at least 2 proposals had them together and confidence is 60% or more."></i>
+            <span class="scope">All approved proposals</span></h3>
+        <p class="a">{!! $pr['answer'] !!}</p>
+        @if ($pr['rules'])
+            <div class="table-scroll">
+                <table class="rtable" style="min-width:560px;">
+                    <thead>
+                        <tr><th>If the budget has</th><th>It also had</th><th class="num">Together</th><th class="num">Confidence</th><th class="num">Lift</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($pr['rules'] as $r)
+                            <tr>
+                                <td>{{ $r['if_label'] }}</td>
+                                <td>{{ $r['then_label'] }}</td>
+                                <td class="num">{{ $r['together'] }} <span class="rank-meta" style="display:inline;">of {{ $pr['baskets'] }}</span></td>
+                                <td class="num">{{ round($r['confidence'] * 100) }}% <span class="rank-meta" style="display:inline;">{{ $r['together'] }} of {{ $r['with_if'] }}</span></td>
+                                <td class="num">{{ number_format($r['lift'], 1) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+        <p class="sub-line"><span>While a budget is written, the form suggests the items these patterns point to.</span></p>
     </div>
 @endif
 </div>
@@ -870,58 +891,6 @@ new Chart(document.getElementById('trendChart'), {
     },
 });
 
-@if ($isSuperAdmin)
-// ---- Busiest hours / days ----
-new Chart(document.getElementById('hourChart'), {
-    type: 'bar',
-    data: { labels: @json($hourLabels), datasets: [{ label: 'Actions', data: @json(array_values($byHour)), backgroundColor: cat[0], borderRadius: 3 }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: baseScales() },
-});
-new Chart(document.getElementById('weekdayChart'), {
-    type: 'bar',
-    data: { labels: @json($weekdayLabels), datasets: [{ label: 'Actions', data: @json(array_values($byWeekday)), backgroundColor: cat[1], borderRadius: 3 }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: baseScales() },
-});
-@endif
-
-// ---- Document map (scatter) ----
-// ArchiveInsights names the two largest folders and puts the rest in
-// "Other folders", so three colours - each with its own shape too. A file
-// that reads like another folder is a larger triangle.
-const mapPoints = @json($insights['map']);
-const mapEl = document.getElementById('docMapChart');
-if (mapEl && mapPoints.length) {
-    const shapes = ['circle', 'rect', 'rectRot'];
-    const groups = {};
-    mapPoints.forEach(p => { (groups[p.folder] = groups[p.folder] || []).push(p); });
-    const names = Object.keys(groups).sort((a, b) => (a === 'Other folders') - (b === 'Other folders') || groups[b].length - groups[a].length);
-
-    new Chart(mapEl, {
-        type: 'scatter',
-        data: {
-            datasets: names.map((name, i) => ({
-                label: name,
-                data: groups[name],
-                backgroundColor: cat[Math.min(i, 2)] + 'cc',
-                borderColor: cat[Math.min(i, 2)],
-                pointRadius: groups[name].map(p => p.moved ? 8 : 5),
-                pointStyle: groups[name].map(p => p.moved ? 'triangle' : shapes[Math.min(i, 2)]),
-            })),
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true } },
-                tooltip: { callbacks: { label: (c) => c.raw.file + (c.raw.moved ? '  (reads like another folder)' : '') } },
-            },
-            scales: {
-                x: { grid: { color: gridColor }, ticks: { display: false }, title: { display: true, text: 'how alike the text is (no units)', color: textMuted } },
-                y: { grid: { color: gridColor }, ticks: { display: false } },
-            },
-        },
-    });
-}
-
 // ---- Storage growth + projection ----
 const storageTrend = @json($storageTrend);
 const projection = @json($projection);
@@ -961,7 +930,7 @@ new Chart(document.getElementById('storageChart'), {
         scales: baseScales({ ticks: { color: textMuted, callback: (v) => formatBytesShort(v) } }),
     },
 });
-@else
+@elseif ($tab === 'engagement')
 // ---- Visits over time ----
 const visits = @json($engagement['visits']);
 const visitsEl = document.getElementById('engVisitsChart');
@@ -980,21 +949,6 @@ if (visitsEl) {
             interaction: { mode: 'index', intersect: false },
             plugins: { legend: { position: 'top', align: 'end', labels: { boxWidth: 10, boxHeight: 10 } } },
             scales: baseScales(),
-        },
-    });
-}
-
-// ---- How fast announcements reach students ----
-const reach = @json($engagement['reach']);
-const reachEl = document.getElementById('engReachChart');
-if (reachEl) {
-    new Chart(reachEl, {
-        type: 'bar',
-        data: { labels: reach.labels, datasets: [{ label: 'Share of views', data: reach.percent, backgroundColor: cat[1], borderRadius: 3 }] },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ctx.parsed.y + '% of views' } } },
-            scales: baseScales({ ticks: { color: textMuted, callback: (v) => v + '%' } }),
         },
     });
 }

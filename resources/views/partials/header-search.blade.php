@@ -153,7 +153,9 @@
         {{-- The placeholder disappears once typing starts, so the field has
              a real name of its own. --}}
         <input type="text" name="query" id="topbarSearchInput" placeholder="Search folders, files, documents…"
-               aria-label="Search folders, files and documents" aria-controls="topbarSearchDropdown">
+               aria-label="Search folders, files and documents" aria-controls="topbarSearchDropdown" aria-keyshortcuts="/">
+        {{-- Press / anywhere to jump here (partials/app-shell/scripts). --}}
+        <kbd class="kb-key header-search-key" aria-hidden="true" title="Press / to search">/</kbd>
     </form>
     <div id="topbarSearchDropdown" class="header-search-dropdown"></div>
 </div>

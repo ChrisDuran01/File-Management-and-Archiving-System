@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\ActivityLog;
+use App\Models\ActivityProposal;
 use App\Models\Document;
 use App\Models\File;
 use App\Models\Folder;
@@ -57,6 +58,16 @@ class PurgeTrash extends Command
             $this->line("   -> document: {$document->title}");
             if (! $dryRun) {
                 $purger->purgeDocument($document);
+            }
+            $purged++;
+        }
+
+        $proposals = ActivityProposal::onlyTrashed()->where('deleted_at', '<', $cutoff)->limit(self::MAX_PER_RUN)->get();
+
+        foreach ($proposals as $proposal) {
+            $this->line("   -> activity proposal: {$proposal->title}");
+            if (! $dryRun) {
+                $purger->purgeProposal($proposal);
             }
             $purged++;
         }

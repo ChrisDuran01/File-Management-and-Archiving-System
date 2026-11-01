@@ -61,7 +61,18 @@
     display: flex; align-items: center; justify-content: center; padding: 2rem; min-height: 420px;
 }
 .preview-image-wrap img { max-width: 100%; max-height: 560px; border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.14); object-fit: contain; }
-.preview-container iframe { display: block; width: 100%; height: 640px; border: none; }
+/* PDF pages drawn by PDF.js (no browser PDF toolbar: no download, print or drawing) */
+.pdf-pages { max-height: 720px; overflow-y: auto; background: #525659; padding: 16px; display: grid; gap: 12px; justify-items: center; }
+.pdf-page { width: 100%; max-width: 820px; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.3); }
+.pdf-page canvas { display: block; width: 100%; height: auto; }
+.pdf-status { color: #f1f1f1; font-size: 13px; margin: 2rem 0; }
+/* Word files drawn by docx-preview, as pages on the same grey */
+.docx-view { max-height: 720px; overflow-y: auto; background: #525659; }
+.docx-view > .pdf-status { text-align: center; padding: 0 16px; }
+.docx-view .docx-wrapper { background: transparent; padding: 16px; }
+.docx-view .docx-wrapper > section.docx { box-shadow: 0 2px 10px rgba(0,0,0,.3); margin-bottom: 12px; }
+/* View only: printing the page leaves the file out. */
+@media print { .preview-container { display: none !important; } }
 .preview-video-wrap { background: #0a0a0a; display: flex; align-items: center; justify-content: center; padding: 1.5rem; }
 .preview-video-wrap video { max-width: 100%; max-height: 560px; border-radius: 8px; }
 .preview-text-wrap { padding: 16px; background: #f8f8f8; max-height: 600px; overflow: auto; }
@@ -137,15 +148,28 @@
         <span class="view-only-note"><i class="fas fa-eye"></i> View only - no download</span>
     </div>
 
-    <div class="preview-container">
+    {{-- View only: no right-click "Save as" or dragging the file out --}}
+    <div class="preview-container" oncontextmenu="return false;" ondragstart="return false;">
 
         @if($isImage)
             <div class="preview-image-wrap">
-                <img src="{{ $streamUrl }}" alt="{{ $filename }}">
+                <img src="{{ $streamUrl }}" alt="{{ $filename }}" draggable="false">
             </div>
 
         @elseif($isPdf)
-            <iframe src="{{ $streamUrl }}"></iframe>
+            {{-- Drawn page by page with PDF.js (script below), not in the
+                 browser's own PDF viewer, whose toolbar downloads, prints
+                 and draws on the file. --}}
+            <div class="pdf-pages" id="pdfPages" data-src="{{ $streamUrl }}">
+                <p class="pdf-status" role="status">Opening…</p>
+            </div>
+
+        @elseif($isDocx)
+            {{-- Drawn as pages with docx-preview (script below), the
+                 officer phone app's Word viewer. --}}
+            <div class="docx-view" id="docxView" data-src="{{ $streamUrl }}">
+                <p class="pdf-status" role="status">Opening…</p>
+            </div>
 
         @elseif($isVideo)
             <div class="preview-video-wrap">
@@ -174,9 +198,9 @@
                 </div>
                 <h5>No in-browser preview for this file type</h5>
                 <p>
-                    {{ strtoupper($ext) }} files can't be viewed inline here. Ask this archive's
-                    creator or a SuperAdmin to restore or download the full archive if you need
-                    to open it.
+                    {{ strtoupper($ext) }} files can't be viewed inline here. Download this
+                    folder's archive from its school year in Archives to open it, or ask the
+                    Adviser or President to restore the school year.
                 </p>
             </div>
         @endif
@@ -184,5 +208,83 @@
     </div>
 
 </div>
+
+@if($isPdf)
+<script src="{{ asset('vendor/officer-app/pdf.min.js') }}"></script>
+<script>
+// Each page is drawn when it scrolls near (like the officer phone app's
+// viewer), so a long PDF opens quickly.
+(async function () {
+    const box = document.getElementById('pdfPages');
+    if (! box || ! window.pdfjsLib) return;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = @json(asset('vendor/officer-app/pdf.worker.min.js'));
+
+    try {
+        const response = await fetch(box.dataset.src, { credentials: 'same-origin' });
+        if (! response.ok) throw new Error('HTTP ' + response.status);
+
+        const pdf = await pdfjsLib.getDocument({ data: await response.arrayBuffer() }).promise;
+        const first = (await pdf.getPage(1)).getViewport({ scale: 1 });
+
+        box.replaceChildren();
+        const slots = [];
+        for (let n = 1; n <= pdf.numPages; n++) {
+            const slot = document.createElement('div');
+            slot.className = 'pdf-page';
+            slot.style.aspectRatio = first.width + ' / ' + first.height;
+            slot.dataset.page = String(n);
+            slot.setAttribute('role', 'img');
+            slot.setAttribute('aria-label', 'Page ' + n + ' of ' + pdf.numPages);
+            box.append(slot);
+            slots.push(slot);
+        }
+
+        let queue = Promise.resolve(); // one page at a time
+        const near = new IntersectionObserver(entries => entries.forEach(entry => {
+            if (! entry.isIntersecting) return;
+            const slot = entry.target;
+            near.unobserve(slot);
+            queue = queue.then(async () => {
+                const page = await pdf.getPage(Number(slot.dataset.page));
+                const base = page.getViewport({ scale: 1 });
+                const viewport = page.getViewport({ scale: (slot.clientWidth / base.width) * Math.min(window.devicePixelRatio || 1, 2) });
+                const canvas = document.createElement('canvas');
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
+                slot.style.aspectRatio = base.width + ' / ' + base.height;
+                slot.replaceChildren(canvas);
+            }).catch(() => {});
+        }), { root: box, rootMargin: '150% 0px' });
+
+        slots.forEach(slot => near.observe(slot));
+    } catch (e) {
+        box.innerHTML = '<p class="pdf-status" role="status">This PDF could not be shown.</p>';
+    }
+})();
+</script>
+@endif
+
+@if($isDocx)
+<script src="{{ asset('vendor/officer-app/jszip.min.js') }}"></script>
+<script src="{{ asset('vendor/officer-app/docx-preview.min.js') }}"></script>
+<script>
+(async function () {
+    const box = document.getElementById('docxView');
+    if (! box || ! window.docx) return;
+
+    try {
+        const response = await fetch(box.dataset.src, { credentials: 'same-origin' });
+        if (! response.ok) throw new Error('HTTP ' + response.status);
+
+        const doc = document.createElement('div');
+        box.replaceChildren(doc);
+        await window.docx.renderAsync(await response.blob(), doc);
+    } catch (e) {
+        box.innerHTML = '<p class="pdf-status" role="status">This Word file could not be shown.</p>';
+    }
+})();
+</script>
+@endif
 
 @endsection

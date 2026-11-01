@@ -1,0 +1,16 @@
+# Only public/ is meant to be served. When Apache can reach the project
+# folder itself (XAMPP's htdocs, or shared hosting that uploads the whole
+# project), refuse everything outside public/ - .env, storage/, vendor/,
+# the logs. With the site's document root set to public/ this file is
+# never read. public/.htaccess has its own rewrite rules, so this rule
+# does not apply inside public/.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule !^public(/|$) - [F]
+</IfModule>
+
+<IfModule !mod_rewrite.c>
+    Require all denied
+</IfModule>
+
+Options -Indexes

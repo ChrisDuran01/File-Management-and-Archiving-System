@@ -38,9 +38,15 @@ class SearchController extends Controller
      */
     public function index(Request $request)
     {
-        $query = $request->input('query');
+        $query = trim((string) $request->input('query'));
 
-        [$folders, $files, $archives, $documents, $archivedFiles] = $this->performSearch($query);
+        // Enter on an empty search bar: nothing to look for. Searching for ''
+        // would match every file in the system.
+        if ($query === '') {
+            $folders = $files = $archives = $documents = $archivedFiles = collect();
+        } else {
+            [$folders, $files, $archives, $documents, $archivedFiles] = $this->performSearch($query);
+        }
 
         return view('Admin.searchResults', compact('folders', 'files', 'archives', 'documents', 'archivedFiles', 'query'));
     }
@@ -52,7 +58,7 @@ class SearchController extends Controller
      */
     public function live(Request $request)
     {
-        $query = trim($request->input('query', ''));
+        $query = trim((string) $request->input('query'));
 
         if ($query === '') {
             return response('');
@@ -113,7 +119,7 @@ class SearchController extends Controller
 
         // Archived folders no longer have live Folder/File rows - archiving
         // hard-deletes them (FolderArchiver::archive()) - so filenames are
-        // matched against the file_checksums map snapshotted at archive time
+        // matched against the archive's own list (Archive::filenames())
         // instead of a files table. Restored archives are excluded since the
         // folder they came from is live again and already covered above.
         $accessibleArchives = Archive::whereNull('restored_at')
@@ -127,7 +133,7 @@ class SearchController extends Controller
                     return true;
                 }
 
-                foreach (array_keys($archive->file_checksums ?? []) as $filename) {
+                foreach ($archive->filenames() as $filename) {
                     if (stripos($filename, $query) !== false) {
                         return true;
                     }
@@ -224,7 +230,7 @@ class SearchController extends Controller
             $matchedFolderName = stripos($archive->folder_name, $query) !== false;
 
             $matchedFiles = array_values(array_filter(
-                array_keys($archive->file_checksums ?? []),
+                $archive->filenames(),
                 fn ($filename) => stripos($filename, $query) !== false
             ));
 

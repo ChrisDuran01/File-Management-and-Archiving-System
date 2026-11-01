@@ -8,14 +8,7 @@ use App\Models\File;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
-/**
- * Receives anonymous usage events from the public student page (sent with
- * navigator.sendBeacon, so the body is JSON as text/plain). Public and
- * CSRF-exempt by design - see bootstrap/app.php - but throttled, capped per
- * request, and every event is validated against an allow-list: unknown
- * types are dropped and ids must point at a real announcement or a
- * publicly visible document.
- */
+
 class EngagementController extends Controller
 {
     private const MAX_EVENTS_PER_REQUEST = 25;

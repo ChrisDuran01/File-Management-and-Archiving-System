@@ -14,9 +14,9 @@ use ZipArchive;
 
 /**
  * Zips up a folder's files, uploads the zip, records it in the archives
- * table, and removes the live folder/files. Shared by the manual "Archive"
- * button (ArchiveController) and the automated stale-folder retention
- * command, so the two never drift out of sync.
+ * table, and removes the live folder/files. Called for every folder of a
+ * school year by SchoolYearArchiver - by hand or by the nightly retention
+ * rule - so a school year's archive is one ZIP per folder.
  */
 class FolderArchiver
 {
@@ -40,7 +40,7 @@ class FolderArchiver
 
         Log::info('Archive started for folder: ' . $folderName);
 
-        $files = File::where('folder_id', $folderId)->get();
+        $files = File::where('folder_id', $folderId)->with('versions')->get();
 
         if ($files->isEmpty()) {
             return ['success' => false, 'message' => 'No files found in this folder to archive'];
@@ -92,6 +92,23 @@ class FolderArchiver
             // moment it was archived, so a restore can later prove whether
             // the extracted bytes still match.
             $fileChecksums[$file->filename] = hash('sha256', $fileContent);
+
+            // Older versions go in an "Older versions" folder inside the
+            // ZIP, so they are kept with it. A restore brings back only the
+            // current version (it reads the ZIP's top level).
+            foreach ($file->versions as $version) {
+                $versionContent = FileVersions::contents($version);
+                if ($versionContent === null) {
+                    Log::warning("Older version not found while archiving: {$file->filename} v{$version->version_no}");
+                    continue;
+                }
+                $zip->addFromString(
+                    'Older versions/' . pathinfo($version->filename, PATHINFO_FILENAME) . ' (v' . $version->version_no . ')'
+                        . (pathinfo($version->filename, PATHINFO_EXTENSION) !== '' ? '.' . pathinfo($version->filename, PATHINFO_EXTENSION) : ''),
+                    $versionContent
+                );
+            }
+            app(FileVersions::class)->deleteStoredVersions($file);
 
             // Restoring recreates this file with this same id when it is
             // still free (see ArchiveController::restore()).

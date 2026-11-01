@@ -69,6 +69,41 @@ class Archive extends Model
         return $this->hasMany(ArchiveFile::class);
     }
 
+    /** @var string[]|null filenames() read from the ZIP, once per request */
+    private ?array $zipFilenames = null;
+
+    /**
+     * The files in this archive: what was checksummed when it was made.
+     * Archives from before that (spring 2026) recorded no list, so the top
+     * level of their ZIP is read instead - "Older versions/" is not a file
+     * of the folder. Only the copy on this server is read for that.
+     *
+     * @return string[]
+     */
+    public function filenames(): array
+    {
+        if ($this->file_checksums) {
+            return array_keys($this->file_checksums);
+        }
+
+        if ($this->zipFilenames === null) {
+            $this->zipFilenames = [];
+            $zip = new \ZipArchive();
+
+            if (is_file($this->localZipPath()) && $zip->open($this->localZipPath()) === true) {
+                for ($i = 0; $i < $zip->numFiles; $i++) {
+                    $name = $zip->getNameIndex($i);
+                    if ($name !== false && ! str_contains($name, '/')) {
+                        $this->zipFilenames[] = $name;
+                    }
+                }
+                $zip->close();
+            }
+        }
+
+        return $this->zipFilenames;
+    }
+
     /**
      * Where this archive's ZIP is kept on this server. Deliberately the
      * private `local` disk and not `public`: nothing on it is served by the

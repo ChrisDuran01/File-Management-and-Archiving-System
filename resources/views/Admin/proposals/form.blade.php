@@ -17,15 +17,23 @@
     // the saved proposal, or a few empty rows to start a new one.
     $objectives = old('objectives', $proposal->objectives ?: ['', '', '']);
     $schedule = old('schedule', $proposal->schedule ?: array_fill(0, 3, ['time' => '', 'activity' => '', 'personnel' => '']));
-    $items = old('items', $proposal->exists && $proposal->items->isNotEmpty()
-        ? $proposal->items->map(fn ($item) => [
-            'category'   => $item->category,
-            'particular' => $item->particular,
-            'quantity'   => $plain($item->quantity),
-            'unit'       => $item->unit,
-            'unit_price' => $plain($item->unit_price),
-        ])->all()
-        : array_fill(0, 3, ['category' => '', 'particular' => '', 'quantity' => '', 'unit' => '', 'unit_price' => '']));
+    // Read from a Word file (ActivityProposalController::importRead): its
+    // budget rows, and a note on each row whose numbers don't add up.
+    $import = $import ?? null;
+    $items = old('items', ! empty($import['items'])
+        ? $import['items']
+        : ($proposal->exists && $proposal->items->isNotEmpty()
+            ? $proposal->items->map(fn ($item) => [
+                'category'       => $item->category,
+                'particular'     => $item->particular,
+                'quantity'       => $plain($item->quantity),
+                'unit'           => $item->unit,
+                'unit_price'     => $plain($item->unit_price),
+                'price_note'     => $item->price_note,
+                'price_note_for' => $item->price_note ? $plain($item->unit_price) : '',
+            ])->all()
+            : array_fill(0, 3, ['category' => '', 'particular' => '', 'quantity' => '', 'unit' => '', 'unit_price' => ''])));
+    $importChecks = old('items') ? [] : ($import['checks'] ?? []);
     $signatories = old('signatories', $proposal->signatories ?: []);
 
     $rowTotal = fn ($row) => round((float) ($row['quantity'] ?? 0) * (float) ($row['unit_price'] ?? 0), 2);
@@ -61,10 +69,37 @@
     </div>
 </div>
 
+@if ($import)
+    <div class="card-panel prop-form import-note" role="status">
+        <p style="margin:0;"><i class="fas fa-file-word me-1" aria-hidden="true"></i>
+            <b>Filled in from “{{ $import['filename'] }}”.</b> Check every part below; nothing is saved until you click Save proposal.</p>
+        <p class="item-meta" style="margin:4px 0 0;">
+            Found {{ $import['found']['objectives'] }} {{ Str::plural('objective', $import['found']['objectives']) }},
+            {{ $import['found']['schedule'] }} schedule {{ Str::plural('row', $import['found']['schedule']) }},
+            {{ $import['found']['budget'] }} budget {{ Str::plural('row', $import['found']['budget']) }} and
+            {{ $import['found']['signatories'] }} {{ Str::plural('signatory', $import['found']['signatories']) }}.
+        </p>
+        @if ($import['warnings'] || $importChecks)
+            <ul class="import-warnings">
+                @foreach ($import['warnings'] as $warning)
+                    <li>{{ $warning }}</li>
+                @endforeach
+                @if ($importChecks)
+                    <li>{{ count($importChecks) }} budget {{ Str::plural('row', count($importChecks)) }} {{ count($importChecks) === 1 ? 'needs' : 'need' }} a look; {{ count($importChecks) === 1 ? 'it is' : 'they are' }} marked in V. Budgetary Requirements.</li>
+                @endif
+            </ul>
+        @endif
+    </div>
+@endif
+
 <form method="POST" id="proposalForm" class="prop-form"
-      action="{{ $proposal->exists ? route('proposals.update', $proposal) : route('proposals.store') }}">
+      action="{{ $proposal->exists ? route('proposals.update', $proposal) : route('proposals.store') }}"
+      data-budget-check="{{ route('proposals.budget-check') }}" data-proposal="{{ $proposal->id }}">
     @csrf
     @if ($proposal->exists) @method('PUT') @endif
+    @if ($import)
+        <input type="hidden" name="imported_from" value="{{ $import['filename'] }}">
+    @endif
 
     <section class="card-panel" aria-labelledby="secActivity">
         <h2 id="secActivity">Activity</h2>
@@ -207,10 +242,16 @@
                     @foreach ($items as $key => $row)
                         <tr data-row>
                             <td><input name="items[{{ $key }}][category]" class="prop-input" maxlength="100" list="propCategories" value="{{ $row['category'] ?? '' }}" data-label="Category, row" aria-label="Category, row {{ $loop->iteration }}"></td>
-                            <td><input name="items[{{ $key }}][particular]" class="prop-input @error('items.'.$key.'.particular') is-invalid @enderror" maxlength="255" value="{{ $row['particular'] ?? '' }}" data-label="Particular, row" aria-label="Particular, row {{ $loop->iteration }}"></td>
+                            <td><input name="items[{{ $key }}][particular]" class="prop-input @error('items.'.$key.'.particular') is-invalid @enderror" maxlength="255" value="{{ $row['particular'] ?? '' }}" data-label="Particular, row" aria-label="Particular, row {{ $loop->iteration }}">
+                                @if (isset($importChecks[$key]))
+                                    <div class="import-check"><i class="fas fa-triangle-exclamation me-1" aria-hidden="true"></i>{{ $importChecks[$key] }}</div>
+                                @endif
+                            </td>
                             <td><input type="number" step="any" min="0" inputmode="decimal" name="items[{{ $key }}][quantity]" class="prop-input @error('items.'.$key.'.quantity') is-invalid @enderror" value="{{ $row['quantity'] ?? '' }}" data-qty data-label="Quantity, row" aria-label="Quantity, row {{ $loop->iteration }}"></td>
                             <td><input name="items[{{ $key }}][unit]" class="prop-input" maxlength="30" list="propUnits" value="{{ $row['unit'] ?? '' }}" data-label="Unit, row" aria-label="Unit, row {{ $loop->iteration }}"></td>
-                            <td><input type="number" step="0.01" min="0" inputmode="decimal" name="items[{{ $key }}][unit_price]" class="prop-input @error('items.'.$key.'.unit_price') is-invalid @enderror" value="{{ $row['unit_price'] ?? '' }}" data-price data-label="Unit Price, row" aria-label="Unit Price, row {{ $loop->iteration }}"></td>
+                            <td><div class="price-cell" data-price-cell><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><input type="number" step="0.01" min="0" inputmode="decimal" name="items[{{ $key }}][unit_price]" class="prop-input @error('items.'.$key.'.unit_price') is-invalid @enderror" value="{{ $row['unit_price'] ?? '' }}" data-price data-label="Unit Price, row" aria-label="Unit Price, row {{ $loop->iteration }}"></div>
+                                @include('Admin.proposals.partials.price-note-fields', ['key' => $key, 'row' => $row])
+                            </td>
                             <td class="num" data-row-total>{{ $peso($rowTotal($row)) }}</td>
                             <td><button type="button" class="row-remove" data-remove-row data-label="Remove budget row" aria-label="Remove budget row {{ $loop->iteration }}"><i class="fas fa-times" aria-hidden="true"></i></button></td>
                         </tr>
@@ -231,12 +272,33 @@
                 <td><input name="items[__KEY__][particular]" class="prop-input" maxlength="255" data-label="Particular, row" aria-label="Particular"></td>
                 <td><input type="number" step="any" min="0" inputmode="decimal" name="items[__KEY__][quantity]" class="prop-input" data-qty data-label="Quantity, row" aria-label="Quantity"></td>
                 <td><input name="items[__KEY__][unit]" class="prop-input" maxlength="30" list="propUnits" data-label="Unit, row" aria-label="Unit"></td>
-                <td><input type="number" step="0.01" min="0" inputmode="decimal" name="items[__KEY__][unit_price]" class="prop-input" data-price data-label="Unit Price, row" aria-label="Unit Price"></td>
+                <td><div class="price-cell" data-price-cell><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><input type="number" step="0.01" min="0" inputmode="decimal" name="items[__KEY__][unit_price]" class="prop-input" data-price data-label="Unit Price, row" aria-label="Unit Price"></div>
+                    @include('Admin.proposals.partials.price-note-fields', ['key' => '__KEY__', 'row' => []])
+                </td>
                 <td class="num" data-row-total>₱0.00</td>
                 <td><button type="button" class="row-remove" data-remove-row data-label="Remove budget row" aria-label="Remove budget row"><i class="fas fa-times" aria-hidden="true"></i></button></td>
             </tr>
         </template>
         <button type="button" class="btn-flat ghost btn-sm" data-add-row="budget"><i class="fas fa-plus me-1" aria-hidden="true"></i> Add row</button>
+
+        {{-- Budget data mining, filled in by the script below: the price
+             check (an unusual price is only marked in its row; what it is
+             and the officer's reason are here), and items often budgeted
+             with these ones. --}}
+        <div class="budget-help">
+            <div class="help-box" data-price-box hidden>
+                <h3>Price check</h3>
+                <p class="item-meta" data-price-summary aria-live="polite"></p>
+                <div data-price-list></div>
+                <p class="item-meta help-foot" data-price-foot hidden>Reasons show on the proposal page and in Reports, not in the PDF.</p>
+            </div>
+            <div class="help-box" data-suggest hidden>
+                <h3>Often budgeted together</h3>
+                <p class="item-meta" data-suggest-intro>Items that approved proposals with these items also had.</p>
+                <div data-suggest-list></div>
+                <p class="item-meta" data-suggest-wait hidden></p>
+            </div>
+        </div>
 
         {{-- Suggestions from earlier proposals; any other name can be typed. --}}
         <datalist id="propCategories">
@@ -366,15 +428,286 @@
             row.remove();
             renumber(rows);
             recompute();
+            if (kindOf === 'budget') scheduleCheck();
             var addButton = form.querySelector('[data-add-row="' + kindOf + '"]');
             if (addButton) addButton.focus();
+            return;
         }
+
+        // "Price is correct" in the Price check box: opens the reason for that price.
+        var ok = e.target.closest('[data-price-ok]');
+        if (ok) {
+            var okKey = ok.getAttribute('data-price-ok');
+            var okRow = rowByKey(okKey);
+            if (okRow) {
+                opened[okKey] = true;
+                okRow.querySelector('[data-price-note-for]').value = okRow.querySelector('[data-price]').value;
+                renderPrices();
+                var reasonInput = form.querySelector('[data-reason-input="' + okKey + '"]');
+                if (reasonInput) reasonInput.focus();
+            }
+            return;
+        }
+
+        var suggestion = e.target.closest('[data-suggest-add]');
+        if (suggestion) addSuggested(suggestions[+suggestion.getAttribute('data-suggest-add')]);
     });
 
     form.addEventListener('input', function (e) {
         if (e.target.matches('[data-qty], [data-price]')) recompute();
         if (e.target.matches('textarea.cell-text')) fit(e.target);
+        if (e.target.matches('[data-price]')) forgetReason(e.target.closest('[data-row]'));
+        if (e.target.matches('[data-reason-input]')) {
+            // Kept in the row's hidden fields, for the price as it is now.
+            var reasonRow = rowByKey(e.target.getAttribute('data-reason-input'));
+            if (reasonRow) {
+                reasonRow.querySelector('[data-price-note]').value = e.target.value;
+                reasonRow.querySelector('[data-price-note-for]').value = reasonRow.querySelector('[data-price]').value;
+            }
+        }
+        if (e.target.closest('#budgetList') && e.target.matches('[name$="[particular]"], [name$="[unit]"], [data-price]')) scheduleCheck();
     });
+    var startInput = document.getElementById('pStart');
+    startInput.addEventListener('change', scheduleCheck);
+
+    // ---- Budget data mining ----------------------------------------------
+    // The server compares each Unit Price with approved proposals (an
+    // unusual one is flagged) and names the items often budgeted with the
+    // ones already here. Asked half a second after typing stops.
+    var checkUrl = form.getAttribute('data-budget-check');
+    var token = form.querySelector('input[name="_token"]').value;
+    var timer = null;
+    var asked = 0;
+    var suggestions = [];
+    var lastPrices = {};   // the last check, by row key
+    var opened = {};       // rows whose "Price is correct" was clicked, reason not typed yet
+
+    function budgetRows() {
+        return Array.prototype.slice.call(document.querySelectorAll('#budgetList [data-row]'));
+    }
+
+    function rowKey(row) {
+        var particular = row.querySelector('[name$="[particular]"]');
+        var match = particular && particular.name.match(/^items\[([^\]]+)\]/);
+        return match ? match[1] : null;
+    }
+
+    function rowByKey(key) {
+        return budgetRows().filter(function (row) { return rowKey(row) === key; })[0] || null;
+    }
+
+    function value(row, name) {
+        var el = row.querySelector('[name$="[' + name + ']"]');
+        return el ? el.value : '';
+    }
+
+    // ₱150 or ₱12.50: whole pesos without the centavos.
+    function shortPeso(n) {
+        return '₱' + n.toLocaleString('en-US', { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 });
+    }
+
+    // A reason holds only for the price it was written for.
+    function forgetReason(row) {
+        if (!row) return;
+        if (num(row.querySelector('[data-price-note-for]').value) === num(row.querySelector('[data-price]').value)) return;
+        row.querySelector('[data-price-note]').value = '';
+        delete opened[rowKey(row)];
+        renderPrices();
+    }
+
+    function scheduleCheck() {
+        clearTimeout(timer);
+        timer = setTimeout(runCheck, 500);
+    }
+
+    function runCheck() {
+        var items = {};
+        budgetRows().forEach(function (row) {
+            var key = rowKey(row);
+            if (key !== null) items[key] = { particular: value(row, 'particular'), unit: value(row, 'unit'), unit_price: value(row, 'unit_price') };
+        });
+        var mine = ++asked;
+        fetch(checkUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': token },
+            body: JSON.stringify({ proposal: form.getAttribute('data-proposal') || null, starts_on: startInput.value || null, items: items })
+        })
+            .then(function (response) { return response.ok ? response.json() : null; })
+            .then(function (data) { if (data && mine === asked) showCheck(data); })
+            .catch(function () { /* the check is a help only; the form works without it */ });
+    }
+
+    function showCheck(data) {
+        lastPrices = data.prices || {};
+        renderPrices();
+        renderSuggestions(data);
+    }
+
+    // One line of the Price check box: the item, its price and what is
+    // unusual about it, then "Price is correct" or the reason field.
+    function priceItem(list, key) {
+        var item = list.querySelector('[data-price-item="' + key + '"]');
+        if (item) return item;
+        item = document.createElement('div');
+        item.className = 'help-item';
+        item.id = 'price-item-' + key;
+        item.setAttribute('data-price-item', key);
+        var text = document.createElement('div');
+        text.id = item.id + '-text';
+        text.appendChild(document.createElement('b'));
+        text.appendChild(document.createTextNode(''));
+        text.appendChild(document.createElement('br'));
+        var why = document.createElement('span');
+        why.className = 'item-meta';
+        text.appendChild(why);
+        var action = document.createElement('div');
+        action.className = 'help-action';
+        item.appendChild(text);
+        item.appendChild(action);
+        return item;
+    }
+
+    function fillPriceItem(item, row, check, open) {
+        var key = item.getAttribute('data-price-item');
+        var text = item.firstChild;
+        var unit = value(row, 'unit');
+        text.childNodes[0].textContent = value(row, 'particular') || 'This row';
+        text.childNodes[1].textContent = ' · ' + shortPeso(num(value(row, 'unit_price'))) + (unit ? ' per ' + unit : '');
+        text.childNodes[3].textContent = check.summary + ' (' + check.proposals + ' approved ' + (check.proposals === 1 ? 'proposal' : 'proposals') + ')';
+
+        // Rebuilt only when it changes, so a reason being typed keeps its focus.
+        var action = item.lastChild;
+        item.classList.toggle('is-open', open);
+        if (open && !action.querySelector('input')) {
+            action.textContent = '';
+            var label = document.createElement('label');
+            label.textContent = 'Why this price is right';
+            var input = document.createElement('input');
+            input.className = 'prop-input';
+            input.maxLength = 300;
+            input.placeholder = 'e.g. catered, drinks included';
+            input.setAttribute('data-reason-input', key);
+            input.value = row.querySelector('[data-price-note]').value;
+            label.appendChild(input);
+            action.appendChild(label);
+        } else if (!open && !action.querySelector('button')) {
+            action.textContent = '';
+            var button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'btn-flat ghost btn-sm';
+            button.setAttribute('data-price-ok', key);
+            button.textContent = 'Price is correct';
+            action.appendChild(button);
+        }
+        var ok = action.querySelector('button');
+        if (ok) ok.setAttribute('aria-label', 'Price is correct: ' + text.childNodes[0].textContent);
+    }
+
+    // Marks each unusual Unit Price in its row, and lists them in the
+    // Price check box in the order of the rows.
+    function renderPrices() {
+        var box = form.querySelector('[data-price-box]');
+        var list = box.querySelector('[data-price-list]');
+        var priced = 0, compared = 0, flagged = 0, explained = 0, shown = [];
+        budgetRows().forEach(function (row) {
+            var key = rowKey(row);
+            var check = key === null ? null : lastPrices[key];
+            var unusual = !!check && (check.state === 'high' || check.state === 'low');
+            var price = row.querySelector('[data-price]');
+            if (check) priced++;
+            if (check && check.state !== 'few') compared++;
+            row.querySelector('[data-price-cell]').classList.toggle('is-unusual', unusual);
+            if (!unusual) {
+                price.removeAttribute('aria-describedby');
+                return;
+            }
+            flagged++;
+            var note = row.querySelector('[data-price-note]').value.trim();
+            if (note) explained++;
+            var item = priceItem(list, key);
+            fillPriceItem(item, row, check, note !== '' || !!opened[key]);
+            price.setAttribute('aria-describedby', item.id + '-text');
+            shown.push(item);
+        });
+        // Only moved when out of place: moving the line with the reason
+        // field would take the focus away from it.
+        shown.forEach(function (item, i) {
+            if (list.children[i] !== item) list.insertBefore(item, list.children[i] || null);
+        });
+        while (list.children.length > shown.length) list.removeChild(list.lastChild);
+
+        box.hidden = priced === 0;
+        box.querySelector('[data-price-foot]').hidden = flagged === 0;
+        var summary = box.querySelector('[data-price-summary]');
+        summary.textContent = '';
+        if (flagged > 0) {
+            var count = document.createElement('b');
+            count.className = 'warn-text';
+            count.textContent = flagged + (flagged === 1 ? ' price looks' : ' prices look') + ' unusual';
+            summary.appendChild(count);
+            summary.appendChild(document.createTextNode(' next to approved proposals. '
+                + (flagged > explained ? 'Fix the price, or click “Price is correct” and say why.' : 'Each has your reason.')));
+        } else if (compared > 0) {
+            summary.textContent = (compared === 1 ? 'The 1 price' : 'The ' + compared + ' prices') + ' compared with approved proposals '
+                + (compared === 1 ? 'is' : 'are') + ' close to what they paid.'
+                + (priced > compared ? ' ' + (priced - compared) + ' had nothing to compare with yet.' : '');
+        } else {
+            summary.textContent = 'None of these items has 3 or more prices in approved proposals yet, so there is nothing to compare with.';
+        }
+    }
+
+    function renderSuggestions(data) {
+        suggestions = data.suggestions || [];
+        var box = form.querySelector('[data-suggest]');
+        var list = box.querySelector('[data-suggest-list]');
+        var wait = box.querySelector('[data-suggest-wait]');
+        list.textContent = '';
+        suggestions.forEach(function (s, i) {
+            var item = document.createElement('div');
+            item.className = 'help-item';
+            var text = document.createElement('div');
+            var name = document.createElement('b');
+            name.textContent = s.label;
+            var why = document.createElement('span');
+            why.className = 'item-meta';
+            why.textContent = s.text;
+            text.appendChild(name);
+            text.appendChild(document.createElement('br'));
+            text.appendChild(why);
+            var add = document.createElement('button');
+            add.type = 'button';
+            add.className = 'btn-flat ghost btn-sm';
+            add.setAttribute('data-suggest-add', String(i));
+            add.setAttribute('aria-label', 'Add ' + s.label + ' to the budget');
+            add.innerHTML = '<i class="fas fa-plus me-1" aria-hidden="true"></i> Add row';
+            item.appendChild(text);
+            item.appendChild(add);
+            list.appendChild(item);
+        });
+        var waiting = data.approved < data.needed;
+        wait.hidden = !waiting;
+        wait.textContent = waiting ? 'Suggestions start once there are ' + data.needed
+            + ' approved proposals (now ' + data.approved + ').' : '';
+        box.querySelector('[data-suggest-intro]').hidden = waiting;
+        box.hidden = !waiting && suggestions.length === 0;
+    }
+
+    // A suggested item becomes a new budget row with its usual category and unit.
+    function addSuggested(s) {
+        if (!s) return;
+        var list = document.getElementById('budgetList');
+        list.insertAdjacentHTML('beforeend', document.getElementById('budgetTpl').innerHTML.replace(/__KEY__/g, String(nextKey++)));
+        var row = list.lastElementChild;
+        row.querySelector('[name$="[category]"]').value = s.category || '';
+        row.querySelector('[name$="[particular]"]').value = s.label;
+        row.querySelector('[name$="[unit]"]').value = s.unit || '';
+        renumber(list);
+        row.querySelector('[data-qty]').focus();
+        scheduleCheck();
+    }
+
+    runCheck();
 })();
 </script>
 

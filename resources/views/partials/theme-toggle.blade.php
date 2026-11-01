@@ -31,50 +31,20 @@
         // Sync the icon to whatever the head script decided.
         apply(current());
 
+        // One quick fade of the whole screen from the old colours to the new
+        // (View Transitions; 0.2s set in partials/app-shell/styles). Fading
+        // each element on its own looked like flicker ("masakit sa mata",
+        // 2026-10-25), and the diagonal wipe before it was too much.
+        // Instant where the browser can't do it, or with reduced motion.
         var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
-        // Diagonal wipe: dark starts top-left and grows toward bottom-right;
-        // light reverses, starting bottom-right and closing on top-left.
         function switchTo(next) {
-            var persist = function () {
-                try { localStorage.setItem('themeMode', next); } catch (e) {}
+            try { localStorage.setItem('themeMode', next); } catch (e) {}
+            if (document.startViewTransition && !reduceMotion.matches) {
+                document.startViewTransition(function () { apply(next); });
+            } else {
                 apply(next);
-            };
-
-            if (!document.startViewTransition || reduceMotion.matches) {
-                persist();
-                return;
             }
-
-            var fromTopLeft = next === 'dark';
-            var x = fromTopLeft ? 0 : window.innerWidth;
-            var y = fromTopLeft ? 0 : window.innerHeight;
-            var endRadius = Math.hypot(window.innerWidth, window.innerHeight);
-
-            var transition = document.startViewTransition(function () {
-                root.classList.add('theme-flip-lock');
-                persist();
-            });
-            transition.ready.then(function () {
-                // Snapshots are captured - safe to unfreeze transitions and
-                // start the reveal.
-                root.classList.remove('theme-flip-lock');
-                root.animate(
-                    {
-                        clipPath: [
-                            'circle(0px at ' + x + 'px ' + y + 'px)',
-                            'circle(' + endRadius + 'px at ' + x + 'px ' + y + 'px)'
-                        ]
-                    },
-                    {
-                        duration: 600,
-                        easing: 'ease-in-out',
-                        pseudoElement: '::view-transition-new(root)'
-                    }
-                );
-            }).catch(function () {
-                root.classList.remove('theme-flip-lock');
-            });
         }
 
         btn.addEventListener('click', function (e) {

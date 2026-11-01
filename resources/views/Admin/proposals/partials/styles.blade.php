@@ -25,6 +25,12 @@
     .prop-name { font-weight:600; text-decoration:none; }
     .prop-table td { vertical-align:top; }
     .prop-table .actions { text-align:right; white-space:nowrap; }
+    /* The whole row opens the proposal: the title's link is stretched over
+       the row, and the Copy/Edit buttons sit above it. Keyboard users still
+       reach the proposal through the title link itself. */
+    .prop-table tbody tr { position:relative; cursor:pointer; }
+    .prop-table .prop-name::after { content:""; position:absolute; inset:0; }
+    .prop-table .actions .prop-actions { position:relative; z-index:1; }
 
     /* Form */
     .prop-form { max-width:1000px; }
@@ -60,6 +66,35 @@
     .is-invalid { border-color:var(--danger) !important; }
     .field-error { color:var(--danger); font-size:.76rem; margin-top:4px; }
     .form-actions { display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end; margin-bottom:24px; }
+    /* Read from a Word file: what was found, and what to check */
+    .import-note { border-left:0; background:var(--primary-dim); }
+    .import-warnings { margin:8px 0 0; padding-left:20px; color:var(--warning); font-size:.85rem; display:flex; flex-direction:column; gap:3px; }
+    .import-check { color:var(--warning); font-size:.76rem; margin-top:4px; line-height:1.35; }
+    .import-steps { margin:0 0 12px; padding-left:20px; display:flex; flex-direction:column; gap:4px; }
+
+    /* Budget data mining. An unusual Unit Price is only marked in its row
+       (warning border and icon), so every row keeps the same height; what
+       is unusual, "Price is correct" and the reason are in the Price check
+       box under the table, beside "Often budgeted together". */
+    .price-cell { position:relative; }
+    .price-cell > i { display:none; position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--warning); font-size:.75rem; pointer-events:none; }
+    .price-cell.is-unusual > i { display:block; }
+    .price-cell.is-unusual .prop-input { border-color:var(--warning); background:var(--warning-dim); padding-left:28px; }
+    .price-mark { color:var(--warning); margin-right:5px; font-size:.8rem; }
+    .warn-text { color:var(--warning); }
+    .budget-help { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:14px; margin-top:16px; }
+    .help-box { border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
+    .help-box h3 { font-size:.88rem; font-weight:700; color:var(--text-1); margin:0; }
+    .help-box > .item-meta { margin:2px 0 8px; }
+    .help-box .help-foot { margin:8px 0 0; }
+    .help-item {
+        display:flex; align-items:center; justify-content:space-between; gap:12px;
+        padding:9px 0; border-top:1px solid var(--border); font-size:.86rem;
+    }
+    .help-item.is-open { flex-direction:column; align-items:stretch; gap:6px; }
+    .help-item .btn-flat { flex-shrink:0; }
+    .help-action label { display:grid; gap:4px; font-size:.74rem; font-weight:600; color:var(--text-2); }
+    .help-action .prop-input { font-size:.82rem; padding:6px 8px; font-weight:400; }
 
     /* One proposal */
     .prop-doc { max-width:1000px; }
@@ -79,6 +114,10 @@
     .read-table td { padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
     .read-table tfoot td { font-weight:700; border-bottom:none; border-top:1.5px solid var(--border); }
     .cat-totals { margin-top:14px; max-width:420px; }
+    .prop-status .prop-facts dd { display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; }
+    .status-forms { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:14px 18px; margin-top:16px; padding-top:14px; border-top:1px solid var(--border); }
+    .status-form label { display:block; font-size:.74rem; font-weight:600; color:var(--text-2); margin-bottom:5px; }
+    .status-form .prop-input { min-width:0; }
 
     @media (max-width: 640px) {
         .prop-fields { grid-template-columns:1fr; }

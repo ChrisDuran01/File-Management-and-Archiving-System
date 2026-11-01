@@ -13,13 +13,12 @@ use Carbon\Carbon;
  * technique starts from the same TF-IDF vectors (TextVectors), built from the
  * word counts stored with each file (files.text_terms):
  *
- *  - Document map: classical multidimensional scaling of the files'
- *    cosine similarities, so documents that read alike sit together.
- *  - Possible misfiling: a file is compared to the "centroid" (summed
- *    TF-IDF vector) of its own folder's OTHER files and of every other
- *    folder. If it reads much more like another folder, it is suggested
- *    for a move. This is a nearest-centroid text classifier.
- *  - Folder topics: the words with the highest summed weight per folder.
+ *  - Possible misfiling: first by title (DocumentKind) - a file titled
+ *    "A RESOLUTION" in a folder named for reports. Otherwise a file is
+ *    compared to the "centroid" (summed TF-IDF vector) of its own folder's
+ *    OTHER files and of every other folder. If it reads much more like
+ *    another folder, it is suggested for a move. This is a nearest-centroid
+ *    text classifier.
  *
  * Copies of the same document are found by DuplicateDetector when each file
  * is saved, not here. Everything is computed on demand; nothing is stored.
@@ -33,6 +32,9 @@ class ArchiveInsights
 
     private const MISFILED_MARGIN = 0.15;
 
+    /** With only one other file in its own folder, the other folder must match this well. */
+    private const MISFILED_MIN_SIMILARITY_SMALL_FOLDER = 0.45;
+
     private const ANOMALY_BASELINE_DAYS = 90;
 
     private const ANOMALY_RECENT_DAYS = 7;
@@ -41,22 +43,25 @@ class ArchiveInsights
 
     private const ANOMALY_MIN_COUNT = 5;
 
-    public function __construct(private readonly TextVectors $vectors)
-    {
+    public function __construct(
+        private readonly TextVectors $vectors,
+        private readonly DocumentKind $kinds,
+    ) {
     }
 
     /**
-     * @return array{corpus: int, misfiled: array, folderTopics: array, map: array}
+     * @return array{corpus: int, misfiled: array}
      */
     public function build(User $viewer): array
     {
         $folders = Folder::all()->keyBy('id');
-        $accessible = $folders->filter(fn (Folder $f) => $f->isAccessibleBy($viewer))->keys()->all();
+        $openFolders = $folders->filter(fn (Folder $f) => $f->isAccessibleBy($viewer));
+        $accessible = $openFolders->keys()->all();
 
         $files = File::whereIn('folder_id', $accessible)
             ->where(fn ($q) => $q->whereNotNull('text_terms')->orWhere(fn ($q) => $q->whereNotNull('ocr_text')->where('ocr_text', '!=', '')))
             ->latest()->limit(self::MAX_FILES)
-            ->get(['id', 'filename', 'folder_id', 'text_terms', 'ocr_text', 'created_at']);
+            ->get(['id', 'filename', 'folder_id', 'text_terms', 'ocr_text', 'content_hash', 'duplicate_of_id', 'created_at']);
 
         // Word counts per file (stored; worked out here for a file saved
         // before they were). Files with too little text are left out.
@@ -69,7 +74,7 @@ class ArchiveInsights
         }
 
         $n = count($tf);
-        $empty = ['corpus' => $n, 'misfiled' => [], 'folderTopics' => [], 'map' => []];
+        $empty = ['corpus' => $n, 'misfiled' => []];
         if ($n < 2) {
             return $empty;
         }
@@ -78,129 +83,26 @@ class ArchiveInsights
         $vec = array_map(fn ($counts) => $this->vectors->weigh($counts, $df, $n), $tf);
         $byId = $files->keyBy('id');
 
-        $ids = array_keys($vec);
-        $gram = [];
-        for ($i = 0, $c = count($ids); $i < $c; $i++) {
-            $gram[$i][$i] = 1.0;
-            for ($j = $i + 1; $j < $c; $j++) {
-                $gram[$i][$j] = $gram[$j][$i] = $this->vectors->dot($vec[$ids[$i]], $vec[$ids[$j]]);
-            }
-        }
-
-        $misfiled = $this->findMisfiled($vec, $byId, $folders);
-
         return [
-            'corpus'       => $n,
-            'misfiled'     => $misfiled,
-            'folderTopics' => $this->folderTopics($vec, $byId, $folders),
-            'map'          => $this->documentMap($ids, $gram, $byId, $folders, array_column(array_column($misfiled, 'file'), 'id')),
+            'corpus'   => $n,
+            'misfiled' => $this->findMisfiled($vec, $byId, $folders, $openFolders),
         ];
     }
 
     /**
-     * 2-D "document map" by classical multidimensional scaling (equivalent
-     * to PCA on the TF-IDF vectors): double-centre the similarity matrix,
-     * take its top two eigenvectors by power iteration, and use them as
-     * x/y. Documents with similar text land close together, so folders show
-     * up as clusters, duplicates sit on top of each other, and a misfiled
-     * document sits inside another folder's cluster.
+     * Files that may be in the wrong folder.
+     *
+     *  - By title: the file is titled as one kind ("A RESOLUTION") and its
+     *    folder's name says it is for another ("Reports"). A folder named
+     *    after something else (an event) may hold any kind, so it is never
+     *    judged by title.
+     *  - By words, when there is no title to go by: the file reads much more
+     *    like another folder's files than its own folder's.
+     *
+     * A file is never compared with its own copies: next to its twin, any
+     * folder would look like the right one.
      */
-    private function documentMap(array $ids, array $gram, $byId, $folders, array $misfiledIds): array
-    {
-        $n = count($ids);
-        if ($n < 3) {
-            return [];
-        }
-
-        // B = J G J  (double centring)
-        $rowMean = array_map(fn ($row) => array_sum($row) / $n, $gram);
-        $grand = array_sum($rowMean) / $n;
-        $B = [];
-        for ($i = 0; $i < $n; $i++) {
-            for ($j = 0; $j < $n; $j++) {
-                $B[$i][$j] = $gram[$i][$j] - $rowMean[$i] - $rowMean[$j] + $grand;
-            }
-        }
-
-        [$l1, $v1] = $this->topEigen($B, $n);
-        for ($i = 0; $i < $n; $i++) {
-            for ($j = 0; $j < $n; $j++) {
-                $B[$i][$j] -= $l1 * $v1[$i] * $v1[$j]; // deflate
-            }
-        }
-        [$l2, $v2] = $this->topEigen($B, $n);
-
-        $s1 = sqrt(max(0, $l1));
-        $s2 = sqrt(max(0, $l2));
-
-        // Largest folders get their own colour/legend entry; the rest share "Other".
-        $counts = [];
-        foreach ($ids as $id) {
-            $fid = $byId[$id]->folder_id;
-            $counts[$fid] = ($counts[$fid] ?? 0) + 1;
-        }
-        arsort($counts);
-        $named = array_slice(array_keys($counts), 0, 2);
-
-        $points = [];
-        foreach ($ids as $i => $id) {
-            $f = $byId[$id];
-            $points[] = [
-                'x'      => round($v1[$i] * $s1, 4),
-                'y'      => round($v2[$i] * $s2, 4),
-                'file'   => $f->filename,
-                'folder' => in_array($f->folder_id, $named, true) ? ($folders[$f->folder_id]->name ?? 'Unknown') : 'Other folders',
-                'moved'  => in_array($id, $misfiledIds, true),
-            ];
-        }
-
-        return $points;
-    }
-
-    /** Dominant eigenpair of a symmetric matrix by power iteration. */
-    private function topEigen(array $M, int $n): array
-    {
-        $v = [];
-        for ($i = 0; $i < $n; $i++) {
-            $v[$i] = sin($i + 1) + 1.5; // fixed, non-degenerate start
-        }
-        $v = $this->unit($v);
-
-        $lambda = 0.0;
-        for ($iter = 0; $iter < 200; $iter++) {
-            $w = array_fill(0, $n, 0.0);
-            for ($i = 0; $i < $n; $i++) {
-                $s = 0.0;
-                $row = $M[$i];
-                for ($j = 0; $j < $n; $j++) {
-                    $s += $row[$j] * $v[$j];
-                }
-                $w[$i] = $s;
-            }
-            $newLambda = 0.0;
-            foreach ($v as $i => $x) {
-                $newLambda += $x * $w[$i];
-            }
-            $w = $this->unit($w);
-            $converged = abs($newLambda - $lambda) < 1e-9;
-            $v = $w;
-            $lambda = $newLambda;
-            if ($converged) {
-                break;
-            }
-        }
-
-        return [$lambda, $v];
-    }
-
-    private function unit(array $v): array
-    {
-        $norm = sqrt(array_sum(array_map(fn ($x) => $x * $x, $v)));
-
-        return $norm > 0 ? array_map(fn ($x) => $x / $norm, $v) : $v;
-    }
-
-    private function findMisfiled(array $vec, $byId, $folders): array
+    private function findMisfiled(array $vec, $byId, $folders, $openFolders): array
     {
         // Sum vector per folder.
         $sum = [];
@@ -212,31 +114,66 @@ class ArchiveInsights
                 $sum[$folderId][$term] = ($sum[$folderId][$term] ?? 0) + $w;
             }
         }
+        $centroids = array_map(fn ($s) => $this->vectors->normalize($s), $sum);
+
+        $copies = $this->copiesOf($byId, array_keys($vec));
+        $folderKinds = $openFolders->map(fn (Folder $f) => $this->kinds->forFolderName($f->name))->all();
 
         $out = [];
         foreach ($vec as $fileId => $v) {
             $file = $byId[$fileId];
             $own = $file->folder_id;
+            $kind = $this->kinds->fromText($file->ocr_text);
+            $ownKinds = $folderKinds[$own] ?? [];
 
-            // Need a real reference set: at least 2 OTHER files in its folder.
-            if (($members[$own] ?? 0) < 3) {
+            if ($kind && $ownKinds) {
+                $target = in_array($kind, $ownKinds, true) ? null : $this->folderForKind($kind, $own, $openFolders, $folderKinds, $members);
+                if ($target) {
+                    $out[] = [
+                        'file'        => $this->fileRow($file, $folders),
+                        'reason'      => 'title',
+                        'kind'        => $this->kinds->label($kind),
+                        'suggested'   => ['id' => $target->id, 'name' => $target->name],
+                        'own_match'   => null,
+                        'other_match' => null,
+                        'gap'         => 0.0,
+                    ];
+                }
                 continue;
             }
 
-            // Own folder centroid WITHOUT this file, so it isn't compared to itself.
-            $ownCentroid = $sum[$own];
-            foreach ($v as $term => $w) {
-                $ownCentroid[$term] = ($ownCentroid[$term] ?? 0) - $w;
+            // Each folder WITHOUT this file and its copies.
+            $count = $members;
+            $adjusted = [];
+            foreach (array_merge([$fileId], $copies[$fileId]) as $id) {
+                $folderId = $byId[$id]->folder_id;
+                $count[$folderId]--;
+                $adjusted[$folderId] ??= $sum[$folderId];
+                foreach ($vec[$id] as $term => $w) {
+                    $adjusted[$folderId][$term] -= $w;
+                }
             }
-            $ownSim = $this->vectors->dot($v, $this->vectors->normalize($ownCentroid));
+            $centroid = fn ($folderId) => isset($adjusted[$folderId]) ? $this->vectors->normalize($adjusted[$folderId]) : $centroids[$folderId];
+
+            // Need something to compare its own folder by. With one other
+            // file there, the other folder must match much better.
+            if ($count[$own] < 1) {
+                continue;
+            }
+            $minSim = $count[$own] < 2 ? self::MISFILED_MIN_SIMILARITY_SMALL_FOLDER : self::MISFILED_MIN_SIMILARITY;
+            $ownSim = $this->vectors->dot($v, $centroid($own));
 
             $bestFolder = null;
             $bestSim = 0.0;
-            foreach ($sum as $folderId => $centroid) {
-                if ($folderId === $own || ($members[$folderId] ?? 0) < 2) {
+            foreach (array_keys($sum) as $folderId) {
+                if ($folderId === $own || $count[$folderId] < 2) {
                     continue;
                 }
-                $sim = $this->vectors->dot($v, $this->vectors->normalize($centroid));
+                // A titled file can't belong in a folder named for another kind.
+                if ($kind && ($folderKinds[$folderId] ?? []) && ! in_array($kind, $folderKinds[$folderId], true)) {
+                    continue;
+                }
+                $sim = $this->vectors->dot($v, $centroid($folderId));
                 if ($sim > $bestSim) {
                     $bestSim = $sim;
                     $bestFolder = $folderId;
@@ -244,10 +181,12 @@ class ArchiveInsights
             }
 
             if ($bestFolder !== null
-                && $bestSim >= self::MISFILED_MIN_SIMILARITY
+                && $bestSim >= $minSim
                 && $bestSim - $ownSim >= self::MISFILED_MARGIN) {
                 $out[] = [
                     'file'        => $this->fileRow($file, $folders),
+                    'reason'      => 'words',
+                    'kind'        => null,
                     'suggested'   => ['id' => $bestFolder, 'name' => $folders[$bestFolder]->name ?? 'Unknown'],
                     'own_match'   => (int) round(max(0, $ownSim) * 100),
                     'other_match' => (int) round($bestSim * 100),
@@ -256,37 +195,56 @@ class ArchiveInsights
             }
         }
 
-        usort($out, fn ($x, $y) => $y['gap'] <=> $x['gap']);
+        // A title is surer than any word match, so those come first.
+        usort($out, fn ($x, $y) => [$y['reason'] === 'title', $y['gap']] <=> [$x['reason'] === 'title', $x['gap']]);
 
         return array_slice($out, 0, 8);
     }
 
-    /** Top distinguishing terms per folder (highest summed TF-IDF weight). */
-    private function folderTopics(array $vec, $byId, $folders): array
+    /**
+     * The other files that are copies of each file: the same bytes, or
+     * marked by DuplicateDetector as a copy of the same original.
+     *
+     * @return array<int, int[]>
+     */
+    private function copiesOf($byId, array $ids): array
     {
-        $sum = [];
-        $members = [];
-        foreach ($vec as $fileId => $v) {
-            $folderId = $byId[$fileId]->folder_id;
-            $members[$folderId] = ($members[$folderId] ?? 0) + 1;
-            foreach ($v as $term => $w) {
-                $sum[$folderId][$term] = ($sum[$folderId][$term] ?? 0) + $w;
+        $byHash = [];
+        $byOriginal = [];
+        foreach ($ids as $id) {
+            $file = $byId[$id];
+            if ($file->content_hash) {
+                $byHash[$file->content_hash][] = $id;
             }
+            $byOriginal[$file->duplicate_of_id ?? $id][] = $id;
         }
 
-        $topics = [];
-        foreach ($sum as $folderId => $terms) {
-            arsort($terms);
-            $topics[] = [
-                'folder' => $folders[$folderId]->name ?? 'Unknown',
-                'files'  => $members[$folderId],
-                'terms'  => array_slice(array_keys($terms), 0, 5),
-            ];
+        $copies = [];
+        foreach ($ids as $id) {
+            $file = $byId[$id];
+            $copies[$id] = array_values(array_diff(array_unique(array_merge(
+                $file->content_hash ? $byHash[$file->content_hash] : [],
+                $byOriginal[$file->duplicate_of_id ?? $id],
+            )), [$id]));
         }
 
-        usort($topics, fn ($a, $b) => $b['files'] <=> $a['files']);
+        return $copies;
+    }
 
-        return array_slice($topics, 0, 6);
+    /**
+     * The folder a file of this kind belongs in, among those the viewer may
+     * open: the same school year as the file's folder first, then one that
+     * isn't a past year's (read-only), then the one with the most files.
+     */
+    private function folderForKind(string $kind, int $ownId, $openFolders, array $folderKinds, array $members): ?Folder
+    {
+        $year = $openFolders[$ownId]->school_year ?? null;
+
+        return $openFolders
+            ->filter(fn (Folder $f) => in_array($kind, $folderKinds[$f->id] ?? [], true))
+            ->sort(fn (Folder $a, Folder $b) => [$b->school_year === $year, ! $b->is_archived, $members[$b->id] ?? 0, $b->id]
+                <=> [$a->school_year === $year, ! $a->is_archived, $members[$a->id] ?? 0, $a->id])
+            ->first();
     }
 
     private function fileRow(File $file, $folders): array

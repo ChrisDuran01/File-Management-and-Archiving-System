@@ -38,7 +38,10 @@
             {{ $proposals->count() }} {{ $year === 'all' ? 'in all school years' : 'in '.$year }}.
         </p>
     </div>
-    <a href="{{ route('proposals.create') }}" class="btn-flat"><i class="fas fa-plus me-1" aria-hidden="true"></i> New proposal</a>
+    <div class="prop-actions">
+        <a href="{{ route('proposals.import') }}" class="btn-flat ghost"><i class="fas fa-file-word me-1" aria-hidden="true"></i> Import from Word</a>
+        <a href="{{ route('proposals.create') }}" class="btn-flat"><i class="fas fa-plus me-1" aria-hidden="true"></i> New proposal</a>
+    </div>
 </div>
 
 <form method="GET" action="{{ route('proposals.index') }}" class="card-panel prop-filters">
@@ -51,6 +54,13 @@
         @endforeach
         <option value="all" @selected($year === 'all')>All school years</option>
     </select>
+    <label for="propStatusFilter" class="sr-only">Status</label>
+    <select id="propStatusFilter" name="status">
+        <option value="">Any status</option>
+        @foreach (\App\Models\ActivityProposal::STATUSES as $key => $label)
+            <option value="{{ $key }}" @selected($status === $key)>{{ $label }}</option>
+        @endforeach
+    </select>
     <button type="submit" class="btn-flat ghost">Show</button>
 </form>
 
@@ -58,8 +68,8 @@
     <div class="card-panel">
         <div class="empty-state">
             <i class="fas fa-clipboard-list" aria-hidden="true"></i>
-            @if ($search !== '')
-                <p style="margin:0;">No proposal matches “{{ $search }}”.</p>
+            @if ($search !== '' || $status !== '')
+                <p style="margin:0;">No proposal matches{{ $search !== '' ? ' “'.$search.'”' : '' }}{{ $status !== '' ? ' with status '.\App\Models\ActivityProposal::STATUSES[$status] : '' }}.</p>
             @else
                 <p style="margin:0 0 6px;">No proposals {{ $year === 'all' ? 'yet' : 'for '.$year.' yet' }}.</p>
                 @if ($year !== 'all')
@@ -75,6 +85,7 @@
                 <thead>
                     <tr>
                         <th scope="col">Activity</th>
+                        <th scope="col">Status</th>
                         <th scope="col">Date</th>
                         <th scope="col">Prepared by</th>
                         <th scope="col" class="num">Budget</th>
@@ -95,6 +106,12 @@
                                 </div>
                             @endif
                         </td>
+                        <td>
+                            @include('Admin.proposals.partials.status-chip')
+                            @if ($proposal->isOnStudentPage())
+                                <i class="fas fa-globe item-meta" title="Shown on the student page" aria-hidden="true"></i><span class="sr-only">, shown on the student page</span>
+                            @endif
+                        </td>
                         <td class="item-meta">{{ $proposal->dateLabel() }}</td>
                         <td class="item-meta">{{ $proposal->preparedByLabel() }}</td>
                         <td class="num">{{ \App\Models\ActivityProposal::peso($proposal->budgetTotal()) }}</td>
@@ -104,7 +121,7 @@
                                     @csrf
                                     <button type="submit" class="btn-flat ghost btn-sm"><i class="fas fa-copy me-1" aria-hidden="true"></i> Copy<span class="sr-only"> {{ $proposal->title }}</span></button>
                                 </form>
-                                @if ($proposal->canBeChangedBy(Auth::user()))
+                                @if ($proposal->canBeChangedBy(Auth::user()) && ! $proposal->isLocked())
                                     <a href="{{ route('proposals.edit', $proposal) }}" class="btn-flat ghost btn-sm"><i class="fas fa-pen me-1" aria-hidden="true"></i> Edit<span class="sr-only"> {{ $proposal->title }}</span></a>
                                 @endif
                             </div>

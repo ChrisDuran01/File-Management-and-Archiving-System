@@ -24,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'superadmin' => \App\Http\Middleware\EnsureSuperAdmin::class,
             'nocache'    => \App\Http\Middleware\PreventBackHistory::class,
             'phone'      => \App\Http\Middleware\EnsurePhone::class,
+            'officer'    => \App\Http\Middleware\EnsureActiveOfficer::class,
         ]);
 
         // Someone not signed in goes to the sign-in page at the address of
