@@ -39,7 +39,7 @@
         </p>
     </div>
     <div class="prop-actions">
-        <a href="{{ route('proposals.import') }}" class="btn-flat ghost"><i class="fas fa-file-word me-1" aria-hidden="true"></i> Import from Word</a>
+        <a href="{{ route('proposals.import') }}" class="btn-flat ghost"><i class="fas fa-file-import me-1" aria-hidden="true"></i> Import from a file</a>
         <a href="{{ route('proposals.create') }}" class="btn-flat"><i class="fas fa-plus me-1" aria-hidden="true"></i> New proposal</a>
     </div>
 </div>

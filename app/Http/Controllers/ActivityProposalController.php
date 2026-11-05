@@ -11,7 +11,7 @@ use App\Models\Letterhead;
 use App\Models\OfficerTerm;
 use App\Services\BudgetRules;
 use App\Services\PriceCheck;
-use App\Services\ProposalWordImport;
+use App\Services\ProposalFileImport;
 use App\Support\SchoolYear;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -91,25 +91,32 @@ class ActivityProposalController extends Controller
         return view('Admin.proposals.form', $this->formData($proposal) + ['import' => $import]);
     }
 
-    /** Where an officer picks the Word file of a proposal written before the system. */
+    /** Where an officer picks the file of a proposal written before the system: Word, PDF, or a scan of the paper. */
     public function importForm()
     {
         return view('Admin.proposals.import', ['layout' => $this->layout()]);
     }
 
-   
-    public function importRead(Request $request, ProposalWordImport $reader)
+    /**
+     * Reads the file (ProposalFileImport) and opens a new proposal filled
+     * in from it. The file itself is not kept. A scan is read with OCR,
+     * which takes a while per page.
+     */
+    public function importRead(Request $request, ProposalFileImport $reader)
     {
         $request->validate([
-            'file' => ['required', 'file', 'max:10240', 'extensions:docx'],
+            'file' => ['required', 'file', 'max:20480', 'extensions:docx,pdf,jpg,jpeg,png'],
         ], [
-            'file.required'   => 'Choose the Word file of the proposal.',
-            'file.extensions' => 'Choose a Word file (.docx). For a .doc file, open it in Word and Save As .docx first.',
-            'file.max'        => 'The Word file is too large (over 10 MB).',
+            'file.required'   => 'Choose the file of the proposal.',
+            'file.extensions' => 'Choose a Word file (.docx), a PDF, or a photo (JPG or PNG). For a .doc file, open it in Word and Save As .docx first.',
+            'file.max'        => 'The file is too large (over 20 MB).',
         ]);
 
+        set_time_limit(300);
+        $file = $request->file('file');
+
         try {
-            $result = $reader->read($request->file('file')->getRealPath());
+            $result = $reader->read($file->getRealPath(), $file->getClientOriginalExtension());
         } catch (\RuntimeException $e) {
             return back()->withErrors(['file' => $e->getMessage()]);
         }
@@ -138,7 +145,7 @@ class ActivityProposalController extends Controller
         });
 
         $this->log($request, 'Created activity proposal "'.$proposal->title.'"'
-            .($importedFrom ? ' (imported from Word file "'.$importedFrom.'")' : ''));
+            .($importedFrom ? ' (imported from '.(str_ends_with(strtolower($importedFrom), '.docx') ? 'Word file' : 'file').' "'.$importedFrom.'")' : ''));
 
         return redirect()->route('proposals.show', $proposal)->with('success', 'Proposal saved.');
     }

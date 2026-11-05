@@ -4,7 +4,8 @@
     $archiveItems  = $archives;
     $documentItems = $documents ?? collect();
     $archivedFileItems = $archivedFiles ?? collect();
-    $total         = $folderItems->count() + $fileItems->count() + $archiveItems->count() + $documentItems->count() + $archivedFileItems->count();
+    $proposalItems = $proposals ?? collect();
+    $total         = $folderItems->count() + $fileItems->count() + $archiveItems->count() + $documentItems->count() + $archivedFileItems->count() + $proposalItems->count();
 
     // Which section renders first depends on where the search was fired
     // from (set via window.searchContext in the topbar's fetch - see
@@ -13,8 +14,8 @@
     // Folder-level prioritization (which FILES/DOCUMENTS come first within
     // their own section) is handled server-side in SearchController.
     $sectionOrder = match ($context ?? null) {
-        'archives' => ['archives', 'archivedFiles', 'folders', 'files', 'documents'],
-        default    => ['folders', 'files', 'archives', 'archivedFiles', 'documents'],
+        'archives' => ['archives', 'archivedFiles', 'folders', 'files', 'documents', 'proposals'],
+        default    => ['folders', 'files', 'archives', 'archivedFiles', 'documents', 'proposals'],
     };
 @endphp
 

@@ -30,6 +30,7 @@ use App\Http\Controllers\OfficerAppController;
 use App\Http\Controllers\ShareLinkController;
 use App\Http\Controllers\SeoController;
 use App\Http\Controllers\ActivityProposalController;
+use App\Http\Controllers\TwoFactorController;
 
 /*
 |--------------------------------------------------------------------------
@@ -41,50 +42,59 @@ use App\Http\Controllers\ActivityProposalController;
 | endpoints that page uses. Everything else lives behind `auth` below -
 | new routes should go in the authenticated group by default.
 |
+| Every public page has a limit per IP (throttle:public-pages, -images,
+| -downloads; numbers in config/throttle.php), so one script can't keep the
+| server busy. A public route added here needs one too.
+|
 */
 
-Route::get('/', [PageController::class, 'login']);
-Route::get('/landingPage', [PageController::class, 'landingPage']);
+Route::get('/', [PageController::class, 'login'])->middleware('throttle:public-pages');
+Route::get('/landingPage', [PageController::class, 'landingPage'])->middleware('throttle:public-pages');
 
-Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
+Route::get('/login', [AuthController::class, 'showLogin'])->name('login')->middleware('throttle:public-pages');
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
-Route::get('/privacy', [PrivacyController::class, 'notice'])->name('privacy.notice');
+Route::get('/privacy', [PrivacyController::class, 'notice'])->name('privacy.notice')->middleware('throttle:public-pages');
 
-Route::get('/forgot-password', [AuthController::class, 'showForgotPassword'])->name('password.request');
+// The authenticator code after a right password (TwoFactorController) -
+// nobody is signed in yet, so these sit outside `auth`.
+Route::get('/two-factor-challenge', [TwoFactorController::class, 'showChallenge'])->name('two-factor.challenge')->middleware('throttle:public-pages');
+Route::post('/two-factor-challenge', [TwoFactorController::class, 'challenge'])->name('two-factor.challenge.submit')->middleware('throttle:10,1');
+
+Route::get('/forgot-password', [AuthController::class, 'showForgotPassword'])->name('password.request')->middleware('throttle:public-pages');
 Route::post('/forgot-password', [AuthController::class, 'sendResetLink'])->name('password.email')->middleware('throttle:5,1');
-Route::get('/reset-password/{token}', [AuthController::class, 'showResetPassword'])->name('password.reset');
+Route::get('/reset-password/{token}', [AuthController::class, 'showResetPassword'])->name('password.reset')->middleware('throttle:public-pages');
 Route::post('/reset-password', [AuthController::class, 'resetPassword'])->name('password.update')->middleware('throttle:10,1');
 
 // Anonymous student dashboard. Its file-preview endpoint enforces its own
 // guard (file must be is_public and not inside a restricted folder), and
 // announcement attachments are public content by design.
-Route::get('stuDashboard', [StudentController::class, 'dashboard'])->name('student.dashboard');
-Route::get('/files/{id}/previewStudentDashboard', [StudentController::class, 'previewStudentDashboard'])->name('files.previewStudentDashboard');
-Route::get('/announcements/{announcement}/download', [AnnouncementController::class, 'download'])->name('announcements.download');
-Route::get('/announcements/images/{image}', [AnnouncementController::class, 'image'])->name('announcements.image');
+Route::get('stuDashboard', [StudentController::class, 'dashboard'])->name('student.dashboard')->middleware('throttle:public-pages');
+Route::get('/files/{id}/previewStudentDashboard', [StudentController::class, 'previewStudentDashboard'])->name('files.previewStudentDashboard')->middleware('throttle:public-downloads');
+Route::get('/announcements/{announcement}/download', [AnnouncementController::class, 'download'])->name('announcements.download')->middleware('throttle:public-downloads');
+Route::get('/announcements/images/{image}', [AnnouncementController::class, 'image'])->name('announcements.image')->middleware('throttle:public-images');
 
 // One announcement on its own page, for sharing as a link and for search
 // engines. Under stuDashboard so the installed app opens it in its own
 // window. The slug is optional: a wrong or missing one redirects.
-Route::get('stuDashboard/announcements/{announcement}/{slug?}', [StudentController::class, 'announcement'])->name('student.announcement');
+Route::get('stuDashboard/announcements/{announcement}/{slug?}', [StudentController::class, 'announcement'])->name('student.announcement')->middleware('throttle:public-pages');
 
 // One approved activity from Activity Proposals, with its budget per
 // category. 404 unless the proposal is switched on and approved.
-Route::get('stuDashboard/activities/{proposal}/{slug?}', [StudentController::class, 'activity'])->whereNumber('proposal')->name('student.activity');
+Route::get('stuDashboard/activities/{proposal}/{slug?}', [StudentController::class, 'activity'])->whereNumber('proposal')->name('student.activity')->middleware('throttle:public-pages');
 
 // For search engines and link previews (Messenger, Facebook): robots.txt
 // is served from here, not public/, so its Sitemap line has the real domain.
-Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->name('sitemap');
-Route::get('/robots.txt', [SeoController::class, 'robots'])->name('robots');
-Route::get('/share-card.jpg', [SeoController::class, 'shareCard'])->name('share.card');
+Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->name('sitemap')->middleware('throttle:public-pages');
+Route::get('/robots.txt', [SeoController::class, 'robots'])->name('robots')->middleware('throttle:public-pages');
+Route::get('/share-card.jpg', [SeoController::class, 'shareCard'])->name('share.card')->middleware('throttle:public-images');
 
 // The browser-tab icon, made from the Site Settings logo (App\Services\Favicon);
 // public/ has no favicon.ico, so requests reach this. Not held back by the
 // change-password and privacy-notice redirects, or the tabs of those very
 // pages would have no icon.
-Route::get('/favicon.ico', [SeoController::class, 'favicon'])->name('favicon')
-    ->withoutMiddleware([\App\Http\Middleware\EnsurePasswordIsChanged::class, \App\Http\Middleware\EnsurePrivacyNoticeAcknowledged::class]);
+Route::get('/favicon.ico', [SeoController::class, 'favicon'])->name('favicon')->middleware('throttle:public-images')
+    ->withoutMiddleware([\App\Http\Middleware\EnsurePasswordIsChanged::class, \App\Http\Middleware\EnsurePrivacyNoticeAcknowledged::class, \App\Http\Middleware\EnsureTwoFactorEnabled::class]);
 
 // Browser push opt-in from the student page. Anonymous by design (no account),
 // so it's throttled and the controller only accepts known push-service hosts.
@@ -128,11 +138,18 @@ Route::middleware(['auth', 'officer', 'nocache'])->group(function () {
     Route::get('/change-password', [AuthController::class, 'showChangePassword'])->name('password.change');
     Route::post('/change-password', [AuthController::class, 'changePassword'])->name('password.change.submit');
 
+    // Two-factor setup (required - EnsureTwoFactorEnabled), recovery codes, Profile's buttons
+    Route::get('/two-factor/setup', [TwoFactorController::class, 'showSetup'])->name('two-factor.setup');
+    Route::post('/two-factor/setup', [TwoFactorController::class, 'confirmSetup'])->name('two-factor.setup.confirm')->middleware('throttle:10,1');
+    Route::get('/two-factor/recovery-codes', [TwoFactorController::class, 'showRecoveryCodes'])->name('two-factor.recovery-codes');
+    Route::post('/profile/two-factor', [TwoFactorController::class, 'manage'])->name('two-factor.manage')->middleware('throttle:10,1');
+
     // Dashboards (the SuperAdmin one is in the superadmin group below)
     Route::get('/adminDashboard', [DashboardController::class, 'adminDashboard'])->name('Admin.adminDashboard');
 
     // Folders
-    Route::resource('folders', FolderController::class);
+    // No create/edit pages: folders are made and renamed from the Folders page.
+    Route::resource('folders', FolderController::class)->except(['create', 'edit']);
     Route::get('/folders/{id}', [FolderController::class, 'show'])->name('folders.show');
     Route::put('/folders/{id}', [FolderController::class, 'update'])->name('folders.update');
     Route::delete('/folders/{id}', [FolderController::class, 'destroy'])->name('folders.destroy');
@@ -147,6 +164,8 @@ Route::middleware(['auth', 'officer', 'nocache'])->group(function () {
     Route::get('/files/{id}/download', [FileController::class, 'download'])->name('files.download');
     Route::delete('/files/{id}', [FileController::class, 'destroy'])->name('files.destroy');
     Route::post('/files/{id}/rename', [FileController::class, 'rename'])->name('files.rename');
+    Route::post('/files/{id}/move', [FileController::class, 'move'])->name('files.move');
+    Route::post('/files/{id}/keep-here', [FileController::class, 'keepHere'])->name('files.keepHere');
     Route::post('/file/{id}/toggle-access', [FileController::class, 'toggleAccess'])->name('file.toggleAccess');
     Route::post('/file/{id}/approval', [FileController::class, 'setApproval'])->name('file.setApproval');
     Route::post('/file/{id}/not-a-copy', [FileController::class, 'notACopy'])->name('file.notACopy');
@@ -220,6 +239,9 @@ Route::middleware(['auth', 'officer', 'nocache'])->group(function () {
         Route::get('/editAdmin/{id}', [OfficerController::class, 'edit'])->name('officers.edit');
         Route::put('/officers/update/{id}', [OfficerController::class, 'update'])->name('officers.update');
         Route::patch('/officers/{id}/password', [OfficerController::class, 'resetPassword'])->name('officers.resetPassword');
+        Route::patch('/officers/{id}/two-factor', [OfficerController::class, 'resetTwoFactor'])->name('officers.resetTwoFactor');
+        Route::post('/officers/next-president', [OfficerController::class, 'storeNextPresident'])->name('officers.nextPresident.store');
+        Route::delete('/officers/next-president', [OfficerController::class, 'removeNextPresident'])->name('officers.nextPresident.destroy');
         Route::delete('/officers/archiveAll', [OfficerController::class, 'archiveAll'])->name('officers.archiveAll');
         Route::patch('/officers/reactivate/{id}', [OfficerController::class, 'reactivate'])->name('officers.reactivate');
         Route::patch('/officers/archive/{id}', [OfficerController::class, 'archiveOfficer'])->name('officers.archiveOfficer');
@@ -235,7 +257,7 @@ Route::middleware(['auth', 'officer', 'nocache'])->group(function () {
     Route::post('/notifications/read', [NotificationController::class, 'markRead'])->name('notifications.read');
 
     // In-app help assistant (Gemini-backed, grounded on the officer guide)
-    Route::post('/help-bot/ask', [HelpBotController::class, 'ask'])->name('helpbot.ask')->middleware('throttle:20,1');
+    Route::post('/help-bot/ask', [HelpBotController::class, 'ask'])->name('helpbot.ask')->middleware('throttle:5,1');
     Route::post('/help-bot/feedback', [HelpBotController::class, 'feedback'])->name('helpbot.feedback')->middleware('throttle:30,1');
 
     // Trash (recycle bin). {type} is file|folder|document; restore is open
@@ -335,7 +357,9 @@ Route::middleware(['auth', 'officer', 'nocache'])->group(function () {
 
 Route::prefix('app')->name('app.')->middleware('phone')->group(function () {
 
-    Route::get('/login', [OfficerAppController::class, 'showLogin'])->name('login');
+    Route::get('/login', [OfficerAppController::class, 'showLogin'])->name('login')->middleware('throttle:public-pages');
+    // The code step at the app's own address, so an installed app stays in its window.
+    Route::get('/two-factor', [TwoFactorController::class, 'showChallenge'])->name('two-factor')->middleware('throttle:public-pages');
 
     Route::middleware(['auth', 'officer', 'nocache'])->group(function () {
         Route::get('/', [OfficerAppController::class, 'home'])->name('home');

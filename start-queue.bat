@@ -7,8 +7,9 @@ cd /d "%~dp0"
 
 sc query qsu-fmas-queue >nul 2>&1
 if not errorlevel 1 (
-    echo The queue worker already runs as a Windows service ^(install-services.bat^).
-    echo To make it pick up code or .env changes: php artisan queue:restart
+    echo The queue workers already run as Windows services ^(install-services.bat^).
+    sc query qsu-fmas-queue-ocr >nul 2>&1 || echo The OCR worker service is missing - run install-services.bat again.
+    echo To make them pick up code or .env changes: php artisan queue:restart
     pause
     exit /b
 )
@@ -29,5 +30,7 @@ if not defined OPENSSL_CONF (
     echo Using OPENSSL_CONF=%OPENSSL_CONF%
 )
 
+rem OCR has its own queue ("ocr") and gets its own window.
+start "OCR worker" cmd /k php artisan queue:work --queue=ocr
 php artisan queue:work
 pause

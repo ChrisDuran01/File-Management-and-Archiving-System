@@ -135,6 +135,21 @@ class PdfToolkit
     }
 
     /**
+     * The whole text layer laid out as on the page (pdftotext -layout):
+     * columns stay apart by runs of spaces, pages are separated by "\f".
+     * Empty (or nearly) for a scanned PDF. Used to read a proposal's tables.
+     */
+    public function layoutText(string $pdfPath): string
+    {
+        return $this->run([
+            config('services.ocr.pdftotext_path'),
+            '-layout',
+            '-enc', 'UTF-8',
+            $pdfPath, '-',
+        ]);
+    }
+
+    /**
      * Extract an inclusive page range into a fresh single PDF. Returns the
      * new PDF's absolute path (caller deletes).
      */

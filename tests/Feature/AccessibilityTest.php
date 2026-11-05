@@ -239,6 +239,42 @@ test('public pages give every image alt text, every control a name and every fie
     'Privacy notice'  => '/privacy',
 ]);
 
+test('student pages keep text readable when it is enlarged and follow the dark mode setting', function (string $view, bool $hasTokens) {
+    preg_match_all('/<style>(.*?)<\/style>/s', file_get_contents(resource_path("views/{$view}")), $blocks);
+    $css = implode("\n", $blocks[1]);
+
+    // Sizes in px ignore the text size set in the browser; rem follows it.
+    expect(preg_match_all('/font-size:\s*[\d.]+px/', $css))->toBe(0);
+
+    // Nothing smaller than .75rem (12px at the usual setting).
+    preg_match_all('/font-size:\s*(?:clamp\()?(\d*\.?\d+)rem/', $css, $sizes);
+    expect(array_values(array_filter($sizes[1], fn ($size) => (float) $size < .75)))->toBe([]);
+
+    // The pages that define the colours also define their dark versions.
+    if ($hasTokens) {
+        expect($css)->toContain(':root[data-theme="dark"]')
+            ->and($css)->toContain('color-scheme: dark');
+    }
+})->with([
+    'Student page'      => ['Student/stuDashboard.blade.php', true],
+    'Article pages'     => ['Student/partials/article-styles.blade.php', true],
+    'Activity page'     => ['Student/activity.blade.php', false],
+]);
+
+test('the student page has a light/dark switch that is set before the page is drawn', function () {
+    $html = $this->get('/stuDashboard')->assertOk()->getContent();
+    $xp = a11yDom($html);
+
+    $switch = $xp->query('//header//button[@data-theme-toggle]');
+    expect($switch->length)->toBe(1)
+        ->and($switch->item(0)->getAttribute('aria-label'))->toBe('Switch to dark mode');
+
+    // The theme is chosen in <head> (saved pick, else the device), before the body.
+    $head = $xp->query('//head')->item(0)->textContent;
+    expect($head)->toContain("localStorage.getItem('sgTheme')")
+        ->and($head)->toContain('prefers-color-scheme: dark');
+});
+
 test('both officer layouts can be used from the keyboard', function (bool $superAdmin) {
     $user = a11ySuperAdmin();
     if (! $superAdmin) {

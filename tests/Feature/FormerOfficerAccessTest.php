@@ -58,6 +58,15 @@ test('an officer still signed in when End Term runs is signed out on the next cl
 
     $this->actingAs($officer)->get(route('search', ['query' => 'minutes']))->assertOk();
 
+    // End Term hands over to a next President, who has already signed in.
+    $nextPresident = termSuperAdmin();
+    DB::table('officer_terms')->insert([
+        'user_id'     => $nextPresident->id,
+        'position_id' => DB::table('positions')->insertGetId(['position_name' => 'President', 'is_super_admin' => true]),
+        'school_year' => '2027-2028',
+        'status'      => 'active',
+    ]);
+
     $this->actingAs(termSuperAdmin())
         ->delete(route('officers.archiveAll'), ['school_year' => '2026-2027'])
         ->assertSessionHas('success');

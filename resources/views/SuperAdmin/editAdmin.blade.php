@@ -240,6 +240,44 @@
 
 </div>
 
+{{-- ── Two-factor sign-in ── --}}
+<div class="al-card">
+
+    <div class="al-card-header">
+        <span class="al-card-title">
+            <span class="al-card-title-dot"></span>
+            Two-factor Sign-in
+        </span>
+    </div>
+
+    <div class="form-body">
+        @if ($isSelf)
+            <p class="form-note">This is your own account. Manage your two-factor from <a href="{{ route('profile.edit') }}#two-factor">Profile</a>.</p>
+        @elseif ($user->hasTwoFactor())
+            <p class="form-note">
+                Set up on {{ $user->two_factor_confirmed_at->format('M j, Y') }}. If {{ $user->name }} lost their phone and their recovery
+                codes, reset it: every device where they are signed in is signed out, and they set it up again with their app at the next sign-in.
+            </p>
+        @else
+            <p class="form-note">Not set up yet. {{ $user->name }} sets it up at their next sign-in.</p>
+        @endif
+    </div>
+
+    @if (! $isSelf && $user->hasTwoFactor())
+        <form action="{{ route('officers.resetTwoFactor', $term->id) }}" method="POST"
+            onsubmit="return confirm('Reset two-factor sign-in for {{ addslashes($user->name) }}?');">
+            @csrf
+            @method('PATCH')
+            <div class="form-footer">
+                <button type="submit" class="btn-save">
+                    <i class="fas fa-shield-halved"></i> Reset two-factor
+                </button>
+            </div>
+        </form>
+    @endif
+
+</div>
+
 </div>
 
 <script>

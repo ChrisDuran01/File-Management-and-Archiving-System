@@ -30,6 +30,28 @@ Admin. On first login you may be asked to change your password. Forgot it? Use
 that email? Ask the Adviser or President for a temporary password; you will
 choose your own at the next login.
 
+### Two-factor sign-in (authenticator code)
+
+Every account needs a 6-digit code from an authenticator app after the
+password. The first time, the system shows a setup page: install Google
+Authenticator or Microsoft Authenticator on your phone (on an iPhone you can use
+Settings → Passwords instead), scan the QR code, and type the code the app
+shows. Then save the 8 **recovery codes** it gives you (print, download or
+write them down) - they are shown only once.
+
+- **Every sign-in:** password, then the newest code from the app. Tick "Trust
+  this device for 30 days" only on your own phone or computer, never on the SG
+  office or a lab computer.
+- **Use your own phone.** An authenticator extension on your own computer also
+  works, but never set it up on a shared computer: anyone using it could make
+  your codes.
+- **Lost your phone?** On the code page, open "Lost your phone? Use a recovery
+  code". Each code works once. No codes left? Ask the Adviser or President to
+  reset your two-factor; you set it up again at the next sign-in.
+- **New phone:** Profile → Two-factor sign-in → "Set up on a new phone".
+- **Code says wrong?** Type the newest code (they change every 30 seconds) and
+  check the phone's time is set automatically.
+
 ## Phone app (QSU SG Officers)
 
 A simpler version of the system made for a phone. It is for officers only and
@@ -98,7 +120,17 @@ The main store for files, grouped by school year.
 - **Rename:** three-dot menu → Rename.
 - **Delete:** three-dot menu → Delete. It goes to Trash, not gone permanently.
 - **Search:** the search bar at the top searches files and folders; matches
-  appear in a dropdown as you type.
+  appear in a dropdown as you type. It also finds Activity Proposals, by
+  title, theme, proponent or anything in their budget (type "polo shirt" to
+  see every proposal that budgets for one).
+- **Move a file to another folder:** open its folder, three-dot menu on the
+  file → **Move to another folder**, pick the folder, Move. Only this school
+  year's folders are listed. Its versions, share links and document details go
+  with it, and its "Modified" date stays the same. If the new folder already
+  has a file with the same name, the moved one gets a number, e.g. "Reso 21
+  (1).docx". A file in a restricted folder can only be moved out by the
+  folder's owner or a Super Admin, and files of past school years can't be
+  moved.
 - **Restricted folders:** a folder with a lock icon is limited to specific
   officers. Only the owner or a Super Admin can change who has access
   (three-dot menu → Manage access).
@@ -112,7 +144,7 @@ always keep access.
 ### Ending a school year
 
 There's no separate "start new year" step on the Folders page. When the Super
-Admin ends a school year's officer term (Manage Admins → End Term), that same
+Admin ends a school year's officer term (Manage Admins → End Current Term), that same
 school year's folders and files are automatically stored away too, clearing
 the Folders page for the new term. The stored year stays reachable from
 "Previous School Years". This does not delete anything.
@@ -160,6 +192,21 @@ they are really two documents, such as two resolutions made from the same
 template. Nothing is deleted automatically. The list of all possible copies
 is on Reports & Analytics, and the Super Admin dashboard shows how many
 there are.
+
+### "Looks like a Resolution · Move" label
+
+A few seconds after an upload, once the system has read the file's text, it
+checks the title. If the title says one kind of document ("A RESOLUTION",
+"MINUTES OF THE MEETING", "ACCOMPLISHMENT REPORT") but the folder's name is
+for another kind (a resolution uploaded into Reports), the file gets a
+yellow **Looks like a Resolution · Move** label. Refresh the folder to see it.
+
+Click the label: the Move window opens with the right folder already picked.
+Click **Move**, or **Keep it here** if it really belongs where it is; then it
+isn't suggested again, in the folder or on Reports & Analytics. Nothing is
+moved by itself. Files without a title line (letters) never get the label,
+and folders named after an event or anything else may hold any kind of
+document, so their files aren't checked.
 
 When the file has the same text but was saved after the original (for
 example a fixed resolution saved as "Reso-22-revised.docx"), the label says
@@ -403,15 +450,22 @@ save and finish the rest later.
 - **Print it:** open the proposal, pick the letterhead next to "Print on",
   and click Open PDF. It opens in a new tab, ready to print. Signatures are
   done on the printed copy.
-- **Import from Word:** for a proposal written in Word before the system,
-  click **Import from Word** on the Activity Proposals page and choose the
-  .docx file. The system reads the Title, Theme, Date, Proponent, parts I to V,
-  the budget table (merged Category cells included) and the signatories, and
-  fills in a new proposal. Check it, then click Save proposal; nothing is
-  saved before that, and the Word file is not kept. Budget rows whose Total
-  Price in the file doesn't equal Quantity × Unit Price are marked, and so is
-  a Grand Total that doesn't add up. A .doc file must be saved as .docx in
-  Word first; scanned paper can't be read yet.
+- **Import from a file:** for a proposal made before the system, click
+  **Import from a file** on the Activity Proposals page and choose its Word
+  file (.docx), a PDF, or a scan or photo of the paper (JPG or PNG). The
+  system reads the Title, Theme, Date, Proponent, parts I to V, the schedule
+  and budget tables and the signatories, and fills in a new proposal. Check
+  it, then click Save proposal; nothing is saved before that, and the file is
+  not kept. Budget rows whose Total Price in the file doesn't equal Quantity ×
+  Unit Price are marked, and so is a Grand Total that doesn't add up.
+  - A Word file is read best. A PDF saved from Word comes next; check each
+    budget row's Category, because a PDF doesn't show which rows a merged
+    Category cell covers.
+  - A scan or photo is read letter by letter (up to a minute). Some letters
+    and numbers may be misread (e.g. "pes" for "pcs"), so check every part,
+    the budget most of all. Take the photo straight on, in good light, with
+    the whole page in view. For several pages, scan them into one PDF.
+  - A .doc file must be saved as .docx in Word first.
 - **Start from last year's proposal:** on the Activity Proposals page, pick
   "All school years" (or last year) and click Show, then Copy on the old
   proposal. You get a new proposal of your own with the same content and no
@@ -493,7 +547,9 @@ deleted for you.
 - **Wrong folder, by title:** a file whose title says what it is ("A
   RESOLUTION", "MINUTES OF THE MEETING", "ACCOMPLISHMENT REPORT") but sits in a
   folder named for another kind, e.g. a resolution in Reports. Folders named
-  after an event or anything else may hold any kind of document.
+  after an event or anything else may hold any kind of document. The same
+  file shows a "Looks like … · Move" label in its folder; a file someone chose
+  **Keep it here** for is not listed.
 - **Wrong folder, by words:** a file without such a title that reads much more
   like the files of another folder than its own. A copy of the same file is
   never counted, so a copy in another folder doesn't make the original look
@@ -515,6 +571,10 @@ away.
 ## Profile
 
 Your name, photo, and password. Update your photo or change your password here.
+Changing your email or password needs your current password, and a new
+password signs out your other devices. Under **Two-factor sign-in** (current
+password needed): make new recovery codes (the old ones stop working), forget
+trusted devices, or set up on a new phone.
 
 ## Notifications
 
@@ -573,23 +633,42 @@ work while you are typing in a box; press Esc first.
 ### Manage Admins
 
 Add a new officer (name, email, position – they get a temporary password to
-change on first login), edit an officer, or end one officer's term. Ended
-officers move to Former Officers and can be reactivated. Former officers can't
-log in, and anyone still logged in when their term ends is logged out.
+change on first login), edit an officer, or end one officer's term. New and
+reactivated officers always join the school year of the officers in office;
+the next school year starts only through End Term. Ended officers move to
+Former Officers and can be reactivated. Former officers can't log in, and
+anyone still logged in when their term ends is logged out.
 
 Edit an officer to change their name, email or position. The school year is
 locked there. **Reset Password** (on the same page) is for an officer who can't
 use "Forgot password": type a temporary password and give it to them. They must
 choose a new one at their next login, every device where they were logged in is
 logged out, and the reset is recorded in Activity Logs. Your own password is
-changed from Profile.
+changed from Profile. **Reset two-factor** (same page) is for an officer who
+lost their phone and their recovery codes: they are signed out everywhere and
+set up their app again at the next sign-in. If both the Adviser and the
+President are locked out, the command `php artisan two-factor:reset email` on
+the server PC resets an account.
 
-"End Term" also lets you pick a whole school year and move every officer
-active in it to Former Officers at once - this also stores away that school
-year's folders and files, clearing the Folders page for the new term. Add
-the incoming batch of officers first, confirm they can log in, then end the
-outgoing year - officers and folders/files from other school years are left
-untouched.
+**End Current Term** hands the SG over to the next President. The Adviser or
+the President can do it. It has two steps in one box:
+
+1. **Add the next President** for the next school year: a new account (name,
+   email and a temporary password to give them), or "Already in the system"
+   for a re-elected President or an officer who ran for President. Until the
+   term ends, they show in Current Officers as "Next President, waiting for
+   End Term", and no other officers can be added. A wrong person or email:
+   **Remove** them in the same box (or fix the email with Edit).
+2. **End the term.** The button unlocks once the next President has signed in,
+   chosen their own password and set up two-factor sign-in. Then every officer of the outgoing school
+   year moves to Former Officers, and that year's folders and files are stored
+   away under Previous School Years (nothing is deleted). The Adviser is not
+   ended: they continue into the next school year automatically. If you are
+   one of the outgoing officers, you are signed out right away.
+
+After that, the new President adds the rest of their officers with Add Officer.
+Only one batch of officers is ever in office, and the student page shows only
+the officers in office (not the next President before End Term).
 
 ### Activity Logs
 
@@ -611,9 +690,10 @@ backup frequency. Keep automatic backups on.
 - **"A scan came out as one document but it's really three."** Re-scan with a
   separator sheet between each document, or split it during review if the option
   is offered.
-- **"How do I start fresh for the new school year?"** Ask the Super Admin to end
-  the outgoing school year's term in Manage Admins → End Term - that stores away
-  that year's folders and files and clears the Folders page automatically.
+- **"How do I start fresh for the new school year?"** The Adviser or President
+  ends the outgoing school year's term in Manage Admins → End Current Term,
+  after adding the next President there - that stores away that year's folders
+  and files and clears the Folders page automatically.
 - **"Upload is stuck / failed."** It retries through the server automatically;
   if it still fails, check your connection and file type, then try again.
 

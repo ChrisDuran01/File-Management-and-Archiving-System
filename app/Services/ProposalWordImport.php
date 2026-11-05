@@ -16,6 +16,8 @@ use ZipArchive;
  * I-V and the signatories, laid out like the SG's own proposal. Tables are
  * read cell by cell from the document's XML, so the budget keeps its
  * columns; merged Category cells are carried down to the rows they span.
+ * PDFs and scans come in through ProposalFileImport, which turns them into
+ * the same blocks (fromBlocks).
  *
  * Nothing is saved here. The result fills a new proposal that the officer
  * checks; rows whose Total Price in the file doesn't equal Quantity x Unit
@@ -35,6 +37,9 @@ class ProposalWordImport
 
     private DOMXPath $xpath;
 
+    /** What the file is called in the messages: "Word file", "PDF", "scan". */
+    private string $source = 'Word file';
+
     /**
      * @return array{
      *     fields: array<string, mixed>,
@@ -46,7 +51,19 @@ class ProposalWordImport
      */
     public function read(string $path): array
     {
-        $blocks = $this->blocks($this->documentXml($path));
+        return $this->fromBlocks($this->blocks($this->documentXml($path)));
+    }
+
+    /**
+     * Reads the proposal from its body in reading order: paragraphs
+     * (['type' => 'p', 'text', 'list']) and tables (['type' => 'table',
+     * 'rows' => cells of ['text', 'continued', 'span']]), as blocks() makes
+     * them from Word. ProposalFileImport builds the same blocks from a PDF
+     * or a scan, so every kind of file is read by the one set of rules.
+     */
+    public function fromBlocks(array $blocks, string $source = 'Word file'): array
+    {
+        $this->source = $source;
         $warnings = [];
 
         $sections = $this->splitSections($blocks);
@@ -62,7 +79,7 @@ class ProposalWordImport
         $sum = round(array_sum(array_map(fn ($i) => (float) $i['quantity'] * (float) $i['unit_price'], $items)), 2);
         foreach (array_filter([$fileGrand, $fields['_budget'] ?? null], fn ($v) => $v !== null) as $stated) {
             if (abs($stated - $sum) > 0.009) {
-                $warnings[] = 'The Word file says the budget is '.ActivityProposal::peso($stated).', but the rows add up to '
+                $warnings[] = 'The '.$this->source.' says the budget is '.ActivityProposal::peso($stated).', but the rows add up to '
                     .ActivityProposal::peso($sum).'. Check the budget rows.';
                 break;
             }
@@ -258,9 +275,11 @@ class ProposalWordImport
         return $sections;
     }
 
-    private function sectionOf(string $text): ?string
+    /** The part a heading line starts ("IV. Schedule of Activities" => schedule), or null. */
+    public function sectionOf(string $text): ?string
     {
-        $t = strtolower(trim(preg_replace('/^[IVX]+\s*[\.\)]\s*/i', '', $text)));
+        // The roman numeral, also as a scan misreads it ("Ul." for II., "Ml" for III.).
+        $t = strtolower(trim(preg_replace('/^(?:[IVX]+\s*[\.\)]\s*|\S{1,4}[\.\)]\s+|[IVXLM1l|]{1,4}\s*[,:]?\s+)/i', '', $text)));
         if (mb_strlen($t) > 60) {
             return null; // a sentence that mentions the word, not a heading
         }
@@ -620,7 +639,7 @@ class ProposalWordImport
             ];
 
             if ($qty !== null && $price !== null && $total !== null && abs($qty * $price - $total) > 0.009) {
-                $checks[$index] = 'The Word file says '.ActivityProposal::peso($total).', but '.$this->plain($qty).' × '
+                $checks[$index] = 'The '.$this->source.' says '.ActivityProposal::peso($total).', but '.$this->plain($qty).' × '
                     .ActivityProposal::peso($price).' = '.ActivityProposal::peso($qty * $price).'. Check this row.';
             } elseif ($particular === '' || $qty === null || $price === null) {
                 $checks[$index] = 'Part of this row could not be read. Fill in the empty cells.';
@@ -727,7 +746,7 @@ class ProposalWordImport
         return $groups;
     }
 
-    private function signatoryGroup(string $line): ?string
+    public function signatoryGroup(string $line): ?string
     {
         $t = strtolower(trim($line, " \t:"));
 
@@ -742,7 +761,7 @@ class ProposalWordImport
     }
 
     /** Names are printed in capitals on the SG's proposal ("JUAN DELA CRUZ"). */
-    private function looksLikeName(string $line): bool
+    public function looksLikeName(string $line): bool
     {
         $letters = preg_replace('/[^\p{L}]/u', '', $line);
         if (mb_strlen($letters) < 3) {

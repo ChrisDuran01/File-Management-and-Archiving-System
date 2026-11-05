@@ -81,6 +81,11 @@ return [
         // Asked once when the main model fails (busy, timed out, quota spent,
         // retired). Separate model = separate quota. Blank = no fallback.
         'fallback_model' => env('GEMINI_FALLBACK_MODEL', 'gemini-flash-lite-latest'),
+        // AI answers per person per day before the guide is searched by
+        // keywords instead, so one officer can't use up the school's shared
+        // free quota. Cached answers and greetings don't count. 0 = no limit.
+        'daily_limit'             => (int) env('HELP_BOT_DAILY_LIMIT', 15),
+        'daily_limit_super_admin' => (int) env('HELP_BOT_DAILY_LIMIT_SUPER_ADMIN', 30),
     ],
 
 ];

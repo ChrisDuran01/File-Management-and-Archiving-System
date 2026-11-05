@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Auth;
 use App\Http\Middleware\EnsurePhone;
 use App\Models\ActivityLog;
 use App\Models\Folder;
+use App\Models\TrustedDevice;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
@@ -95,19 +97,18 @@ class AuthController extends Controller
             ->with('lockout_seconds', $seconds);
     }
 
-    if (Auth::attempt($credentials)) {
+    // validate(), not attempt(): a right password alone doesn't sign anyone
+    // in when two-factor is on - see below.
+    if (Auth::validate($credentials)) {
         RateLimiter::clear($throttleKey);
 
-        $request->session()->regenerate();
-
-        $user = Auth::user();
+        /** @var User $user */
+        $user = Auth::getLastAttempted();
 
         // An officer whose term has ended is disabled, regardless of what
         // position they held. Same rule as EnsureActiveOfficer, which signs
         // out anyone already signed in when the term ends.
         if (! $user->isActiveOfficer()) {
-            Auth::logout();
-
             // A former officer's credentials still working (they're just
             // blocked past this check) is itself worth a record - could be
             // the account holder forgetting their term ended, or someone
@@ -123,24 +124,23 @@ class AuthController extends Controller
             ]);
         }
 
-        ActivityLog::create([
-            'user_name' => $user->name,
-            'activity' => 'Logged in',
-            'ip_address' => $request->ip()
-        ]);
+        $fromApp = $request->boolean('from_app') || EnsurePhone::isPhone($request);
 
-        // One sign-in page for both: a phone goes on to the officer phone
-        // app (/app), a computer to the website. from_app is sent by the
-        // app's own address (/app/login), which only a computer reaches
-        // when OFFICER_APP_PHONES_ONLY=false.
-        if ($request->boolean('from_app') || EnsurePhone::isPhone($request)) {
-            return redirect()->route('app.home');
+        // Two-factor: the password was right, but signing in waits for the
+        // authenticator code (TwoFactorController) - unless this browser was
+        // trusted for 30 days. Not set up yet: signed in, then held on the
+        // setup page (EnsureTwoFactorEnabled).
+        if ($user->hasTwoFactor() && ! TrustedDevice::recognizes($request, $user)) {
+            $request->session()->put('two_factor.login', [
+                'id'    => $user->id,
+                'app'   => $fromApp,
+                'until' => now()->addMinutes((int) config('two_factor.challenge_minutes'))->timestamp,
+            ]);
+
+            return redirect()->route($fromApp ? 'app.two-factor' : 'two-factor.challenge');
         }
 
-        // Adviser/President (or a legacy account with no officer record at
-        // all) land on the SuperAdmin dashboard; every other officer gets
-        // the regular one.
-        return redirect(Folder::isSuperAdmin($user) ? '/superAdminDashboard' : '/adminDashboard');
+        return self::signIn($request, $user, $fromApp);
     }
 
     RateLimiter::hit($throttleKey, self::LOCKOUT_DECAY_SECONDS);
@@ -161,6 +161,36 @@ class AuthController extends Controller
     ]);
 }
 
+    /**
+     * The last step of signing in, after the password (and the two-factor
+     * code, when one was asked): a fresh session, the log entry, and the
+     * officer's home page.
+     */
+    public static function signIn(Request $request, User $user, bool $fromApp, string $activity = 'Logged in')
+    {
+        Auth::login($user);
+        $request->session()->regenerate();
+
+        ActivityLog::create([
+            'user_name'  => $user->name,
+            'activity'   => $activity,
+            'ip_address' => $request->ip(),
+        ]);
+
+        // One sign-in page for both: a phone goes on to the officer phone
+        // app (/app), a computer to the website. from_app is sent by the
+        // app's own address (/app/login), which only a computer reaches
+        // when OFFICER_APP_PHONES_ONLY=false.
+        if ($fromApp) {
+            return redirect()->route('app.home');
+        }
+
+        // Adviser/President (or a legacy account with no officer record at
+        // all) land on the SuperAdmin dashboard; every other officer gets
+        // the regular one.
+        return redirect(Folder::isSuperAdmin($user) ? '/superAdminDashboard' : '/adminDashboard');
+    }
+
     public function showChangePassword()
     {
         return view('changePassword');
@@ -177,6 +207,7 @@ class AuthController extends Controller
         $user->password              = Hash::make($request->password);
         $user->must_change_password  = false;
         $user->save();
+        $user->forgetTrustedDevices();
 
         ActivityLog::create([
             'user_name'  => $user->name,
@@ -308,8 +339,10 @@ class AuthController extends Controller
 
                 // A forgotten password can mean the old one was compromised -
                 // reset every other active session for this account instead
-                // of trusting them to still belong to the real owner.
+                // of trusting them to still belong to the real owner. The
+                // two-factor code is still asked at the next sign-in.
                 DB::table('sessions')->where('user_id', $user->id)->delete();
+                $user->forgetTrustedDevices();
 
                 ActivityLog::create([
                     'user_name'  => $user->name,

@@ -89,16 +89,17 @@
 
             <hr>
 
-            <p class="text-muted mb-2">Leave the password fields blank to keep your current password.</p>
+            <p class="text-muted mb-2">Leave the new password fields blank to keep your current password. Changing your email or password needs your current password.</p>
 
             <div class="mb-3">
                 <label for="profile-current-password" class="form-label">Current Password</label>
-                <input id="profile-current-password" type="password" name="current_password" class="form-control">
+                <input id="profile-current-password" type="password" name="current_password" class="form-control" autocomplete="current-password">
             </div>
 
             <div class="mb-3">
                 <label for="profile-password" class="form-label">New Password</label>
-                <input id="profile-password" type="password" name="password" class="form-control">
+                <input id="profile-password" type="password" name="password" class="form-control" autocomplete="new-password" aria-describedby="profile-password-hint">
+                <div class="form-text" id="profile-password-hint">At least 8 characters, with upper and lower case letters, a number and a symbol. Your other devices are signed out.</div>
             </div>
 
             <div class="mb-3">
@@ -108,6 +109,8 @@
 
             <button type="submit" class="btn btn-success">Save Changes</button>
         </form>
+
+        @include('partials.profile-two-factor')
 
     </div>
 

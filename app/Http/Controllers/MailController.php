@@ -15,10 +15,11 @@ public function sendMessage(Request $request)
         'email'      => 'required|email',
         'student_id' => 'required|string|max:100',
         'subject'    => 'required|string|max:255',
-        'message'    => 'required|string',
+        'message'    => 'required|string|max:5000',
     ]);
 
-    $receiver = env('MAIL_FROM_ADDRESS');
+    // config(), not env(): env() is empty once the server caches its config.
+    $receiver = config('mail.from.address');
 
     $body  = "Full Name: {$request->name}\n";
     $body .= "Email Address: {$request->email}\n";

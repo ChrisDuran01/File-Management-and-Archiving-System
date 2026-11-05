@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Jobs\Middleware\HoldDuringRestore;
 use App\Models\File;
 use App\Services\CloudFileUploader;
 use App\Services\DuplicateDetector;
@@ -20,6 +21,9 @@ use Throwable;
  * Runs OCR/text extraction for one uploaded file, off the request cycle -
  * extraction can take several seconds per page, which would otherwise stall
  * the upload response.
+ *
+ * On its own "ocr" queue and worker, so push notifications and the rest of
+ * the queue never wait behind a long document.
  */
 class ExtractFileOcrText implements ShouldQueue
 {
@@ -32,6 +36,12 @@ class ExtractFileOcrText implements ShouldQueue
         private readonly int $fileId,
         private readonly bool $convertToPdf = false,
     ) {
+        $this->onQueue('ocr');
+    }
+
+    public function middleware(): array
+    {
+        return [new HoldDuringRestore];
     }
 
     public function handle(OcrExtractor $extractor, CloudFileUploader $uploader, DuplicateDetector $detector): void

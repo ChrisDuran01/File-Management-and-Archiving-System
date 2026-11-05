@@ -6,6 +6,7 @@ use App\Models\File;
 use App\Models\Folder;
 use App\Models\OfficerTerm;
 use App\Models\User;
+use App\Services\FolderHint;
 use App\Support\SchoolYear;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -90,7 +91,7 @@ class FolderController extends Controller
         });
 
         // Get files that are not inside any folder (root files), same rule
-        $rootFiles = File::whereNull('folder_id')->where('is_archived', false)->get();
+        $rootFiles = File::forListing()->whereNull('folder_id')->where('is_archived', false)->get();
 
         // School years available to browse (from folders stored away previously)
         $pastSchoolYears = Folder::where('is_archived', true)
@@ -126,7 +127,7 @@ class FolderController extends Controller
         $folders = Folder::where('is_archived', true)->where('school_year', $year)
             ->with('addedLaterBy:id,name')->orderBy('name')->get();
 
-        $rootFiles = File::whereNull('folder_id')
+        $rootFiles = File::forListing()->whereNull('folder_id')
             ->where('is_archived', true)
             ->where('school_year', $year)
             ->get();
@@ -143,7 +144,7 @@ class FolderController extends Controller
      * Show a specific folder
      * Includes subfolders and files inside it
      */
-    public function show($id)
+    public function show($id, FolderHint $folderHint)
     {
         // Get selected folder
         $folders = Folder::findOrFail($id);
@@ -161,17 +162,26 @@ class FolderController extends Controller
 
         $folders->manageable = $folders->isManageableBy(Auth::user());
 
-        // Files inside this folder
-        $files = File::where('folder_id', $id)->with(['duplicateOf.folder', 'addedLaterBy:id,name'])->get();
+        // Files inside this folder, without their full OCR text (forListing)
+        $files = File::forListing()->where('folder_id', $id)
+            ->with(['duplicateOf' => fn ($query) => $query->forListing()->with('folder'), 'addedLaterBy:id,name'])
+            ->get();
 
         // A past school year's folder takes new files (old records brought
         // in), but its own records stay as they are.
         $addingToPastYear = $folders->is_archived && Folder::canAddToPastYear($folders->school_year);
 
+        // "Move to another folder" and the "Looks like a Resolution · Move"
+        // hints. A past year's files stay put; a restricted folder's files
+        // leave only through its creator or a SuperAdmin (FileController::move).
+        $canMove = ! $folders->is_archived && (! $folders->is_restricted || $folders->manageable);
+        $moveTargets = $canMove ? Folder::moveTargetsFor(Auth::user(), $folders) : collect();
+        $hints = $canMove ? $folderHint->forFiles($folders, $files, $moveTargets) : [];
+
         $layout = Folder::isSuperAdmin(Auth::user()) ? 'SuperAdmin.homeSuperAdmin' : 'Admin.home';
 
         // Return folder view
-        return view('Admin.showFolder', compact('folders', 'files', 'addingToPastYear', 'layout'));
+        return view('Admin.showFolder', compact('folders', 'files', 'addingToPastYear', 'moveTargets', 'hints', 'layout'));
     }
 
     /**

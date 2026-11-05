@@ -21,6 +21,7 @@
                 <small>Diffun Campus</small>
             </span>
         </a>
+        @include('Student.partials.theme-toggle')
     </div>
 </header>
 

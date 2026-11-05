@@ -158,8 +158,9 @@ class StudentController extends Controller
                 'images' => $announcement->images->map(fn ($image) => (object) ['id' => $image->id, 'path' => $image->path]),
             ]);
 
+        // Not the next President waiting for End Term: one President at a time.
         $officers = OfficerTerm::with(['user', 'position'])
-            ->where('status', 'active')
+            ->inOffice()
             ->get()
             ->map(fn ($term) => $this->officer($term->user->name, $term->position->position_name ?? '', $term->display_photo))
             ->concat(DisplayOfficer::all()->map(fn ($o) => $this->officer($o->name, $o->position_name, $o->photo)));

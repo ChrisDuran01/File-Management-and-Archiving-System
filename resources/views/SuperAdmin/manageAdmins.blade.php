@@ -355,6 +355,129 @@
         gap: 6px;
     }
     .modal-confirm:hover { background: #633806; }
+    .modal-confirm:disabled { opacity: .5; cursor: not-allowed; }
+    .modal-confirm:disabled:hover { background: var(--amber); }
+
+    /* ── End Term: next President first, then end ── */
+    .modal-box.handover-box {
+        max-width: 520px;
+        max-height: calc(100vh - 32px);
+        overflow-y: auto;
+    }
+    .handover-step {
+        border-top: 1px solid var(--border);
+        margin-top: 16px;
+        padding-top: 14px;
+    }
+    .handover-step-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-1);
+        margin: 0 0 10px;
+    }
+    .step-num {
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text-2);
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .handover-modes {
+        display: flex;
+        gap: 18px;
+        flex-wrap: wrap;
+        border: none;
+        padding: 0;
+        margin: 0 0 12px;
+        font-size: 14px;
+    }
+    .handover-modes label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--text-1);
+        cursor: pointer;
+    }
+    .handover-field { margin-bottom: 10px; }
+    .handover-field label {
+        display: block;
+        font-size: .78rem;
+        font-weight: 600;
+        color: var(--text-2);
+        margin-bottom: 6px;
+    }
+    .handover-field input,
+    .handover-field select {
+        width: 100%;
+        padding: 9px 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--card);
+        color: var(--text-1);
+        font-size: .88rem;
+        font-family: 'Inter', sans-serif;
+    }
+    .handover-field .is-invalid { border-color: var(--red); }
+    .handover-error,
+    .handover-hint {
+        display: block;
+        font-size: 12px;
+        margin-top: 4px;
+    }
+    .handover-error { color: var(--red); }
+    .handover-hint { color: var(--text-3); }
+    .handover-person {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+    .handover-status {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        font-size: 13px;
+        line-height: 1.5;
+        padding: 9px 12px;
+        border-radius: var(--radius-sm);
+        margin: 10px 0 0;
+    }
+    .handover-status i { margin-top: 3px; flex-shrink: 0; }
+    .handover-status.waiting { background: var(--amber-dim); color: #92400e; }
+    .handover-status.ready { background: var(--green-dim); color: var(--green); }
+    .link-btn {
+        background: none;
+        border: none;
+        padding: 0;
+        color: var(--red);
+        font-size: 13px;
+        font-family: 'Inter', sans-serif;
+        text-decoration: underline;
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+    .handover-list {
+        margin: 0 0 16px;
+        padding-left: 18px;
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--text-2);
+    }
+    .next-note {
+        display: block;
+        margin-top: 4px;
+        font-size: 12px;
+        color: var(--text-2);
+    }
 
     /* ===== DARK MODE ===== */
     [data-theme="dark"] .al-card-header,
@@ -368,6 +491,7 @@
     [data-theme="dark"] .tbl-btn.reactivate:hover { background: #1c3a24; }
     [data-theme="dark"] .tbl-btn.end-term:hover { background: #3a1c1c; border-color: #7f2a2a; }
     [data-theme="dark"] .modal-warning { border-color: #7f2a2a; }
+    [data-theme="dark"] .handover-status.waiting { color: #e3b877; }
 </style>
 
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
@@ -471,6 +595,7 @@
                 </thead>
                 <tbody>
                     @foreach ($currentOfficers as $term)
+                    @php $isNextPresident = $handover->incoming?->is($term); @endphp
                     <tr>
                         <td>
                             <div class="officer-name">{{ $term->user->name }}</div>
@@ -478,6 +603,9 @@
                         </td>
                         <td>
                             <span class="position-badge">{{ $term->position->position_name }}</span>
+                            @if ($isNextPresident)
+                                <span class="next-note">Next President, waiting for End Term</span>
+                            @endif
                         </td>
                         <td>
                             <span class="sy-badge">{{ $term->school_year }}</span>
@@ -488,6 +616,8 @@
                                     <i class="fas fa-pen" aria-hidden="true"></i> Edit<span class="sr-only"> {{ $term->user->name }}</span>
                                 </a>
 
+                                {{-- The next President is taken back with Remove in End Term. --}}
+                                @unless ($isNextPresident)
                                 <form action="{{ route('officers.archiveOfficer', $term->id) }}" method="POST" style="margin:0;">
                                     @csrf
                                     @method('PATCH')
@@ -496,6 +626,7 @@
                                         <i class="fas fa-clock" aria-hidden="true"></i> End Term<span class="sr-only"> for {{ $term->user->name }}</span>
                                     </button>
                                 </form>
+                                @endunless
                             </div>
                         </td>
                     </tr>
@@ -587,46 +718,147 @@
 
 </div>
 
-{{-- ── END TERM (BY SCHOOL YEAR) MODAL ── --}}
-@php $currentSchoolYears = $currentOfficers->pluck('school_year')->unique()->sort()->values(); @endphp
+{{-- ── END TERM MODAL: add the next President, then end the school year ── --}}
+@php $handoverErrors = $errors->getBag('handover'); @endphp
 <div id="archiveModal" class="modal-overlay" onclick="handleOverlayClick(event, 'archiveModal')">
-    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="archiveModalTitle">
+    <div class="modal-box handover-box" role="dialog" aria-modal="true" aria-labelledby="archiveModalTitle">
         <div class="modal-icon" aria-hidden="true">
             <i class="fas fa-clock-rotate-left"></i>
         </div>
-        <h5 id="archiveModalTitle">End Term</h5>
-        <p>Pick which school year's officers to move to Former Officers.</p>
 
-        <form action="{{ route('officers.archiveAll') }}" method="POST" style="margin:0; text-align:left;">
-            @csrf
-            @method('DELETE')
+        @if (! $handover->nextYear)
+            <h5 id="archiveModalTitle">End Term</h5>
+            @if ($handover->year)
+                <p>The officers' school year "{{ $handover->year }}" isn't written like 2026-2027, so the next one can't be worked out.</p>
+            @else
+                <p>There are no officers in office. Add officers first.</p>
+            @endif
+            <div class="modal-actions" style="margin-top:16px;">
+                <button type="button" onclick="closeModal('archiveModal')" class="modal-cancel">Close</button>
+            </div>
+        @else
+            <h5 id="archiveModalTitle">End Term, SY {{ $handover->year }}</h5>
+            <p>Add the President for {{ $handover->nextYear }} first. They add the rest of the {{ $handover->nextYear }} officers after the term ends.</p>
 
-            <label for="archiveSchoolYear" style="display:block; font-size:.78rem; font-weight:600; color:var(--text-2); margin:14px 0 6px;">
-                School year to end
-            </label>
-            <select name="school_year" id="archiveSchoolYear" required
-                style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--card); color:var(--text-1); font-size:.88rem;">
-                @forelse ($currentSchoolYears as $year)
-                    <option value="{{ $year }}">{{ $year }}</option>
-                @empty
-                    <option value="" disabled>No active officers</option>
-                @endforelse
-            </select>
+            {{-- Step 1: the next President --}}
+            <div class="handover-step">
+                <h6 class="handover-step-title"><span class="step-num" aria-hidden="true">1</span> Next President, SY {{ $handover->nextYear }}</h6>
 
-            <div class="modal-warning" style="margin-top:14px;">
-                <i class="fas fa-triangle-exclamation"></i>
-                Only officers active for the selected school year move to Former Officers - if you've
-                already added next year's batch, add them first, confirm they can log in, then end
-                the outgoing year here. Officers for other years are left untouched.
+                @if ($handover->incoming)
+                    <div class="handover-person">
+                        <div>
+                            <div class="officer-name">{{ $handover->incoming->user->name }}</div>
+                            <div class="officer-email">{{ $handover->incoming->user->email }}</div>
+                        </div>
+                        <form action="{{ route('officers.nextPresident.destroy') }}" method="POST" style="margin:0;"
+                            onsubmit="return confirm('Remove {{ addslashes($handover->incoming->user->name) }} as the next President?');">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="link-btn">Remove<span class="sr-only"> {{ $handover->incoming->user->name }} as the next President</span></button>
+                        </form>
+                    </div>
+
+                    @if ($handover->ready)
+                        <div class="handover-status ready">
+                            <i class="fas fa-circle-check" aria-hidden="true"></i>
+                            <span>Has signed in, chosen their own password and set up two-factor sign-in.</span>
+                        </div>
+                    @else
+                        <div class="handover-status waiting">
+                            <i class="fas fa-hourglass-half" aria-hidden="true"></i>
+                            <span>Waiting for {{ $handover->incoming->user->name }} to sign in with the temporary password,
+                                choose their own and set up two-factor sign-in. Wrong email? Fix it with Edit on their row.</span>
+                        </div>
+                    @endif
+                @else
+                    <form action="{{ route('officers.nextPresident.store') }}" method="POST" novalidate style="margin:0;">
+                        @csrf
+
+                        <fieldset class="handover-modes">
+                            <legend class="sr-only">Who is the next President?</legend>
+                            <label><input type="radio" name="mode" value="new" {{ old('mode', 'new') !== 'existing' ? 'checked' : '' }}> New account</label>
+                            <label><input type="radio" name="mode" value="existing" {{ old('mode') === 'existing' ? 'checked' : '' }}> Already in the system</label>
+                        </fieldset>
+
+                        <div data-handover-mode="new">
+                            <div class="handover-field">
+                                <label for="nextPresidentName">Full name</label>
+                                <input type="text" id="nextPresidentName" name="name" value="{{ old('name') }}"
+                                    class="{{ $handoverErrors->has('name') ? 'is-invalid' : '' }}" placeholder="e.g. Juan dela Cruz">
+                                @if ($handoverErrors->has('name'))<span class="handover-error">{{ $handoverErrors->first('name') }}</span>@endif
+                            </div>
+                            <div class="handover-field">
+                                <label for="nextPresidentEmail">Email</label>
+                                <input type="email" id="nextPresidentEmail" name="email" value="{{ old('email') }}"
+                                    class="{{ $handoverErrors->has('email') ? 'is-invalid' : '' }}" placeholder="officer@school.edu">
+                                @if ($handoverErrors->has('email'))<span class="handover-error">{{ $handoverErrors->first('email') }}</span>@endif
+                            </div>
+                            <div class="handover-field">
+                                <label for="nextPresidentPassword">Temporary password</label>
+                                <input type="text" id="nextPresidentPassword" name="password" autocomplete="off" spellcheck="false"
+                                    class="{{ $handoverErrors->has('password') ? 'is-invalid' : '' }}" aria-describedby="nextPresidentPasswordHint">
+                                <span class="handover-hint" id="nextPresidentPasswordHint">At least 8 characters, with upper and lower case letters, a number and a symbol. Give it to them; they choose their own at their first sign-in.</span>
+                                @if ($handoverErrors->has('password'))<span class="handover-error">{{ $handoverErrors->first('password') }}</span>@endif
+                            </div>
+                        </div>
+
+                        <div data-handover-mode="existing" hidden>
+                            <div class="handover-field">
+                                <label for="nextPresidentUser">Officer</label>
+                                <select id="nextPresidentUser" name="user_id" class="{{ $handoverErrors->has('user_id') ? 'is-invalid' : '' }}"
+                                    aria-describedby="nextPresidentUserHint">
+                                    <option value="">Pick an officer…</option>
+                                    @foreach ($handover->candidates as $candidate)
+                                        <option value="{{ $candidate->id }}" {{ (string) old('user_id') === (string) $candidate->id ? 'selected' : '' }}>{{ $candidate->label }}</option>
+                                    @endforeach
+                                </select>
+                                <span class="handover-hint" id="nextPresidentUserHint">A re-elected President, or an officer who ran for President.</span>
+                                @if ($handoverErrors->has('user_id'))<span class="handover-error">{{ $handoverErrors->first('user_id') }}</span>@endif
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn-primary-custom" style="font-size:14px;">
+                            <i class="fas fa-user-plus" aria-hidden="true"></i> Add next President
+                        </button>
+                    </form>
+                @endif
             </div>
 
-            <div class="modal-actions">
-                <button type="button" onclick="closeModal('archiveModal')" class="modal-cancel">Cancel</button>
-                <button type="submit" class="modal-confirm">
-                    <i class="fas fa-check" aria-hidden="true"></i> End term
-                </button>
+            {{-- Step 2: end the term --}}
+            <div class="handover-step">
+                <h6 class="handover-step-title"><span class="step-num" aria-hidden="true">2</span> End the {{ $handover->year }} term</h6>
+                <ul class="handover-list">
+                    @php $leavingCount = $handover->leaving->count(); @endphp
+                    <li>{{ $leavingCount }} {{ Str::plural('officer', $leavingCount) }} of {{ $handover->year }} {{ $leavingCount === 1 ? 'moves' : 'move' }} to Former Officers and can no longer sign in.</li>
+                    <li>The {{ $handover->year }} folders and files move to Previous School Years. Nothing is deleted.</li>
+                    @foreach ($handover->advisers as $adviser)
+                        <li>{{ $adviser->user->name }} (Adviser) stays and continues in {{ $handover->nextYear }}.</li>
+                    @endforeach
+                    @if ($handover->signsYouOut)
+                        <li>You will be signed out.</li>
+                    @endif
+                </ul>
+
+                <form action="{{ route('officers.archiveAll') }}" method="POST" style="margin:0;">
+                    @csrf
+                    @method('DELETE')
+                    <input type="hidden" name="school_year" value="{{ $handover->year }}">
+
+                    <div class="modal-actions">
+                        <button type="button" onclick="closeModal('archiveModal')" class="modal-cancel">Cancel</button>
+                        <button type="submit" class="modal-confirm" @disabled(! $handover->ready)
+                            @unless ($handover->ready) aria-describedby="endTermLocked" @endunless>
+                            <i class="fas fa-check" aria-hidden="true"></i> End term
+                        </button>
+                    </div>
+                    @unless ($handover->ready)
+                        <span class="handover-hint" id="endTermLocked" style="text-align:right;">
+                            {{ $handover->incoming ? 'Unlocks once the next President has signed in.' : 'Add the next President first.' }}
+                        </span>
+                    @endunless
+                </form>
             </div>
-        </form>
+        @endif
     </div>
 </div>
 
@@ -663,8 +895,10 @@
         <label for="reactivateSchoolYear" style="display:block; font-size:.78rem; font-weight:600; color:var(--text-2); margin:14px 0 6px;">
             School year for this new term
         </label>
-        <input type="text" id="reactivateSchoolYear" placeholder="e.g. 2026-2027" autofocus
-            style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--card); color:var(--text-1); font-size:.88rem;">
+        {{-- The officers in office; only a system with none yet asks. --}}
+        <input type="text" id="reactivateSchoolYear" placeholder="e.g. 2026-2027"
+            value="{{ $handover->year }}" @readonly($handover->year)
+            style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); background:{{ $handover->year ? 'var(--surface)' : 'var(--card)' }}; color:var(--text-1); font-size:.88rem;">
 
         <label for="reactivatePosition" style="display:block; font-size:.78rem; font-weight:600; color:var(--text-2); margin:14px 0 6px;">
             Position
@@ -724,7 +958,8 @@
     function confirmReactivate(form, name, currentPositionId) {
         _reactivateForm = form;
         document.getElementById('reactivateName').textContent = name;
-        document.getElementById('reactivateSchoolYear').value = '';
+        const yearField = document.getElementById('reactivateSchoolYear');
+        if (!yearField.readOnly) yearField.value = '';
         document.getElementById('reactivatePosition').value = currentPositionId;
         openModal('reactivateModal');
     }
@@ -772,6 +1007,29 @@
             closeModal(id);
         }
     }
+
+    // Next President: a new account or someone already in the system. The
+    // hidden set's fields are switched off so they aren't sent.
+    function setHandoverMode(mode) {
+        document.querySelectorAll('[data-handover-mode]').forEach(function (box) {
+            const on = box.dataset.handoverMode === mode;
+            box.hidden = !on;
+            box.querySelectorAll('input, select').forEach(function (field) { field.disabled = !on; });
+        });
+    }
+
+    document.querySelectorAll('input[name="mode"]').forEach(function (radio) {
+        radio.addEventListener('change', function () { setHandoverMode(radio.value); });
+    });
+
+    const checkedMode = document.querySelector('input[name="mode"]:checked');
+    if (checkedMode) setHandoverMode(checkedMode.value);
+
+    // Back from adding/removing the next President, or a mistake in the form:
+    // open End Term again where they left off.
+    @if ($handoverErrors->any() || session('openHandover'))
+        showArchiveModal();
+    @endif
 </script>
 
 @endsection

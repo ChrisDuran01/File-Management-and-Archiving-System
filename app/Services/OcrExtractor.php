@@ -392,6 +392,131 @@ class OcrExtractor
         return $this->ocrImage($imagePath);
     }
 
+    /**
+     * A photo or scanned page as text laid out the way it looks, like
+     * pdftotext -layout gives for a PDF: words at about the same height
+     * make one line, and each word is placed at the column its position on
+     * the page gives it, so a table's columns stay apart by runs of spaces.
+     * A bigger gap between lines becomes a blank line. Used to read the
+     * tables of a scanned proposal (ProposalFileImport).
+     */
+    public function layoutText(string $imagePath): string
+    {
+        $cleaned = $this->preprocessForOcr($imagePath);
+
+        try {
+            $process = new Process([config('services.ocr.tesseract_path'), $cleaned, 'stdout', '--psm', '3', 'tsv']);
+            $process->setTimeout(180);
+            $process->run();
+
+            if (! $process->isSuccessful()) {
+                throw new \RuntimeException('The scan could not be read: '.trim($process->getErrorOutput()));
+            }
+
+            return $this->layoutFromTsv($process->getOutput());
+        } finally {
+            if ($cleaned !== $imagePath) {
+                @unlink($cleaned);
+            }
+        }
+    }
+
+    /**
+     * Tesseract's TSV (one row per word, with its box) as laid-out text.
+     * Public so it can be tested without Tesseract.
+     */
+    public function layoutFromTsv(string $tsv): string
+    {
+        $words = [];
+        foreach (preg_split('/\R/', $tsv) as $row) {
+            $c = explode("\t", $row);
+            // level 5 = a word; a confidence of -1 marks a box with no word in it
+            if (count($c) < 12 || $c[0] !== '5' || (float) $c[10] < 0 || trim($c[11]) === '') {
+                continue;
+            }
+            $words[] = [
+                'x' => (int) $c[6], 'y' => (int) $c[7], 'w' => (int) $c[8], 'h' => (int) $c[9], 'text' => trim($c[11]),
+                'line' => $c[1].'.'.$c[2].'.'.$c[3].'.'.$c[4], // page.block.paragraph.line, as Tesseract groups them
+            ];
+        }
+        if (! $words) {
+            return '';
+        }
+
+        $median = function (array $values): float {
+            sort($values);
+
+            return $values ? (float) $values[intdiv(count($values), 2)] : 0.0;
+        };
+        // One letter's width and one line's height on this page.
+        $charWidth = max(1.0, $median(array_map(fn ($w) => $w['w'] / mb_strlen($w['text']), array_filter($words, fn ($w) => mb_strlen($w['text']) >= 3))) ?: 10.0);
+        $lineHeight = max(1.0, $median(array_column($words, 'h')));
+
+        // A photo taken a little crooked: across a wide table a slant of one
+        // or two degrees moves the far columns onto the next line. Tesseract
+        // follows the slant within each line it finds, so the slope of those
+        // lines tells how much to straighten every word's height by.
+        $slopes = [];
+        foreach (collect($words)->groupBy('line') as $line) {
+            if ($line->count() < 3) {
+                continue;
+            }
+            $xs = $line->map(fn ($w) => $w['x'] + $w['w'] / 2)->all();
+            $ys = $line->map(fn ($w) => $w['y'] + $w['h'] / 2)->all();
+            $mx = array_sum($xs) / count($xs);
+            $my = array_sum($ys) / count($ys);
+            $sxx = array_sum(array_map(fn ($x) => ($x - $mx) ** 2, $xs));
+            if ($sxx > 0) {
+                $slopes[] = array_sum(array_map(fn ($x, $y) => ($x - $mx) * ($y - $my), $xs, $ys)) / $sxx;
+            }
+        }
+        $slope = max(-0.1, min(0.1, $median($slopes)));
+        $middleOf = fn (array $w) => $w['y'] + $w['h'] / 2 - $slope * ($w['x'] + $w['w'] / 2);
+
+        // Words whose (straightened) middles are within half a line of each other share a line.
+        usort($words, fn ($a, $b) => $middleOf($a) <=> $middleOf($b));
+        $lines = [];
+        foreach ($words as $word) {
+            $middle = $middleOf($word);
+            $last = count($lines) - 1;
+            if ($last >= 0 && abs($middle - $lines[$last]['middle']) <= $lineHeight * 0.5) {
+                $lines[$last]['words'][] = $word;
+                $lines[$last]['middle'] += ($middle - $lines[$last]['middle']) / count($lines[$last]['words']);
+            } else {
+                $lines[] = ['middle' => $middle, 'words' => [$word]];
+            }
+        }
+
+        $out = [];
+        $previous = null;
+        foreach ($lines as $line) {
+            if ($previous !== null && $line['middle'] - $previous > $lineHeight * 2.4) {
+                $out[] = '';
+            }
+            usort($line['words'], fn ($a, $b) => $a['x'] <=> $b['x']);
+
+            $text = '';
+            $end = null;
+            foreach ($line['words'] as $word) {
+                $length = mb_strlen($text);
+                $gap = $end === null ? null : ($word['x'] - $end) / $charWidth;
+                // Words of one cell keep one space; a wider gap is a new column,
+                // set where it sits on the page (and at least two spaces).
+                $column = match (true) {
+                    $gap === null => (int) round($word['x'] / $charWidth),
+                    $gap <= 1.8   => $length + 1,
+                    default       => max((int) round($word['x'] / $charWidth), $length + 2),
+                };
+                $text .= str_repeat(' ', max(0, $column - $length)).$word['text'];
+                $end = $word['x'] + $word['w'];
+            }
+            $out[] = rtrim($text);
+            $previous = $line['middle'];
+        }
+
+        return implode("\n", $out);
+    }
+
     private function ocrImage(string $imagePath): string
     {
         $cleaned = $this->preprocessForOcr($imagePath);

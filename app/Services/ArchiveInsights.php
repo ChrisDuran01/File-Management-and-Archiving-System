@@ -61,7 +61,7 @@ class ArchiveInsights
         $files = File::whereIn('folder_id', $accessible)
             ->where(fn ($q) => $q->whereNotNull('text_terms')->orWhere(fn ($q) => $q->whereNotNull('ocr_text')->where('ocr_text', '!=', '')))
             ->latest()->limit(self::MAX_FILES)
-            ->get(['id', 'filename', 'folder_id', 'text_terms', 'ocr_text', 'content_hash', 'duplicate_of_id', 'created_at']);
+            ->get(['id', 'filename', 'folder_id', 'text_terms', 'ocr_text', 'content_hash', 'duplicate_of_id', 'folder_hint_dismissed_at', 'created_at']);
 
         // Word counts per file (stored; worked out here for a file saved
         // before they were). Files with too little text are left out.
@@ -122,6 +122,10 @@ class ArchiveInsights
         $out = [];
         foreach ($vec as $fileId => $v) {
             $file = $byId[$fileId];
+            // An officer said it belongs where it is ("Keep it here", FolderHint).
+            if ($file->folder_hint_dismissed_at) {
+                continue;
+            }
             $own = $file->folder_id;
             $kind = $this->kinds->fromText($file->ocr_text);
             $ownKinds = $folderKinds[$own] ?? [];

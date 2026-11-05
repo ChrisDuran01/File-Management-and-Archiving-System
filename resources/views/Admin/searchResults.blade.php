@@ -193,14 +193,17 @@
 @php
     $documents = $documents ?? collect();
     $archivedFiles = $archivedFiles ?? collect();
+    $proposals = $proposals ?? collect();
 
     $results = collect()
         ->merge($folders->map(fn($f) => ['type' => 'folder', 'data' => $f]))
         ->merge($files->map(fn($f)   => ['type' => 'file',   'data' => $f]))
         ->merge($archives->map(fn($a) => ['type' => 'archive', 'data' => $a]))
         ->merge($archivedFiles->map(fn($f) => ['type' => 'archived_file', 'data' => $f]))
-        ->merge($documents->map(fn($d) => ['type' => 'document', 'data' => $d]));
+        ->merge($documents->map(fn($d) => ['type' => 'document', 'data' => $d]))
+        ->merge($proposals->map(fn($p) => ['type' => 'proposal', 'data' => $p]));
 
+    $proposalItems = $results->where('type', 'proposal');
     $folderItems   = $results->where('type', 'folder');
     $fileItems     = $results->where('type', 'file');
     $archiveItems  = $results->where('type', 'archive');
@@ -275,6 +278,9 @@
     @endif
     @if($documentItems->count())
     <span class="stat-chip"><i class="fas fa-file-lines"></i>{{ $documentItems->count() }} {{ Str::plural('document', $documentItems->count()) }}</span>
+    @endif
+    @if($proposalItems->count())
+    <span class="stat-chip"><i class="fas fa-clipboard-list"></i>{{ $proposalItems->count() }} activity {{ Str::plural('proposal', $proposalItems->count()) }}</span>
     @endif
 </div>
 
@@ -498,6 +504,25 @@
             <small style="color:var(--text-3); display:block; margin-top:4px;">
                 @if($document->reference_no) {{ $document->reference_no }} &middot; @endif
                 {{ $document->folder->name ?? '—' }}
+            </small>
+        </a>
+        @endforeach
+    </div>
+    @endif
+
+    {{-- ── Activity proposals section ───────────────────── --}}
+    @if($proposalItems->count())
+    <div class="section-label mt-4"><i class="fas fa-clipboard-list"></i> Activity Proposals</div>
+    <div class="results-grid">
+        @foreach($proposalItems as $item)
+        @php $proposal = $item['data']; @endphp
+        <a href="{{ route('proposals.show', $proposal) }}" class="result-card file">
+            <div class="card-icon file"><i class="fas fa-clipboard-list"></i></div>
+            <span class="card-name">{{ $proposal->title }}</span>
+            <span class="card-ext">{{ $proposal->statusLabel() }}</span>
+            <small style="color:var(--text-3); display:block; margin-top:4px;">
+                {{ $proposal->dateLabel() }}
+                @if($proposal->matched_item)<br>Budget: {{ $proposal->matched_item }}@endif
             </small>
         </a>
         @endforeach

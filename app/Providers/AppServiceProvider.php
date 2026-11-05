@@ -13,11 +13,14 @@ use App\Models\OfficerTerm;
 use App\Models\Position;
 use App\Models\User;
 use App\Support\StudentPageCache;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Http\Middleware\TrustProxies;
+use Illuminate\Http\Request;
 use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
@@ -53,6 +56,13 @@ class AppServiceProvider extends ServiceProvider
         foreach ($studentPageModels as $model) {
             $model::saved(fn () => StudentPageCache::forget());
             $model::deleted(fn () => StudentPageCache::forget());
+        }
+
+        // Limits per IP for the pages anyone can open without signing in
+        // (routes/web.php, numbers in config/throttle.php). Over the limit, a
+        // page answers 429 (errors/429.blade.php) until the minute is up.
+        foreach (['public-pages' => 'public_pages', 'public-images' => 'public_images', 'public-downloads' => 'public_downloads'] as $name => $key) {
+            RateLimiter::for($name, fn (Request $request) => Limit::perMinute(config("throttle.$key"))->by($request->ip()));
         }
 
         // A reverse proxy or HTTPS tunnel in front of the app (config/app.php,

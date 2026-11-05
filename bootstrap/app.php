@@ -15,10 +15,22 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             \App\Http\Middleware\EnsurePasswordIsChanged::class,
             \App\Http\Middleware\EnsurePrivacyNoticeAcknowledged::class,
+            \App\Http\Middleware\EnsureTwoFactorEnabled::class,
         ]);
 
         // Anonymous student-page analytics beacon - see the route's comment.
         $middleware->validateCsrfTokens(except: ['engagement']);
+
+        // Only APP_URL's host (and its subdomains) is answered. Links in
+        // emails - the password reset link above all - are built from the
+        // address the request came in on, so without this a request sent
+        // with someone else's Host or X-Forwarded-Host would mail out a reset
+        // link to their site. Laravel skips it when APP_ENV=local and in
+        // tests, so it bites on the server only: APP_URL must be right there.
+        $middleware->trustHosts();
+
+        // X-Frame-Options, nosniff, Referrer-Policy, HSTS on HTTPS.
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
 
         $middleware->alias([
             'superadmin' => \App\Http\Middleware\EnsureSuperAdmin::class,

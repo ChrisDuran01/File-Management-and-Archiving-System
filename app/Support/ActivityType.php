@@ -26,12 +26,15 @@ class ActivityType
         'sign-ins' => ['label' => 'Sign-ins', 'starts' => [
             'Logged in', 'Logged out', 'Changed password', 'Reset password',
             'Requested password reset', 'Acknowledged privacy notice', 'Updated profile',
+            'Turned on two-factor', 'Made new two-factor', 'Forgot trusted devices', 'Moved two-factor', 'Reset two-factor',
         ]],
         'security' => ['label' => 'Security', 'starts' => [
             'Failed login', 'Login blocked', 'Login attempt on disabled',
+            'Failed two-factor', 'Two-factor blocked',
         ]],
         'files' => ['label' => 'Files', 'starts' => [
             'Uploaded', 'Cancelled upload', 'Renamed file', 'Downloaded file', 'Deleted file', 'Moved file to Trash',
+            'Moved file to another folder', 'Kept file in its folder',
             'Changed access for file', 'Marked ', 'Made ', 'Removed the final mark',
             'Turned off a share link', 'Sent a copy of a file', 'Kept file offline', 'Saved ',
             'Duplicate check', 'Updated duplicate check',
@@ -55,13 +58,13 @@ class ActivityType
         ]],
         'officers' => ['label' => 'Officers', 'starts' => [
             'Added officer', 'Updated officer', 'Archived officer', 'Reactivated officer', 'Deleted officer',
-            'Ended ', 'Started new school year',
+            'Removed next President', 'Ended ', 'Started new school year',
         ]],
         'backups' => ['label' => 'Backups & archives', 'starts' => [
             'Created backup', 'Downloaded backup', 'Restored system', 'Turned automatic backup', 'Changed backup',
             'Archived school year', 'Restored school year',
             'Archived folder', 'Auto-archived', 'Restored folder', 'Downloaded archive', 'Deleted archive',
-            'Copied files from Supabase', 'Log retention purge',
+            'Copied files from Supabase', 'Log retention purge', 'Housekeeping removed',
         ]],
     ];
 

@@ -17,6 +17,7 @@ use App\Notifications\BackupFailed;
 use App\Notifications\RestoreFailed;
 use App\Services\CloudFileUploader;
 use App\Services\FileResponse;
+use App\Support\OcrRestoreLock;
 use App\Support\StudentPageCache;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Artisan;
@@ -377,10 +378,30 @@ class BackupController extends Controller
      * happen to still exist - that would silently scatter content under
      * wrong or stale paths instead of failing loudly. The database itself
      * is then put back as it was - see replaceDatabase().
+     *
+     * OCR has its own queue worker, so this first waits for a file that is
+     * being read to finish, and holds the next ones back until it is over
+     * (OcrRestoreLock).
      */
     public function performRestore(int $id, ?string $initiatedBy = null, ?string $initiatedByIp = null): void
     {
         set_time_limit(0);
+
+        $ran = OcrRestoreLock::whileRestoring(
+            fn () => $this->restoreBackup($id, $initiatedBy, $initiatedByIp),
+            fn () => $this->setRestoreProgress('starting', 1, 'Waiting for a document that is being read (OCR) to finish…'),
+        );
+
+        if (! $ran) {
+            $message = 'Restore did not start: a document was still being read (OCR) after '
+                . intdiv(OcrRestoreLock::$restoreWaitSeconds, 60) . ' minutes. Nothing was changed - try again later.';
+            $this->setRestoreProgress('error', 100, $message);
+            $this->notifyRestoreFailed($message, Backup::find($id)?->name ?? ('#' . $id));
+        }
+    }
+
+    private function restoreBackup(int $id, ?string $initiatedBy, ?string $initiatedByIp): void
+    {
         ini_set('memory_limit', '512M');
 
         $this->setRestoreProgress('starting', 1, 'Starting restore…');

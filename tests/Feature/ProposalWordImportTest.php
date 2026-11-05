@@ -147,7 +147,7 @@ it('reads every part of a Word proposal laid out like the SG\'s', function () {
 it('fills in a new proposal from the Word file, saves nothing until the officer does, and logs where it came from', function () {
     $officer = importOfficer();
 
-    $this->actingAs($officer)->get(route('proposals.import'))->assertOk()->assertSee('Import a proposal from Word');
+    $this->actingAs($officer)->get(route('proposals.import'))->assertOk()->assertSee('Import a proposal from a file');
 
     $this->post(route('proposals.import.read'), ['file' => docxUpload(sampleProposalBody())])
         ->assertRedirect(route('proposals.create'));
@@ -168,13 +168,13 @@ it('fills in a new proposal from the Word file, saves nothing until the officer 
     expect(ActivityLog::where('activity', 'Created activity proposal "FRESHIVAL 2026" (imported from Word file "FRESHIVAL 2026.docx")')->exists())->toBeTrue();
 });
 
-it('turns away files that are not Word documents', function () {
+it('turns away files that are not a proposal it can read', function () {
     $officer = importOfficer();
 
     $this->actingAs($officer)->from(route('proposals.import'))
-        ->post(route('proposals.import.read'), ['file' => UploadedFile::fake()->create('proposal.pdf', 10, 'application/pdf')])
+        ->post(route('proposals.import.read'), ['file' => UploadedFile::fake()->create('proposal.txt', 10, 'text/plain')])
         ->assertRedirect(route('proposals.import'))
-        ->assertSessionHasErrors('file');
+        ->assertSessionHasErrors(['file' => 'Choose a Word file (.docx), a PDF, or a photo (JPG or PNG). For a .doc file, open it in Word and Save As .docx first.']);
 
     $notAZip = UploadedFile::fake()->createWithContent('old proposal.docx', 'this is not a Word file');
     $this->from(route('proposals.import'))->post(route('proposals.import.read'), ['file' => $notAZip])

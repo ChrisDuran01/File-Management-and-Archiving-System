@@ -110,7 +110,7 @@ class OfficerAppController extends Controller
         return view('OfficerApp.folders', [
             'year'      => null,
             'folders'   => $this->flagAccess(Folder::where('is_archived', false)->withCount('file')->orderBy('name')->get(), $user),
-            'rootFiles' => File::whereNull('folder_id')->where('is_archived', false)->latest()->get()->map(fn (File $file) => $this->describe($file)),
+            'rootFiles' => File::forListing()->whereNull('folder_id')->where('is_archived', false)->latest()->get()->map(fn (File $file) => $this->describe($file)),
             'pastYears' => Folder::where('is_archived', true)
                 ->whereNotNull('school_year')
                 ->distinct()
@@ -129,7 +129,7 @@ class OfficerAppController extends Controller
         return view('OfficerApp.folders', [
             'year'      => $year,
             'folders'   => $this->flagAccess(Folder::where('is_archived', true)->where('school_year', $year)->withCount('file')->orderBy('name')->get(), $user),
-            'rootFiles' => File::whereNull('folder_id')->where('is_archived', true)->where('school_year', $year)->latest()->get()->map(fn (File $file) => $this->describe($file)),
+            'rootFiles' => File::forListing()->whereNull('folder_id')->where('is_archived', true)->where('school_year', $year)->latest()->get()->map(fn (File $file) => $this->describe($file)),
             'pastYears' => collect(),
         ]);
     }
@@ -146,7 +146,7 @@ class OfficerAppController extends Controller
 
         return view('OfficerApp.folder', [
             'folder' => $folder,
-            'files'  => File::where('folder_id', $folder->id)->with('folder')->latest()->get()->map(fn (File $file) => $this->describe($file)),
+            'files'  => File::forListing()->where('folder_id', $folder->id)->with('folder')->latest()->get()->map(fn (File $file) => $this->describe($file)),
         ]);
     }
 
@@ -249,7 +249,7 @@ class OfficerAppController extends Controller
     /** What is inside one archived folder - view only, as on the website's Archives page. */
     public function archive($id)
     {
-        $archive = Archive::findOrFail($id);
+        $archive = ArchiveController::accessibleArchive($id);
 
         $filenames = $archive->filenames();
         sort($filenames);
@@ -259,7 +259,7 @@ class OfficerAppController extends Controller
 
     public function archivedFile($id, string $filename)
     {
-        $archive = Archive::findOrFail($id);
+        $archive = ArchiveController::accessibleArchive($id);
 
         abort_unless(in_array($filename, $archive->filenames(), true), 404, 'File not found in this archive.');
 

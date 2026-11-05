@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Jobs\Middleware\HoldDuringRestore;
 use App\Models\ActivityLog;
 use App\Models\ScanBatch;
 use App\Models\User;
@@ -31,6 +32,8 @@ use Throwable;
  * for transient/infra failures (Process timeouts, disk), but a "domain"
  * failure the retry can't fix (corrupt PDF, no pages, over the page limit)
  * ends the batch at `failed` with a message and no retry.
+ *
+ * On the "ocr" queue with ExtractFileOcrText (its own worker).
  */
 class ProcessScanBatch implements ShouldQueue
 {
@@ -45,6 +48,12 @@ class ProcessScanBatch implements ShouldQueue
 
     public function __construct(private readonly int $batchId)
     {
+        $this->onQueue('ocr');
+    }
+
+    public function middleware(): array
+    {
+        return [new HoldDuringRestore];
     }
 
     public function handle(

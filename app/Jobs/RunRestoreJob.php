@@ -30,6 +30,7 @@ class RunRestoreJob implements ShouldQueue
 
     // Never re-run on its own: a restore replaces the whole database, and
     // performRestore() already puts the old one back when a step fails.
+    // It may first wait up to 30 minutes for an OCR job (own worker) to end.
     public $tries = 1;
 
     /**

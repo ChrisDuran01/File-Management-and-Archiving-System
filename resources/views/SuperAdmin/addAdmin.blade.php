@@ -142,15 +142,26 @@
                         <i class="fas fa-calendar"></i>
                         School Year <span class="field-required">*</span>
                     </label>
-                    <input id="officer-school-year"
-                        type="text"
-                        name="school_year"
-                        class="field-input mono {{ $errors->has('school_year') ? 'is-invalid' : '' }}"
-                        placeholder="2026-2027"
-                        value="{{ old('school_year') }}"
-                        required
-                    >
-                    <span class="field-hint"><i class="fas fa-circle-info"></i> Format: YYYY-YYYY</span>
+                    @if ($currentYear)
+                        <input id="officer-school-year"
+                            type="text"
+                            name="school_year"
+                            class="field-input mono"
+                            value="{{ $currentYear }}"
+                            readonly
+                        >
+                        <span class="field-hint"><i class="fas fa-circle-info"></i> The officers in office. The next school year starts at End Term.</span>
+                    @else
+                        <input id="officer-school-year"
+                            type="text"
+                            name="school_year"
+                            class="field-input mono {{ $errors->has('school_year') ? 'is-invalid' : '' }}"
+                            placeholder="2026-2027"
+                            value="{{ old('school_year', \App\Support\SchoolYear::current()) }}"
+                            required
+                        >
+                        <span class="field-hint"><i class="fas fa-circle-info"></i> Format: YYYY-YYYY</span>
+                    @endif
                     @error('school_year')
                         <span class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</span>
                     @enderror
@@ -179,7 +190,7 @@
                         <i class="fas fa-eye" id="pwIcon"></i>
                     </button>
                 </div>
-                <span class="field-hint"><i class="fas fa-circle-info"></i> Minimum 8 characters recommended</span>
+                <span class="field-hint"><i class="fas fa-circle-info"></i> At least 8 characters, with upper and lower case letters, a number and a symbol. They choose their own at first sign-in.</span>
                 @error('password')
                     <span class="field-error"><i class="fas fa-circle-exclamation"></i> {{ $message }}</span>
                 @enderror

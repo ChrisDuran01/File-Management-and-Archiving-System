@@ -361,10 +361,20 @@ class DashboardController extends Controller
      */
     public function createOfficer()
     {
+        // While the next President waits for End Term nobody is added; the
+        // next school year's officers come after it (OfficerController::store).
+        if ($incoming = OfficerTerm::incomingPresident()) {
+            return redirect()->route('officers.index')->with('error', OfficerController::handoverPendingMessage($incoming));
+        }
+
         // Get all positions for dropdown selection
         $positions = Position::all();
 
-        return view('SuperAdmin.addAdmin', compact('positions'));
+        // New officers join the school year in office; only a system with no
+        // officers yet asks for one.
+        $currentYear = OfficerTerm::currentSchoolYear();
+
+        return view('SuperAdmin.addAdmin', compact('positions', 'currentYear'));
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Models\ActivityProposal;
 use App\Models\Archive;
 use App\Models\ArchiveFile;
 use App\Models\Document;
@@ -43,12 +44,13 @@ class SearchController extends Controller
         // Enter on an empty search bar: nothing to look for. Searching for ''
         // would match every file in the system.
         if ($query === '') {
-            $folders = $files = $archives = $documents = $archivedFiles = collect();
+            $folders = $files = $archives = $documents = $archivedFiles = $proposals = collect();
         } else {
             [$folders, $files, $archives, $documents, $archivedFiles] = $this->performSearch($query);
+            $proposals = $this->proposals($query);
         }
 
-        return view('Admin.searchResults', compact('folders', 'files', 'archives', 'documents', 'archivedFiles', 'query'));
+        return view('Admin.searchResults', compact('folders', 'files', 'archives', 'documents', 'archivedFiles', 'proposals', 'query'));
     }
 
     /**
@@ -78,8 +80,46 @@ class SearchController extends Controller
             : null;
 
         [$folders, $files, $archives, $documents, $archivedFiles] = $this->performSearch($query, limit: 5, currentFolderId: $currentFolderId);
+        $proposals = $this->proposals($query, limit: 5);
 
-        return view('Admin.searchLive', compact('folders', 'files', 'archives', 'documents', 'archivedFiles', 'query', 'context'));
+        return view('Admin.searchLive', compact('folders', 'files', 'archives', 'documents', 'archivedFiles', 'proposals', 'query', 'context'));
+    }
+
+    /**
+     * Activity proposals whose title, theme, proponent or school year
+     * matches, or one of whose budget rows does ("polo shirt"). Every
+     * officer may open any proposal (ActivityProposal::isAccessibleBy), so
+     * nothing is filtered out; proposals in the Trash are left out by the
+     * soft delete. Newest activity first.
+     */
+    public function proposals(string $query, ?int $limit = null)
+    {
+        // Grouped, so the OR stays inside the budget-row subquery.
+        $rowMatches = fn ($item) => $item->where(fn ($row) => $row
+            ->where('particular', 'like', "%{$query}%")
+            ->orWhere('category', 'like', "%{$query}%"));
+
+        $proposals = ActivityProposal::where(function ($q) use ($query, $rowMatches) {
+                $q->where('title', 'like', "%{$query}%")
+                    ->orWhere('theme', 'like', "%{$query}%")
+                    ->orWhere('proponent', 'like', "%{$query}%")
+                    ->orWhere('school_year', 'like', "%{$query}%")
+                    ->orWhereHas('items', $rowMatches);
+            })
+            ->with(['items' => $rowMatches])
+            ->orderByDesc('starts_on')
+            ->orderByDesc('id')
+            ->when($limit, fn ($q) => $q->limit($limit))
+            ->get();
+
+        // Why it showed up, when the title itself doesn't say: the budget row.
+        $proposals->each(function (ActivityProposal $proposal) use ($query) {
+            $proposal->matched_item = stripos($proposal->title, $query) === false
+                ? $proposal->items->first()?->particular
+                : null;
+        });
+
+        return $proposals;
     }
 
     /**

@@ -1,5 +1,6 @@
-# Runs the queue worker and the scheduler as Windows services instead of the
-# "Queue worker" / "Scheduler" windows that start-all.bat opens. They start
+# Runs the queue worker, the OCR worker and the scheduler as Windows services
+# instead of the "Queue worker" / "OCR worker" / "Scheduler" windows that
+# start-all.bat opens. They start
 # with Windows (nobody has to log in), run hidden, and come back on their own
 # when they stop. The web server (php artisan serve) is not included.
 #
@@ -24,7 +25,16 @@ $services = @(
         Display     = 'QSU-FMAS Queue Worker'
         Command     = 'queue:work'
         Log         = 'service-queue-worker'
-        Description = 'Runs php artisan queue:work: backups, restores, push notifications, digitize hardcopy, notification bell.'
+        Description = 'Runs php artisan queue:work: backups, restores, push notifications, notification bell.'
+    },
+    # OCR on its own worker, so push notifications never wait behind a long
+    # scan. A restore holds this one back (app\Support\OcrRestoreLock.php).
+    @{
+        Name        = 'qsu-fmas-queue-ocr'
+        Display     = 'QSU-FMAS OCR Worker'
+        Command     = 'queue:work --queue=ocr'
+        Log         = 'service-queue-ocr'
+        Description = 'Runs php artisan queue:work --queue=ocr: reads the text of uploaded files (OCR) and digitize hardcopy scan batches.'
     },
     @{
         Name        = 'qsu-fmas-scheduler'
@@ -132,7 +142,7 @@ foreach ($name in ($services.Name + $legacyNames)) {
 
 if ($Uninstall) {
     Write-Host ''
-    Write-Host 'Services removed. start-all.bat will open the Queue worker and Scheduler windows again.'
+    Write-Host 'Services removed. start-all.bat will open the Queue worker, OCR worker and Scheduler windows again.'
     return
 }
 
@@ -153,7 +163,10 @@ foreach ($s in $services) {
     Write-Host "Installing $($s.Display) ($($s.Name)) ..."
     $log = Join-Path $appPath "storage\logs\$($s.Log).log"
 
-    Invoke-Nssm install $s.Name $runner $s.Command
+    # One argument per word: NSSM joins them back with spaces, while a single
+    # "queue:work --queue=ocr" argument could reach artisan in quotes.
+    $commandArgs = $s.Command -split ' '
+    Invoke-Nssm install $s.Name $runner @commandArgs
     Invoke-Nssm set $s.Name DisplayName $s.Display
     Invoke-Nssm set $s.Name Description $s.Description
     Invoke-Nssm set $s.Name AppDirectory $appPath
@@ -176,6 +189,11 @@ foreach ($s in $services) {
 
 Write-Host ''
 Get-Service $services.Name | Format-Table Name, DisplayName, Status, StartType -AutoSize
+foreach ($s in $services) {
+    # NSSM writes UTF-16, which PowerShell reads with a NUL after every letter.
+    $parameters = ((& $script:nssm get $s.Name AppParameters) -join ' ') -replace "`0", ''
+    Write-Host ("{0} runs: php artisan {1}" -f $s.Name, $parameters.Trim())
+}
 
 # Leftover windows from start-all.bat would mean two schedulers running every
 # task twice. The services' own php runs as nssm.exe -> cmd.exe -> php.exe.
@@ -188,7 +206,7 @@ $leftover = $procs.Values | Where-Object {
         -not ($parent -and $servicePids -contains $parent.ParentProcessId)
 }
 if ($leftover) {
-    Write-Warning 'A queue worker or scheduler is still running outside the services. Close the "Queue worker" and "Scheduler" windows.'
+    Write-Warning 'A queue worker or scheduler is still running outside the services. Close the "Queue worker", "OCR worker" and "Scheduler" windows.'
 }
 
 Write-Host "Output logs: $appPath\storage\logs\service-*.log"

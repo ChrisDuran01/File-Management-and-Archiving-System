@@ -25,6 +25,7 @@
                 <small>Diffun Campus</small>
             </span>
         </a>
+        @include('Student.partials.theme-toggle')
     </div>
 </header>
 
@@ -111,12 +112,12 @@
 
 <style>
     .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
-    .chip-done { background: var(--green-soft); color: var(--green); }
-    .chip-off { background: var(--tint); color: var(--muted); }
+    .chip-done { background: var(--green-soft); color: var(--green-ink); }
+    .chip-off { background: var(--tint); color: var(--text); }
 
     .act-theme { margin-top: 14px; color: var(--text); font-size: 1.05rem; font-style: italic; overflow-wrap: anywhere; }
     .act-theme span {
-        margin-right: 6px; color: var(--green-3); font-size: .74rem; font-style: normal; font-weight: 700;
+        margin-right: 6px; color: var(--green-ink-2); font-size: .75rem; font-style: normal; font-weight: 700;
         letter-spacing: .12em; text-transform: uppercase;
     }
     .article-h2 { margin-top: 36px; color: var(--ink); font-family: var(--head); font-size: 1.3rem; font-weight: 700; line-height: 1.3; }
@@ -126,13 +127,13 @@
         display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px;
         margin-top: 14px; padding: 18px 20px; border-radius: 14px; background: var(--green-soft);
     }
-    .budget-total span { color: var(--green); font-size: .9rem; font-weight: 600; }
-    .budget-total b { color: var(--green); font-family: var(--head); font-size: 1.6rem; font-weight: 700; }
+    .budget-total span { color: var(--green-ink); font-size: .9rem; font-weight: 600; }
+    .budget-total b { color: var(--green-ink); font-family: var(--head); font-size: 1.6rem; font-weight: 700; }
 
     .budget-table { width: 100%; margin-top: 10px; border-collapse: collapse; }
     .budget-table thead th {
         padding: 10px 4px; border-bottom: 1px solid var(--line-2); color: var(--faint);
-        font-size: .74rem; font-weight: 700; letter-spacing: .08em; text-align: left; text-transform: uppercase;
+        font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-align: left; text-transform: uppercase;
     }
     .budget-table tbody th, .budget-table td { padding: 12px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
     .budget-table tbody th { color: var(--ink); font-weight: 600; text-align: left; overflow-wrap: anywhere; }

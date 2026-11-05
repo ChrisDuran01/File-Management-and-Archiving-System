@@ -380,6 +380,8 @@ class ReportController extends Controller
         $user = Auth::user();
         $stamp = implode('|', [
             File::count(), File::max('updated_at'), File::whereNotNull('text_terms')->count(), Folder::max('updated_at'),
+            // Moving a file or "Keep it here" leaves updated_at alone (FileController::move/keepHere).
+            File::sum('folder_id'), File::max('folder_hint_dismissed_at'),
         ]);
 
         return Cache::remember(

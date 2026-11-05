@@ -160,6 +160,10 @@
         white-space: nowrap;
     }
     [data-theme="dark"] .added-later { background: #3a2d14; color: #edbb62; }
+    /* The folder hint (partials/folder-hint): a chip that opens the Move dialog */
+    .chip.folder-hint { border: 0; cursor: pointer; white-space: nowrap; flex-shrink: 0; font-family: inherit; }
+    .chip.folder-hint:hover { text-decoration: underline; }
+    .move-hint { font-size: 13.5px; color: var(--text-2); margin-bottom: 12px; }
     .file-date { color: var(--text-2); font-size: .82rem; }
     .file-size {
         font-family: 'DM Mono', monospace;
@@ -496,6 +500,7 @@
                         <span class="file-ext-badge">{{ $ext }}</span>
                         @include('Admin.partials.approval-badge', ['file' => $file])
                         @include('Admin.partials.copy-badge', ['file' => $file])
+                        @include('Admin.partials.folder-hint', ['file' => $file, 'hint' => $hints[$file->id] ?? null])
                         @include('Admin.partials.version-badge', ['file' => $file])
                         @if($file->added_later_at)
                             <span class="added-later" title="Added to school year {{ $file->school_year }} by {{ $file->addedLaterBy?->name ?? 'a former officer' }} on {{ $file->added_later_at->format('M j, Y') }}">
@@ -571,6 +576,16 @@
         <i class="bi bi-pencil me-2 text-secondary"></i> Rename
     </button>
 </li>
+                    {{-- FileController::move; $moveTargets is empty when files may not leave this folder --}}
+                    @if($moveTargets->isNotEmpty())
+                    <li>
+    <button type="button" class="dropdown-item py-2" data-move-file
+            data-move-url="{{ route('files.move', $file->id) }}"
+            data-move-name="{{ $file->filename }}">
+        <i class="bi bi-folder-symlink me-2 text-secondary"></i> Move to another folder
+    </button>
+</li>
+                    @endif
                     <li>
     <form action="" method="POST">
         @csrf
@@ -958,6 +973,43 @@
     {{-- Optional: no files message --}}
 @endforelse
 
+{{-- Move a file to another folder (FileController::move). One dialog for
+     every file, filled by setupMoveFile() below from the button that opened
+     it. "Keep it here" shows only when a "Looks like a Resolution · Move"
+     hint opened it (partials/folder-hint). --}}
+@if($moveTargets->isNotEmpty())
+<div class="modal fade" id="moveFileModal" tabindex="-1" aria-labelledby="moveFileTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="POST" id="moveFileForm" action="">
+                @csrf
+                <div class="modal-header">
+                    <h5 class="modal-title" id="moveFileTitle">Move “<span data-move-title></span>”</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="move-hint" data-move-hint hidden>Its title says it is <b data-move-kind></b>, but <b>{{ $folders->name }}</b> is for other documents.</p>
+                    <label for="moveFolder" class="form-label text-muted" style="font-size:13px;">Move to</label>
+                    <select id="moveFolder" name="folder_id" class="form-select" required style="border-radius:8px;">
+                        <option value="">Choose a folder</option>
+                        @foreach($moveTargets as $target)
+                            <option value="{{ $target->id }}">{{ $target->name }}{{ $target->is_restricted ? ' (restricted)' : '' }}</option>
+                        @endforeach
+                    </select>
+                    <p class="small text-muted mt-2 mb-0">Only this school year's folders. Anyone who can open the new folder can open the file.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" form="keepHereForm" class="btn btn-light me-auto" data-move-keep hidden style="border-radius:8px;">Keep it here</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius:8px;">Cancel</button>
+                    <button type="submit" class="btn btn-primary" style="border-radius:8px;">Move</button>
+                </div>
+            </form>
+            <form method="POST" id="keepHereForm" action="">@csrf</form>
+        </div>
+    </div>
+</div>
+@endif
+
 <style>
 .upload-toast-row { padding: 10px 14px; border-bottom: 1px solid #f5f5f5; }
 .upload-toast-row:last-child { border-bottom: none; }
@@ -1050,6 +1102,40 @@ document.addEventListener('click', function(e) {
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
         if (saved && compare[saved.key]) sortBy(saved.key, saved.direction === 'descending' ? 'descending' : 'ascending');
     } catch (e) {}
+})();
+
+// Move to another folder (FileController::move): one dialog for every file,
+// filled from the button that opened it - the ⋮ menu, or a folder hint
+// (partials/folder-hint), which also offers Keep it here. Listening on
+// each button (not the page) so the click stops before the row's own
+// onclick opens the file.
+(function setupMoveFile() {
+    const modal = document.getElementById('moveFileModal');
+    if (!modal) return;
+
+    const form = document.getElementById('moveFileForm');
+    const keepForm = document.getElementById('keepHereForm');
+    const select = document.getElementById('moveFolder');
+
+    document.querySelectorAll('[data-move-file]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const fromHint = !!btn.dataset.moveKind;
+            form.action = btn.dataset.moveUrl;
+            keepForm.action = btn.dataset.keepUrl || '';
+            modal.querySelector('[data-move-title]').textContent = btn.dataset.moveName;
+            modal.querySelector('[data-move-kind]').textContent = btn.dataset.moveKind || '';
+            modal.querySelector('[data-move-hint]').hidden = !fromHint;
+            modal.querySelector('[data-move-keep]').hidden = !fromHint;
+            select.value = btn.dataset.moveTo || '';
+
+            const toggle = btn.closest('.dropdown')?.querySelector('[data-bs-toggle="dropdown"]');
+            if (toggle) bootstrap.Dropdown.getOrCreateInstance(toggle).hide();
+            bootstrap.Modal.getOrCreateInstance(modal).show();
+        });
+    });
 })();
 
 @include('Admin.partials.upload-picker')

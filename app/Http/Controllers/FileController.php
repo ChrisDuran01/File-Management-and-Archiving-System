@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 use App\Jobs\ExtractFileOcrText;
 use App\Jobs\SendDocumentPush;
 use App\Models\ActivityLog;
+use App\Models\Document;
 use App\Models\File;
 use App\Models\Folder;
 use App\Models\OfficerTerm;
@@ -15,6 +16,7 @@ use App\Services\FileResponse;
 use App\Services\TrashPurger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
@@ -653,4 +655,114 @@ public function rename(Request $request, $id)
 
     return back()->with('success', 'File renamed successfully.');
 }
+
+    /**
+     * Moves a file into another of this school year's folders. Only the row
+     * changes: the stored copies are keyed by their own path, not by folder,
+     * so nothing is copied. Its versions, share links and document record go
+     * with it. A file in a restricted folder may only be taken out by the
+     * people who decide who sees that folder. Past school years neither give
+     * nor take files.
+     */
+    public function move(Request $request, $id)
+    {
+        $file = File::with('folder')->findOrFail($id);
+        $user = Auth::user();
+
+        if (! $file->isAccessibleBy($user)) {
+            abort(403, 'This file is in a restricted folder you don\'t have access to.');
+        }
+
+        if ($file->is_archived) {
+            return back()->with('error', 'This file is stored under a past school year and cannot be moved.');
+        }
+
+        if ($file->folder?->is_restricted && ! $file->isManageableBy($user)) {
+            return back()->with('error', 'Only this folder\'s creator or a SuperAdmin can move files out of a restricted folder.');
+        }
+
+        $folderId = $request->validate(['folder_id' => 'required|integer'])['folder_id'];
+        $target = Folder::find($folderId);
+
+        if (! $target || ! $target->isAccessibleBy($user)) {
+            return back()->with('error', 'That folder isn\'t available. Choose another one.');
+        }
+
+        if ($target->is_archived) {
+            return back()->with('error', 'Files can only be moved to this school year\'s folders.');
+        }
+
+        if ((int) $target->id === (int) $file->folder_id) {
+            return back()->with('error', 'The file is already in ' . $target->name . '.');
+        }
+
+        $from = $file->folder?->name ?? 'no folder';
+        $oldName = $file->filename;
+        $newName = $this->freeNameIn($target->id, $oldName);
+
+        DB::transaction(function () use ($file, $target, $newName) {
+            // Moving isn't changing the file, so "Modified" stays as it was.
+            $file->timestamps = false;
+            $file->forceFill([
+                'folder_id'                => $target->id,
+                'filename'                 => $newName,
+                'folder_hint_dismissed_at' => null,
+            ])->save();
+
+            Document::where('file_id', $file->id)->update(['folder_id' => $target->id]);
+        });
+
+        ActivityLog::create([
+            'user_name'  => $user->name,
+            'activity'   => 'Moved file to another folder: ' . $oldName . ' (from "' . $from . '" to "' . $target->name . '")'
+                . ($newName !== $oldName ? ', renamed to ' . $newName : ''),
+            'ip_address' => $request->ip(),
+        ]);
+
+        return back()->with('success', '“' . $newName . '” was moved to ' . $target->name . '.'
+            . ($newName !== $oldName ? ' It was renamed because that folder already has a file called “' . $oldName . '”.' : ''));
+    }
+
+    /**
+     * "Keep it here": the officer says a file FolderHint suggested moving is
+     * in the right folder. It isn't suggested again, there or in Reports.
+     */
+    public function keepHere(Request $request, $id)
+    {
+        $file = File::with('folder')->findOrFail($id);
+
+        if (! $file->isAccessibleBy(Auth::user())) {
+            abort(403, 'This file is in a restricted folder you don\'t have access to.');
+        }
+
+        if ($file->is_archived) {
+            return back()->with('error', 'This file is stored under a past school year and cannot be modified.');
+        }
+
+        $file->timestamps = false;
+        $file->forceFill(['folder_hint_dismissed_at' => now()])->save();
+
+        ActivityLog::create([
+            'user_name'  => Auth::user()->name,
+            'activity'   => 'Kept file in its folder: ' . $file->filename . ($file->folder ? ' (' . $file->folder->name . ')' : ''),
+            'ip_address' => $request->ip(),
+        ]);
+
+        return back()->with('success', '“' . $file->filename . '” stays in ' . ($file->folder->name ?? 'this folder') . '. It won\'t be suggested for moving again.');
+    }
+
+    /** $filename, or "name (1).ext", "name (2).ext"... until no file in the folder has it, as uploads are named. */
+    private function freeNameIn(int $folderId, string $filename): string
+    {
+        $taken = File::where('folder_id', $folderId)->pluck('filename')->flip();
+        $name = pathinfo($filename, PATHINFO_FILENAME);
+        $extension = pathinfo($filename, PATHINFO_EXTENSION);
+
+        $candidate = $filename;
+        for ($n = 1; isset($taken[$candidate]); $n++) {
+            $candidate = $name . ' (' . $n . ')' . ($extension !== '' ? '.' . $extension : '');
+        }
+
+        return $candidate;
+    }
 }

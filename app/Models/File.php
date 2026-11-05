@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Schema;
 use App\Models\Folder;
 
 class File extends Model
@@ -40,6 +41,7 @@ class File extends Model
         'text_terms' => 'array',
         'template_fields' => 'array',
         'duplicate_dismissed_at' => 'datetime',
+        'folder_hint_dismissed_at' => 'datetime',
         'version_no' => 'integer',
         'final_version_no' => 'integer',
         'version_at' => 'datetime',
@@ -122,6 +124,26 @@ class File extends Model
             && $this->duplicate_similarity !== null && $this->duplicate_similarity < 100
             && $this->created_at && $since
             && $this->created_at->gt($since->copy()->addMinute());
+    }
+
+    /**
+     * For pages that list files: every column except the full OCR text and
+     * word counts, which only search and the Reports text mining read -
+     * ~12 KB a file on average and growing with every scanned page. The
+     * first 3,000 characters come along as ocr_head: all DocumentKind reads
+     * for the "Looks like a Resolution" hint (FolderHint).
+     *
+     * The column list is read from the table, so a column added later is
+     * listed too. Models loaded this way are for showing, not for copying:
+     * replicate() would carry ocr_head along.
+     */
+    public function scopeForListing($query)
+    {
+        static $columns;
+        $columns ??= array_values(array_diff(Schema::getColumnListing($this->getTable()), ['ocr_text', 'text_terms']));
+
+        return $query->select(array_map(fn ($column) => $this->qualifyColumn($column), $columns))
+            ->selectRaw('SUBSTR(' . $this->qualifyColumn('ocr_text') . ', 1, 3000) as ocr_head');
     }
 
     /** Files flagged as a copy that no officer has answered "keep both" for. */

@@ -19,25 +19,59 @@
         --tint: #f2f7f3;
         --line: #e0e8e2;
         --line-2: #cdd8d0;
+        --bg: #ffffff;
+        --card: #ffffff;
+        --header-bg: rgba(255, 255, 255, .97);
+        /* Green text and green button fills are separate, as on the student page. */
+        --green-ink: var(--green);
+        --green-ink-2: var(--green-3);
+        --green-fill: var(--green);
+        --green-fill-hover: var(--green-2);
+        --focus: var(--green-3);
+        --on-gold: #10231a;
         --head: 'Poppins', 'Inter', system-ui, sans-serif;
         --radius: 16px;
         --radius-control: 4px;  /* same small corners as the student page */
         --radius-tag: 3px;
         --header-h: 72px;
+        color-scheme: light;
     }
+    /* Dark mode (the visitor's pick or the device setting, set by Student.home):
+       the same values as the student page. */
+    :root[data-theme="dark"] {
+        color-scheme: dark;
+        --bg: #0f0f0e;
+        --tint: #141413;
+        --card: #1b1b19;
+        --line: #2e2d2a;
+        --line-2: #3d3c38;
+        --ink: #ededec;
+        --text: #cfcec8;
+        --muted: #a8a7a1;
+        --faint: #9d9c96;
+        --green-soft: #16291d;
+        --green-ink: #86d49b;
+        --green-ink-2: #86d49b;
+        --green-fill: #1f7a3c;
+        --green-fill-hover: #1a6b34;
+        --focus: #5cbf78;
+        --header-bg: rgba(27, 27, 25, .97);
+    }
+    ::view-transition-old(root),
+    ::view-transition-new(root) { animation-duration: .2s; animation-timing-function: ease-out; }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { -webkit-text-size-adjust: 100%; }
     body {
         display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh;
-        background: #fff; color: var(--text);
+        background: var(--bg); color: var(--text);
         font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-        font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-x: clip;
+        font-size: 1rem; line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-x: clip;
     }
     img { max-width: 100%; display: block; }
     a { color: inherit; }
     a, button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
-    :focus-visible { outline: 3px solid var(--green-3); outline-offset: 2px; }
+    :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
     .site-footer :focus-visible { outline-color: var(--gold); }
     main { flex: 1; }
     main:focus { outline: none; }
@@ -57,27 +91,34 @@
 
     .site-header {
         position: sticky; top: 0; z-index: 100; height: var(--header-h);
-        background: rgba(255, 255, 255, .97); box-shadow: 0 1px 0 var(--line);
+        background: var(--header-bg); box-shadow: 0 1px 0 var(--line);
     }
-    .header-inner { height: 100%; display: flex; align-items: center; }
+    .header-inner { height: 100%; display: flex; align-items: center; gap: 16px; }
     .brand { display: inline-flex; align-items: center; gap: 12px; min-width: 0; text-decoration: none; }
     .brand-logo { width: 42px; height: 42px; flex-shrink: 0; border-radius: 50%; object-fit: cover; background: #fff; box-shadow: 0 0 0 2px var(--green-soft); }
     .brand-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
-    .brand-text strong { color: var(--green); font-family: var(--head); font-size: 1rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .brand-text small { color: var(--muted); font-size: .7rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+    .brand-text strong { color: var(--green-ink); font-family: var(--head); font-size: 1rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .brand-text small { color: var(--muted); font-size: .75rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+    /* Light/dark switch, at the right end of the header. */
+    .theme-btn {
+        flex-shrink: 0; display: grid; place-items: center; width: 44px; height: 44px; margin: 0 -8px 0 auto;
+        border: 0; border-radius: 50%; background: transparent; color: var(--green-ink); font-size: 1.15rem;
+        cursor: pointer; transition: background-color .15s;
+    }
+    .theme-btn:hover { background: var(--tint); }
 
     .article-wrap { max-width: 780px; padding-top: 28px; padding-bottom: 72px; }
     .back-link {
         display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-bottom: 18px;
-        color: var(--green-3); font-size: .92rem; font-weight: 600; text-decoration: none;
+        color: var(--green-ink-2); font-size: .92rem; font-weight: 600; text-decoration: none;
     }
-    .back-link:hover { color: var(--green); }
+    .back-link:hover { color: var(--green-ink); }
     .back-link .bi { transition: transform .15s; }
     .back-link:hover .bi { transform: translateX(-3px); }
 
     .eyebrow {
         display: inline-flex; align-items: center; gap: 10px;
-        color: var(--green-3); font-size: .78rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+        color: var(--green-ink-2); font-size: .78rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
     }
     .eyebrow::before { content: ''; width: 26px; height: 3px; border-radius: 3px; background: var(--gold); }
     .article-title {
@@ -87,7 +128,7 @@
     .article-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 12px; color: var(--faint); font-size: .9rem; }
     .chip {
         display: inline-flex; align-items: center; padding: 2px 10px; border-radius: var(--radius-tag);
-        background: var(--gold); color: var(--ink); font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+        background: var(--gold); color: var(--on-gold); font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
     }
 
     /* One photo full width; two side by side; three or more: the first wide, the rest in pairs. */
@@ -104,7 +145,7 @@
     .an-body :is(ul, ol) { padding-left: 1.3em; }
     .an-body blockquote { padding-left: 14px; border-left: 3px solid var(--green-soft); font-style: italic; }
     .an-body :is(h1, h2, h3) { color: var(--ink); font-size: 1.1em; font-weight: 700; line-height: 1.35; }
-    .an-body a { color: var(--green-3); text-underline-offset: 3px; }
+    .an-body a { color: var(--green-ink-2); text-underline-offset: 3px; }
     .an-body :is(img, video, iframe) { max-width: 100%; height: auto; }
     .an-body table { display: block; max-width: 100%; overflow-x: auto; }
 
@@ -114,10 +155,10 @@
         min-height: 48px; padding: 0 24px; border: 2px solid transparent; border-radius: var(--radius-control);
         font-size: .95rem; font-weight: 600; text-decoration: none; transition: background-color .15s, border-color .15s;
     }
-    .btn-primary { background: var(--green); color: #fff; }
-    .btn-primary:hover { background: var(--green-2); }
-    .btn-soft { background: #fff; border-color: var(--line-2); color: var(--green); }
-    .btn-soft:hover { border-color: var(--green-3); background: var(--tint); }
+    .btn-primary { background: var(--green-fill); color: #fff; }
+    .btn-primary:hover { background: var(--green-fill-hover); }
+    .btn-soft { background: var(--card); border-color: var(--line-2); color: var(--green-ink); }
+    .btn-soft:hover { border-color: var(--focus); background: var(--tint); }
     .attach-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     @media (max-width: 520px) {
         .article-actions .btn { flex: 1 1 100%; }

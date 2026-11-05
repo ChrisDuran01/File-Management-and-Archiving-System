@@ -490,8 +490,9 @@ class ArchiveController extends Controller
             return back()->with('error', 'Archive file not found');
 
         } catch (\Exception $e) {
+            // The details (paths, storage errors) go to the log, not the page.
             Log::error('Download failed: ' . $e->getMessage());
-            return back()->with('error', 'Download failed: ' . $e->getMessage());
+            return back()->with('error', 'The archive could not be downloaded. Try again, or ask the Adviser/President to check the logs.');
         }
     }
 
@@ -518,18 +519,17 @@ class ArchiveController extends Controller
     }
 
     /**
-     * List the files preserved inside an archive - lets any signed-in
-     * officer browse what was archived without downloading the whole ZIP or
-     * restoring the folder. Deliberately not gated by isAccessibleBy()/
-     * isManageableBy(): an officer's account is fully locked out once their
-     * term ends (AuthController::login()), which would otherwise make
-     * archives created by a former officer unopenable by anyone but
-     * SuperAdmin. Downloading/restoring/deleting the whole archive still go
-     * through those checks - this is read-only browsing only.
+     * List the files preserved inside an archive - lets an officer browse
+     * what was archived without downloading the whole ZIP or restoring the
+     * folder. Same rule as the download and the Archives list: an archive of
+     * a restricted folder is for its creator, the officers it was shared
+     * with and the Adviser/President (Archive::isAccessibleBy). Browsing,
+     * previewing and streaming one file all check it, or the archive's ID in
+     * the address would be enough to read a restricted folder.
      */
     public function show($id)
     {
-        $archive = Archive::findOrFail($id);
+        $archive = $this->accessibleArchive($id);
 
         $filenames = $archive->filenames();
         sort($filenames);
@@ -547,7 +547,7 @@ class ArchiveController extends Controller
      */
     public function previewFile($id, $filename)
     {
-        $archive = Archive::findOrFail($id);
+        $archive = $this->accessibleArchive($id);
 
         if (! in_array($filename, $archive->filenames(), true)) {
             abort(404, 'File not found in this archive.');
@@ -594,7 +594,7 @@ class ArchiveController extends Controller
             abort(403, 'Archived files are view only. Open this file from its archive.');
         }
 
-        $archive = Archive::findOrFail($id);
+        $archive = $this->accessibleArchive($id);
 
         $contents = $this->readArchiveEntry($archive, $filename);
 
@@ -618,9 +618,23 @@ class ArchiveController extends Controller
             default => 'application/octet-stream',
         };
 
+        // Shown inside the preview page only (img, video, PDF.js). The CSP
+        // keeps an archived SVG or anything else from running script even if
+        // a browser without Sec-Fetch-Dest opens it on its own.
         return response($contents)
             ->header('Content-Type', $mime)
-            ->header('Content-Disposition', 'inline; filename="' . addslashes($filename) . '"');
+            ->header('Content-Disposition', 'inline; filename="' . addslashes($filename) . '"')
+            ->header('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+    }
+
+    /** The archive, if the signed-in officer may see into it (Archive::isAccessibleBy). */
+    public static function accessibleArchive($id): Archive
+    {
+        $archive = Archive::findOrFail($id);
+
+        abort_unless($archive->isAccessibleBy(Auth::user()), 403, 'This archive is restricted and you don\'t have access to it.');
+
+        return $archive;
     }
 
     /**
@@ -702,7 +716,7 @@ class ArchiveController extends Controller
             
         } catch (\Exception $e) {
             Log::error('Delete failed: ' . $e->getMessage());
-            return back()->with('error', 'Delete failed: ' . $e->getMessage());
+            return back()->with('error', 'The archive could not be deleted. Try again, or ask the Adviser/President to check the logs.');
         }
     }
 }

@@ -147,10 +147,20 @@
         // and see the previous user's questions and answers.
         STORE  = 'hbConversation_{{ Auth::id() }}';
 
-    // history: [{role:'user'|'model', text}] - kept for follow-up context and
-    // restored across page loads within the same tab, for THIS user only.
+    // history: [{role:'user'|'model', text}] - only for showing this tab's
+    // conversation again after a page load. The server keeps its own copy
+    // for follow-up context and never takes it from here, so a made-up
+    // history can't be sent to the AI.
     var history = [];
     try { history = JSON.parse(sessionStorage.getItem(STORE) || '[]'); } catch (e) {}
+
+    // Which of this user's conversations on the server is this tab's.
+    var convo = null;
+    try { convo = sessionStorage.getItem(STORE + '_id'); } catch (e) {}
+    if (!convo) {
+        convo = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+        try { sessionStorage.setItem(STORE + '_id', convo); } catch (e) {}
+    }
 
     function save() {
         try { sessionStorage.setItem(STORE, JSON.stringify(history.slice(-12))); } catch (e) {}
@@ -228,21 +238,21 @@
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && panel.classList.contains('hb-open')) close(); });
 
     // Retry affordance shown under a failed reply - re-sends the exact same
-    // question/context with one click instead of making the officer retype
-    // it, since most failures here are a transient network blip.
-    function retryRow(q, prior) {
+    // question with one click instead of making the officer retype it,
+    // since most failures here are a transient network blip.
+    function retryRow(q) {
         var row = document.createElement('div');
         row.className = 'hb-feedback';
         row.innerHTML = '<button type="button">&#8635; Try again</button>';
         row.addEventListener('click', function () {
             row.remove();
-            askServer(q, prior);
+            askServer(q);
         }, { once: true });
         log.appendChild(row);
         log.scrollTop = log.scrollHeight;
     }
 
-    function askServer(q, prior) {
+    function askServer(q) {
         sendBtn.disabled = true;
         var typing = bubble('bot', 'Typing…');
         typing.classList.add('typing');
@@ -250,25 +260,30 @@
         return fetch(askUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
-            body: JSON.stringify({ message: q, history: prior }),
+            body: JSON.stringify({ message: q, conversation: convo }),
         })
-        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (r) {
+            // The route allows a few questions a minute per person.
+            if (r.status === 429) return { ok: false, j: { reply: "You're asking a bit fast. Wait a minute, then try again." } };
+            return r.json().then(function (j) { return { ok: r.ok, j: j }; });
+        })
         .then(function (res) {
             typing.remove();
             var reply = res.j.reply || "Sorry, something went wrong.";
             bubble('bot', reply);
             history.push({ role: 'model', text: reply });
             save();
-            if (res.ok && res.j.log_id) {
-                feedbackRow(res.j.log_id);
+            // Greetings come back without a log id: no feedback row for those.
+            if (res.ok) {
+                if (res.j.log_id) feedbackRow(res.j.log_id);
             } else {
-                retryRow(q, prior);
+                retryRow(q);
             }
         })
         .catch(function () {
             typing.remove();
             bubble('bot', "Sorry, I couldn't reach the help service.");
-            retryRow(q, prior);
+            retryRow(q);
         })
         .finally(function () {
             sendBtn.disabled = false;
@@ -281,16 +296,12 @@
         var q = input.value.trim();
         if (!q) return;
 
-        // Context = the turns BEFORE this question (the controller appends the
-        // question itself), so it isn't sent twice.
-        var prior = history.slice(-6);
-
         bubble('user', q);
         history.push({ role: 'user', text: q });
         save();
         input.value = '';
 
-        askServer(q, prior);
+        askServer(q);
     });
 })();
 

@@ -105,6 +105,23 @@ class Folder extends Model
         return $unique;
     }
 
+    /**
+     * Where $user may move a file from $from: this school year's other
+     * folders that $user can open, by name, with how many files each holds
+     * (FolderHint picks the fullest one of a kind). Past school years take
+     * no moved files; their records stay where they were filed.
+     */
+    public static function moveTargetsFor(User $user, ?Folder $from = null)
+    {
+        return self::where('is_archived', false)
+            ->when($from, fn ($q) => $q->whereKeyNot($from->id))
+            ->withCount('file')
+            ->orderBy('name')
+            ->get()
+            ->filter(fn (Folder $folder) => $folder->isAccessibleBy($user))
+            ->values();
+    }
+
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');

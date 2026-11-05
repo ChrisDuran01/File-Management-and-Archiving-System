@@ -35,6 +35,8 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
     ];
 
     /**
@@ -45,10 +47,35 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'email_verified_at'    => 'datetime',
-            'password'             => 'hashed',
-            'must_change_password' => 'boolean',
+            'email_verified_at'         => 'datetime',
+            'password'                  => 'hashed',
+            'must_change_password'      => 'boolean',
+            // Encrypted with APP_KEY (see the two-factor migration).
+            'two_factor_secret'         => 'encrypted',
+            'two_factor_recovery_codes' => 'encrypted:array',
+            'two_factor_confirmed_at'   => 'datetime',
         ];
+    }
+
+    /** Two-factor sign-in is set up (App\Services\TwoFactor). */
+    public function hasTwoFactor(): bool
+    {
+        return $this->two_factor_confirmed_at !== null;
+    }
+
+    public function trustedDevices()
+    {
+        return $this->hasMany(TrustedDevice::class);
+    }
+
+    /**
+     * Every "Trust this device" goes: the next sign-in on any of them asks
+     * for a code again. Done when the password changes, two-factor is reset,
+     * or the officer asks for it in Profile.
+     */
+    public function forgetTrustedDevices(): void
+    {
+        $this->trustedDevices()->delete();
     }
 
     public function position()

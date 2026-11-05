@@ -209,9 +209,7 @@
             <button type="button" class="btn btn-soft" data-back hidden><i class="bi bi-arrow-left" aria-hidden="true"></i> Go back</button>
         </div>
 
-        @if($showQuickLinks)
-            <p class="officer-note">Are you an officer? <a href="{{ route('login') }}">Sign in here</a></p>
-        @endif
+       
     </div>
 
     @if($showQuickLinks)

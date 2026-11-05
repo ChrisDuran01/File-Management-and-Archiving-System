@@ -43,6 +43,13 @@ Schedule::call(function () {
 // for retention.activity_log_days / retention.help_bot_log_days.
 Schedule::command('logs:prune')->dailyAt('04:30');
 
+// Leftovers nothing else deletes: expired cache rows, half-written backup
+// ZIPs, old temp files - see PruneLeftovers. And failed queue jobs after
+// 30 days (the error is in the log too). Hourly, not at night: both are
+// cheap, and a night-time run never happens while this computer is off.
+Schedule::command('housekeeping:prune')->hourly()->withoutOverlapping();
+Schedule::command('queue:prune-failed --hours=720')->hourly();
+
 // Automatic backups: every 15 minutes, check whether this day's / week's /
 // month's backup (per the Backup page) exists yet, and queue one if not -
 // see BackupScheduler. A fixed 2:00 AM run never happened while this
